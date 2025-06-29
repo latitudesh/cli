@@ -233,6 +233,10 @@ func registerModelServerDataAttributesFlags(depth int, cmdPrefix string, cmd *co
 		return err
 	}
 
+	if err := registerServerDataAttributesPrimaryIPV6(depth, cmdPrefix, cmd); err != nil {
+		return err
+	}
+
 	if err := registerServerDataAttributesProject(depth, cmdPrefix, cmd); err != nil {
 		return err
 	}
@@ -397,6 +401,27 @@ func registerServerDataAttributesPrimaryIPV4(depth int, cmdPrefix string, cmd *c
 	var primaryIpv4FlagDefault string
 
 	_ = cmd.PersistentFlags().String(primaryIpv4FlagName, primaryIpv4FlagDefault, primaryIpv4Description)
+
+	return nil
+}
+
+func registerServerDataAttributesPrimaryIPV6(depth int, cmdPrefix string, cmd *cobra.Command) error {
+	if depth > maxDepth {
+		return nil
+	}
+
+	primaryIpv6Description := ``
+
+	var primaryIpv6FlagName string
+	if cmdPrefix == "" {
+		primaryIpv6FlagName = "primary_ipv6"
+	} else {
+		primaryIpv6FlagName = fmt.Sprintf("%v.primary_ipv6", cmdPrefix)
+	}
+
+	var primaryIpv6FlagDefault string
+
+	_ = cmd.PersistentFlags().String(primaryIpv6FlagName, primaryIpv6FlagDefault, primaryIpv6Description)
 
 	return nil
 }
@@ -620,6 +645,12 @@ func retrieveModelServerDataAttributesFlags(depth int, m *models.ServerDataAttri
 	}
 	retAdded = retAdded || primaryIpv4Added
 
+	err, primaryIpv6Added := retrieveServerDataAttributesPrimaryIPV6Flags(depth, m, cmdPrefix, cmd)
+	if err != nil {
+		return err, false
+	}
+	retAdded = retAdded || primaryIpv6Added
+
 	err, projectAdded := retrieveServerDataAttributesProjectFlags(depth, m, cmdPrefix, cmd)
 	if err != nil {
 		return err, false
@@ -830,6 +861,34 @@ func retrieveServerDataAttributesPrimaryIPV4Flags(depth int, m *models.ServerDat
 			return err, false
 		}
 		m.PrimaryIPV4 = &primaryIpv4FlagValue
+
+		retAdded = true
+	}
+
+	return nil, retAdded
+}
+
+func retrieveServerDataAttributesPrimaryIPV6Flags(depth int, m *models.ServerDataAttributes, cmdPrefix string, cmd *cobra.Command) (error, bool) {
+	if depth > maxDepth {
+		return nil, false
+	}
+	retAdded := false
+
+	primaryIpv6FlagName := fmt.Sprintf("%v.primary_ipv6", cmdPrefix)
+	if cmd.Flags().Changed(primaryIpv6FlagName) {
+
+		var primaryIpv6FlagName string
+		if cmdPrefix == "" {
+			primaryIpv6FlagName = "primary_ipv6"
+		} else {
+			primaryIpv6FlagName = fmt.Sprintf("%v.primary_ipv6", cmdPrefix)
+		}
+
+		primaryIpv6FlagValue, err := cmd.Flags().GetString(primaryIpv6FlagName)
+		if err != nil {
+			return err, false
+		}
+		m.PrimaryIPV6 = &primaryIpv6FlagValue
 
 		retAdded = true
 	}
