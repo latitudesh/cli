@@ -6,8 +6,6 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 
-version: 2
-
 before:
   hooks:
     - go mod tidy
@@ -47,7 +45,7 @@ changelog:
       - "^docs:"
       - "^test:"
 
-homebrew_casks:
+brews:
   -
     name: lsh
     homepage: "https://www.latitude.sh/"
@@ -55,5 +53,6 @@ homebrew_casks:
     repository:
       owner: latitudesh
       name: homebrew-tools
+      branch: main
       pull_request:
         enabled: true

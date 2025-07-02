@@ -27,10 +27,10 @@ jobs:
           go-version: '1.21.6'
       -
         name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: '~> v2'
+          version: 'v1.26.2'
           args: release --clean --config .goreleaser.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_TOKEN }}
