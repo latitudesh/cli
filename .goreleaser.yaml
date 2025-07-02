@@ -48,7 +48,7 @@ changelog:
       - "^test:"
 
 homebrew_casks:
- -
+  -
     name: lsh
     homepage: "https://www.latitude.sh/"
 
