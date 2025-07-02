@@ -53,6 +53,5 @@ brews:
     repository:
       owner: latitudesh
       name: homebrew-tools
-      branch: main
       pull_request:
         enabled: true
