@@ -134,7 +134,11 @@ func (m *ServerData) TableRow() table.Row {
 		},
 		"primary_ipv4": table.Cell{
 			Label: "Primary IPV4",
-			Value: table.String(*attr.PrimaryIPV4),
+			Value: table.String(primaryIPv4(attr)),
+		},
+		"primary_ipv6": table.Cell{
+			Label: "Primary IPV6",
+			Value: table.String(primaryIPv6(attr)),
 		},
 		"location": table.Cell{
 			Label: "Location",
@@ -212,6 +216,20 @@ func tags(tags []*TagsIncude) []string {
 	return name
 }
 
+func primaryIPv6(attributes *ServerDataAttributes) string {
+	if attributes.PrimaryIPV6 != nil {
+		return *attributes.PrimaryIPV6
+	}
+	return ""
+}
+
+func primaryIPv4(attributes *ServerDataAttributes) string {
+	if attributes.PrimaryIPV4 != nil {
+		return *attributes.PrimaryIPV4
+	}
+	return ""
+}
+
 // ServerDataAttributes server data attributes
 //
 // swagger:model ServerDataAttributes
@@ -236,6 +254,9 @@ type ServerDataAttributes struct {
 
 	// primary ipv4
 	PrimaryIPV4 *string `json:"primary_ipv4,omitempty"`
+
+	// primary ipv6
+	PrimaryIPV6 *string `json:"primary_ipv6,omitempty"`
 
 	// project
 	Project *ProjectInclude `json:"project,omitempty"`
