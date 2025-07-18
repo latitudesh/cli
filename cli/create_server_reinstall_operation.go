@@ -66,7 +66,7 @@ func (o *CreateServerReinstallOperation) registerFlags(cmd *cobra.Command) {
 			Options:     server.SupportedOperatingSystems,
 		},
 		&cmdflag.String{
-			Name:        "Hostname",
+			Name:        "hostname",
 			Label:       "",
 			Description: "The server hostname",
 			Required:    false,
