@@ -12,6 +12,7 @@ import (
 
 	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
@@ -450,8 +451,8 @@ func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
 		printStatus(fmt.Sprintf("✓ Using NQN: %s", nqn))
 	}
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -478,7 +479,7 @@ func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stdout, "\n📋 Fetching block storage details...\n")
 		printStatus(fmt.Sprintf("Block ID: %s", blockID))
 
-		if debug {
+		if lsh.Debug {
 			fmt.Fprintf(os.Stdout, "[DEBUG] Fetching block storage details to get connector_id\n")
 		}
 
@@ -546,7 +547,7 @@ func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
 	printStatus(fmt.Sprintf("Block ID: %s", blockID))
 	printStatus(fmt.Sprintf("Client NQN (for authorization): %s", nqn))
 
-	if debug {
+	if lsh.Debug {
 		fmt.Fprintf(os.Stdout, "[DEBUG] API Request: POST /storage/blocks/%s/mount\n", blockID)
 		fmt.Fprintf(os.Stdout, "[DEBUG] Request Body: {\"data\":{\"type\":\"blocks\",\"attributes\":{\"nqn\":\"%s\"}}}\n", nqn)
 	}
@@ -568,7 +569,7 @@ func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if debug {
+	if lsh.Debug {
 		fmt.Fprintf(os.Stdout, "[DEBUG] API Response Status: %d\n", response.HTTPMeta.Response.StatusCode)
 	}
 

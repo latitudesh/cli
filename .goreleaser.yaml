@@ -10,6 +10,8 @@ project_name: lsh
 
 before:
   hooks:
+    # Remove conflicting go.mod in cmd/lsh if it exists
+    - rm -f cmd/lsh/go.mod
     - go mod tidy
     - go mod download
 

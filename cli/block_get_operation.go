@@ -6,6 +6,7 @@ import (
 	"os"
 
 	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
@@ -67,8 +68,8 @@ func (o *BlockGetOperation) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error getting block ID: %w", err)
 	}
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -94,7 +95,7 @@ func (o *BlockGetOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		if response != nil && response.HTTPMeta.Response != nil {
 			fmt.Fprintf(os.Stdout, "Block storage details retrieved (Status: %s)\n", response.HTTPMeta.Response.Status)
 			fmt.Fprintf(os.Stdout, "\nNote: This command will show connector_id, gateway IP, and port once the API returns them.\n")
