@@ -110,37 +110,7 @@ Mount block storage to a server (auto-generates/detects NQN and executes mount a
 
 ```bash
 
-# Run directly on the server with sudo - NQN will be auto-detected or generated
-# and mount will be executed automatically
-sudo lsh block mount --id <BLOCK_ID> --subsystem-nqn <CONNECTOR_ID>
-
-# Example with actual values
-# Simple! Just provide the block ID
 sudo lsh block mount --id blk_abc123
-
-# Or override subsystem NQN if needed
-sudo lsh block mount \
-  --id blk_abc123 \
-  --subsystem-nqn nqn.2001-07.com.ceph:YOUR-CONNECTOR-ID
-
-# This will automatically:
-# 1. Fetch block storage details and connector_id from API
-# 2. Install nvme-cli if not present (apt/yum/dnf)
-# 3. Auto-detect NQN from /etc/nvme/hostnqn (or generate if missing)
-# 4. Send client NQN to API to authorize access to the storage
-# 5. Load required NVMe modules (nvme_tcp)
-# 6. Connect to the NVMe-oF target using connector_id
-# 7. Verify the connection and show available devices
-# 8. Provide instructions for formatting and mounting
-
-# Required parameters:
-# --id: Block storage ID
-
-# How it works:
-# - Block ID: Used to auto-fetch connector_id (subsystem NQN)
-# - Client NQN: Auto-detected and sent to API to authorize this client
-# - Subsystem NQN: Auto-fetched from block storage's connector_id
-# - Gateway: Defaults to 67.213.118.147:4420
 
 ```
 
