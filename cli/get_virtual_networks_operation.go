@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/latitudesh/lsh/client/virtual_networks"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/utils"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,7 @@ import (
 func makeOperationVirtualNetworksGetVirtualNetworksCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: `Lists virtual networks assigned to a project.`,
+		Short: "List virtual networks",
 		RunE:  runOperationVirtualNetworksGetVirtualNetworks,
 	}
 
@@ -41,9 +42,12 @@ func runOperationVirtualNetworksGetVirtualNetworks(cmd *cobra.Command, args []st
 	if err, _ := retrieveOperationVirtualNetworksGetVirtualNetworksFilterProjectFlag(params, "", cmd); err != nil {
 		return err
 	}
-	if dryRun {
+	if err, _ := retrieveOperationVirtualNetworksGetVirtualNetworksFilterTagsFlag(params, "", cmd); err != nil {
+		return err
+	}
+	if lsh.DryRun {
 
-		logDebugf("dry-run flag specified. Skip sending request.")
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -53,7 +57,7 @@ func runOperationVirtualNetworksGetVirtualNetworks(cmd *cobra.Command, args []st
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 
@@ -66,6 +70,9 @@ func registerOperationVirtualNetworksGetVirtualNetworksParamFlags(cmd *cobra.Com
 		return err
 	}
 	if err := registerOperationVirtualNetworksGetVirtualNetworksFilterProjectParamFlags("", cmd); err != nil {
+		return err
+	}
+	if err := registerOperationVirtualNetworksGetVirtualNetworksFilterTagsFlag("", cmd); err != nil {
 		return err
 	}
 	return nil
@@ -102,6 +109,23 @@ func registerOperationVirtualNetworksGetVirtualNetworksFilterProjectParamFlags(c
 	var filterProjectFlagDefault string
 
 	_ = cmd.PersistentFlags().String(filterProjectFlagName, filterProjectFlagDefault, filterProjectDescription)
+
+	return nil
+}
+func registerOperationVirtualNetworksGetVirtualNetworksFilterTagsFlag(cmdPrefix string, cmd *cobra.Command) error {
+
+	filterTagsDescription := `The Tags to filter by`
+
+	var filterTagsFlagName string
+	if cmdPrefix == "" {
+		filterTagsFlagName = "tags"
+	} else {
+		filterTagsFlagName = fmt.Sprintf("%v.tags", cmdPrefix)
+	}
+
+	var filterTagsFlagDefault = ""
+
+	_ = cmd.PersistentFlags().String(filterTagsFlagName, filterTagsFlagDefault, filterTagsDescription)
 
 	return nil
 }
@@ -142,6 +166,26 @@ func retrieveOperationVirtualNetworksGetVirtualNetworksFilterProjectFlag(m *virt
 			return err, false
 		}
 		m.FilterProject = &filterProjectFlagValue
+
+	}
+	return nil, retAdded
+}
+func retrieveOperationVirtualNetworksGetVirtualNetworksFilterTagsFlag(m *virtual_networks.GetVirtualNetworksParams, cmdPrefix string, cmd *cobra.Command) (error, bool) {
+	retAdded := false
+	if cmd.Flags().Changed("tags") {
+
+		var filterTagsFlagName string
+		if cmdPrefix == "" {
+			filterTagsFlagName = "tags"
+		} else {
+			filterTagsFlagName = fmt.Sprintf("%v.tags", cmdPrefix)
+		}
+
+		filterTagsFlagValue, err := cmd.Flags().GetString(filterTagsFlagName)
+		if err != nil {
+			return err, false
+		}
+		m.FilterTags = &filterTagsFlagValue
 
 	}
 	return nil, retAdded

@@ -11,6 +11,12 @@ func AssignValue(obj interface{}, jsonName string, value interface{}) {
 	if fieldValue.IsValid() && fieldValue.CanSet() {
 		valueToSet := reflect.ValueOf(value)
 
+		// Prepare for user passing project Name instead of Slug.
+		if jsonName == "project" {
+			parametrizedProject := strings.ToLower(strings.Replace(valueToSet.String(), " ", "-", -1))
+			valueToSet = reflect.ValueOf(parametrizedProject)
+		}
+
 		fieldValue.Set(valueToSet)
 	}
 }

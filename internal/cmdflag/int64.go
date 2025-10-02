@@ -51,3 +51,7 @@ func (f *Int64) description() string {
 
 	return fmt.Sprintf("[Required] %v", f.Description)
 }
+
+func (f *Int64) UpdateOptions(options interface{}) {
+	//Function needed to implement interface
+}

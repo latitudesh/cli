@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/servers"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
 
@@ -26,7 +27,8 @@ type ScheduleServerDeletionOperation struct {
 func (o *ScheduleServerDeletionOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "schedule-deletion",
-		Short:  "Schedules the server to be removed at the end of the billing cycle.",
+		Short:  "Schedule deletion",
+		Long:   "Schedules the server to be removed at the end of the billing cycle.",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -67,8 +69,8 @@ func (o *ScheduleServerDeletionOperation) run(cmd *cobra.Command, args []string)
 	params := servers.NewServerScheduleDeletionParams()
 	o.PathParamFlags.AssignValues(params)
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -78,7 +80,7 @@ func (o *ScheduleServerDeletionOperation) run(cmd *cobra.Command, args []string)
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil

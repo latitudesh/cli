@@ -495,6 +495,8 @@ type PutProjectSSHKeyParamsBodyDataAttributes struct {
 
 	// Name of the SSH Key
 	Name string `json:"name,omitempty"`
+
+	Tags []string `json:"tags,omitempty"`
 }
 
 // Validate validates this put project SSH key params body data attributes

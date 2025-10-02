@@ -13,11 +13,15 @@ lsh is the [Latitude.sh](http://latitude.sh/) command-line interface that will h
 
 #### MacOS / Linux / WSL
 
-  
-
 Installing the latest version
 
-  
+#### Homebrew:
+
+```
+brew install latitudesh/tools/lsh
+```
+
+#### Installation Script:
 
 ```bash
 
@@ -25,7 +29,6 @@ curl -sSL  https://raw.githubusercontent.com/latitudesh/lsh/main/install.sh | ba
 
 ```
 
-  
 
 #### Windows is not supported yet.
 
@@ -64,7 +67,7 @@ List your servers
 
   
 
-The list of the available commands is available [here](https://docs.latitude.sh/docs/commands).
+The list of the available commands is available [here](https://www.latitude.sh/docs/cli/commands).
 
   
   
@@ -97,8 +100,17 @@ lsh plans list --gpu true
 
 ```
 
-You can see more examples [here](https://docs.latitude.sh/docs/examples-1). Reach out if you want to see other use cases on `lsh`.
+You can see more examples [here](https://docs.latitude.sh/docs/cli/examples). Reach out if you want to see other use cases on `lsh`.
   
+
+## Troubleshooting
+If you encounter any problems when installing the CLI with the installation script, you can use the command below to uninstall the CLI.
+
+```bash
+
+curl -sSL  https://raw.githubusercontent.com/latitudesh/lsh/main/uninstall.sh | bash
+
+```
 
 ## Docs
 
@@ -106,9 +118,9 @@ You can see more examples [here](https://docs.latitude.sh/docs/examples-1). Reac
 
 For more information, see the documentation.
 
-- [lsh Docs](https://docs.latitude.sh/docs/cli)
+- [lsh Docs](https://www.latitude.sh/docs/cli)
 
-- [Product Docs](https://docs.latitude.sh/docs)
+- [Product Docs](https://www.latitude.sh/docs)
 
 - [API Docs](https://docs.latitude.sh/reference)
 

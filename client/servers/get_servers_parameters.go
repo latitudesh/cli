@@ -157,6 +157,7 @@ type GetServersParams struct {
 	*/
 	FilterStatus *string
 
+	FilterTags *string
 
 	timeout    time.Duration
 	Context    context.Context
@@ -401,6 +402,15 @@ func (o *GetServersParams) WithFilterStatus(filterStatus *string) *GetServersPar
 // SetFilterStatus adds the filterStatus to the get servers params
 func (o *GetServersParams) SetFilterStatus(filterStatus *string) {
 	o.FilterStatus = filterStatus
+}
+
+func (o *GetServersParams) WithFilterTags(filterTags *string) *GetServersParams {
+	o.SetFilterTags(filterTags)
+	return o
+}
+
+func (o *GetServersParams) SetFilterTags(filterTags *string) {
+	o.FilterTags = filterTags
 }
 
 // WriteToRequest writes these params to a swagger request
@@ -699,6 +709,22 @@ func (o *GetServersParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Re
 		if qFilterStatus != "" {
 
 			if err := r.SetQueryParam("filter[status]", qFilterStatus); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.FilterTags != nil {
+
+		var qrFilterTags string
+
+		if o.FilterTags != nil {
+			qrFilterTags = *o.FilterTags
+		}
+		qFilterTags := qrFilterTags
+		if qFilterTags != "" {
+
+			if err := r.SetQueryParam("filter[tags]", qFilterTags); err != nil {
 				return err
 			}
 		}

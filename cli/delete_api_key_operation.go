@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/api_keys"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
 
@@ -26,7 +27,8 @@ type DeleteAPIKeyOperation struct {
 func (o *DeleteAPIKeyOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "destroy",
-		Short:  `Delete an existing API Key. Once deleted, the API Key can no longer be used to access the API.`,
+		Short:  "Delete an API Key",
+		Long:   `Delete an existing API Key. Once deleted, the API Key can no longer be used to access the API.`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -64,8 +66,8 @@ func (o *DeleteAPIKeyOperation) run(cmd *cobra.Command, args []string) error {
 	params := api_keys.NewDeleteAPIKeyParams()
 	o.PathParamFlags.AssignValues(params)
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -75,7 +77,7 @@ func (o *DeleteAPIKeyOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		response.Render()
 	}
 	return nil

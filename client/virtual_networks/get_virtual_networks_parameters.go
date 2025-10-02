@@ -60,6 +60,8 @@ GetVirtualNetworksParams contains all the parameters to send to the API endpoint
 	Typically these are written to a http.Request.
 */
 type GetVirtualNetworksParams struct {
+	FilterTags *string
+
 	/* FilterLocation.
 
 	   The location slug to filter by
@@ -152,6 +154,15 @@ func (o *GetVirtualNetworksParams) SetFilterProject(filterProject *string) {
 	o.FilterProject = filterProject
 }
 
+func (o *GetVirtualNetworksParams) WithFilterTags(filterTags *string) *GetVirtualNetworksParams {
+	o.SetFilterTags(filterTags)
+	return o
+}
+
+func (o *GetVirtualNetworksParams) SetFilterTags(filterTags *string) {
+	o.FilterTags = filterTags
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *GetVirtualNetworksParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -193,6 +204,22 @@ func (o *GetVirtualNetworksParams) WriteToRequest(r runtime.ClientRequest, reg s
 		if qFilterProject != "" {
 
 			if err := r.SetQueryParam("filter[project]", qFilterProject); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.FilterTags != nil {
+
+		var qrFilterTags string
+
+		if o.FilterTags != nil {
+			qrFilterTags = *o.FilterTags
+		}
+		qFilterTags := qrFilterTags
+		if qFilterTags != "" {
+
+			if err := r.SetQueryParam("filter[tags]", qFilterTags); err != nil {
 				return err
 			}
 		}

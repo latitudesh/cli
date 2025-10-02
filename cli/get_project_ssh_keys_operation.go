@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/latitudesh/lsh/client/ssh_keys"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/utils"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,8 @@ import (
 func makeOperationSSHKeysGetProjectSSHKeysCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: `List all SSH Keys in the project. These keys can be used to access servers after deploy and reinstall actions.`,
+		Short: "List SSH keys",
+		Long:  `List all SSH Keys in the project. These keys can be used to access servers after deploy and reinstall actions.`,
 		RunE:  runOperationSSHKeysGetProjectSSHKeys,
 	}
 
@@ -38,9 +40,12 @@ func runOperationSSHKeysGetProjectSSHKeys(cmd *cobra.Command, args []string) err
 	if err, _ := retrieveOperationSSHKeysGetProjectSSHKeysProjectIDOrSlugFlag(params, "", cmd); err != nil {
 		return err
 	}
-	if dryRun {
+	if err, _ := retrieveOperationSSHKeysFilterTagsFlag(params, "", cmd); err != nil {
+		return err
+	}
+	if lsh.DryRun {
 
-		logDebugf("dry-run flag specified. Skip sending request.")
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -50,7 +55,7 @@ func runOperationSSHKeysGetProjectSSHKeys(cmd *cobra.Command, args []string) err
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil
@@ -59,6 +64,9 @@ func runOperationSSHKeysGetProjectSSHKeys(cmd *cobra.Command, args []string) err
 // registerOperationSSHKeysGetProjectSSHKeysParamFlags registers all flags needed to fill params
 func registerOperationSSHKeysGetProjectSSHKeysParamFlags(cmd *cobra.Command) error {
 	if err := registerOperationSSHKeysGetProjectSSHKeysProjectIDOrSlugParamFlags("", cmd); err != nil {
+		return err
+	}
+	if err := registerOperationSSHKeysFilterTagsFlag("", cmd); err != nil {
 		return err
 	}
 	return nil
@@ -83,6 +91,24 @@ func registerOperationSSHKeysGetProjectSSHKeysProjectIDOrSlugParamFlags(cmdPrefi
 	return nil
 }
 
+func registerOperationSSHKeysFilterTagsFlag(cmdPrefix string, cmd *cobra.Command) error {
+
+	filterTagsDescription := `The Tags to filter by`
+
+	var filterTagsFlagName string
+	if cmdPrefix == "" {
+		filterTagsFlagName = "tags"
+	} else {
+		filterTagsFlagName = fmt.Sprintf("%v.tags", cmdPrefix)
+	}
+
+	var filterTagsFlagDefault = ""
+
+	_ = cmd.PersistentFlags().String(filterTagsFlagName, filterTagsFlagDefault, filterTagsDescription)
+
+	return nil
+}
+
 func retrieveOperationSSHKeysGetProjectSSHKeysProjectIDOrSlugFlag(m *ssh_keys.GetProjectSSHKeysParams, cmdPrefix string, cmd *cobra.Command) (error, bool) {
 	retAdded := false
 	if cmd.Flags().Changed("project") {
@@ -99,6 +125,27 @@ func retrieveOperationSSHKeysGetProjectSSHKeysProjectIDOrSlugFlag(m *ssh_keys.Ge
 			return err, false
 		}
 		m.ProjectIDOrSlug = projectIdOrSlugFlagValue
+
+	}
+	return nil, retAdded
+}
+
+func retrieveOperationSSHKeysFilterTagsFlag(m *ssh_keys.GetProjectSSHKeysParams, cmdPrefix string, cmd *cobra.Command) (error, bool) {
+	retAdded := false
+	if cmd.Flags().Changed("tags") {
+
+		var filterTagsFlagName string
+		if cmdPrefix == "" {
+			filterTagsFlagName = "tags"
+		} else {
+			filterTagsFlagName = fmt.Sprintf("%v.tags", cmdPrefix)
+		}
+
+		filterTagsFlagValue, err := cmd.Flags().GetString(filterTagsFlagName)
+		if err != nil {
+			return err, false
+		}
+		m.FilterTags = &filterTagsFlagValue
 
 	}
 	return nil, retAdded

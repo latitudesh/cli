@@ -188,18 +188,6 @@ func (o *UpdateProjectForbidden) GetPayload() *models.ErrorObject {
 	return o.Payload
 }
 
-func (o *UpdateProjectForbidden) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
-
-	o.Payload = new(models.ErrorObject)
-
-	// response payload
-	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
-		return err
-	}
-
-	return nil
-}
-
 /*
 UpdateProjectBody update project body
 swagger:model UpdateProjectBody
@@ -561,6 +549,8 @@ type UpdateProjectParamsBodyDataAttributes struct {
 
 	// name
 	Name string `json:"name,omitempty"`
+
+	Tags []string `json:"tags,omitempty"`
 }
 
 // Validate validates this update project params body data attributes

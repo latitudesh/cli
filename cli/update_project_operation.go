@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/latitudesh/lsh/client/projects"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/api/resource"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -34,7 +35,7 @@ type UpdateProjectOperation struct {
 func (o *UpdateProjectOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "update",
-		Short:  "Updates a project.",
+		Short:  "Update a project",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -64,6 +65,12 @@ func (o *UpdateProjectOperation) registerFlags(cmd *cobra.Command) {
 			Name:        "name",
 			Label:       "Name",
 			Description: "The project name. Must be unique.",
+			Required:    false,
+		},
+		&cmdflag.StringSlice{
+			Name:        "tags",
+			Label:       "Tags",
+			Description: "Tags",
 			Required:    false,
 		},
 		&cmdflag.String{
@@ -115,8 +122,8 @@ func (o *UpdateProjectOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -126,7 +133,7 @@ func (o *UpdateProjectOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil

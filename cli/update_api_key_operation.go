@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/api_keys"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
 
@@ -27,7 +28,8 @@ type UpdateAPIKeyOperation struct {
 func (o *UpdateAPIKeyOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "update",
-		Short:  `Regenerate an existing API Key that is tied to the current user. This overrides the previous key.`,
+		Short:  "Update an API Key",
+		Long:   `Regenerate an existing API Key that is tied to the current user. This overrides the previous key.`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -79,8 +81,8 @@ func (o *UpdateAPIKeyOperation) run(cmd *cobra.Command, args []string) error {
 	o.BodyAttributesFlags.AssignValues(params.Body.Data.Attributes)
 	params.Body.Data.ID = params.ID
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -90,7 +92,7 @@ func (o *UpdateAPIKeyOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil

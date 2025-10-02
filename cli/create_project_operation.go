@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/projects"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/api/resource"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -27,7 +28,7 @@ type CreateProjectOperation struct {
 func (o *CreateProjectOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "create",
-		Short:  "Creates a project.",
+		Short:  "Create a project",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -86,8 +87,8 @@ func (o *CreateProjectOperation) run(cmd *cobra.Command, args []string) error {
 	params := projects.NewCreateProjectParams()
 	o.BodyAttributesFlags.AssignValues(params.Body.Data.Attributes)
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -97,7 +98,7 @@ func (o *CreateProjectOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil

@@ -369,9 +369,10 @@ UpdateVirtualNetworkParamsBodyDataAttributes update virtual network params body 
 swagger:model UpdateVirtualNetworkParamsBodyDataAttributes
 */
 type UpdateVirtualNetworkParamsBodyDataAttributes struct {
-
 	// description
 	Description string `json:"description,omitempty"`
+
+	Tags []string `json:"tags,omitempty"`
 }
 
 // Validate validates this update virtual network params body data attributes

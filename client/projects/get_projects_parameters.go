@@ -97,6 +97,8 @@ type GetProjectsParams struct {
 	*/
 	FilterSlug *string
 
+	FilterTags *string
+
 	timeout    time.Duration
 	Context    context.Context
 	HTTPClient *http.Client
@@ -221,6 +223,15 @@ func (o *GetProjectsParams) SetFilterSlug(filterSlug *string) {
 	o.FilterSlug = filterSlug
 }
 
+func (o *GetProjectsParams) WithFilterTags(filterTags *string) *GetProjectsParams {
+	o.SetFilterTags(filterTags)
+	return o
+}
+
+func (o *GetProjectsParams) SetFilterTags(filterTags *string) {
+	o.FilterTags = filterTags
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *GetProjectsParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -330,6 +341,22 @@ func (o *GetProjectsParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.R
 		if qFilterSlug != "" {
 
 			if err := r.SetQueryParam("filter[slug]", qFilterSlug); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.FilterTags != nil {
+
+		var qrFilterTags string
+
+		if o.FilterTags != nil {
+			qrFilterTags = *o.FilterTags
+		}
+		qFilterTags := qrFilterTags
+		if qFilterTags != "" {
+
+			if err := r.SetQueryParam("filter[tags]", qFilterTags); err != nil {
 				return err
 			}
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/latitudesh/lsh/client/server_reinstall"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/api/resource"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -31,7 +32,8 @@ type CreateServerReinstallOperation struct {
 func (o *CreateServerReinstallOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "reinstall",
-		Short:  "Submit a reinstall request to a server.",
+		Short:  "Reintall a server",
+		Long:   "Submit a reinstall request to a server.",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -64,7 +66,7 @@ func (o *CreateServerReinstallOperation) registerFlags(cmd *cobra.Command) {
 			Options:     server.SupportedOperatingSystems,
 		},
 		&cmdflag.String{
-			Name:        "Hostname",
+			Name:        "hostname",
 			Label:       "",
 			Description: "The server hostname",
 			Required:    false,
@@ -121,8 +123,8 @@ func (o *CreateServerReinstallOperation) run(cmd *cobra.Command, args []string) 
 		return nil
 	}
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -132,7 +134,7 @@ func (o *CreateServerReinstallOperation) run(cmd *cobra.Command, args []string) 
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		response.Render()
 	}
 	return nil

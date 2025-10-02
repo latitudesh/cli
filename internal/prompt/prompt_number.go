@@ -65,7 +65,7 @@ func valueAsNumber(value string) (int64, error) {
 	numberValue, err := strconv.ParseInt(value, 10, 64)
 
 	if err != nil {
-		return 0, errors.New("Invalid number")
+		return 0, errors.New("invalid number")
 	}
 
 	return numberValue, nil

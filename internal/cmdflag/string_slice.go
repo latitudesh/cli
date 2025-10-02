@@ -51,3 +51,7 @@ func (f *StringSlice) description() string {
 
 	return fmt.Sprintf("[Required] %v", f.Description)
 }
+
+func (f *StringSlice) UpdateOptions(options interface{}) {
+	//Function needed to implement interface
+}

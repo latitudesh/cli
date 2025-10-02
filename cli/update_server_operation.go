@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-openapi/swag"
 	"github.com/latitudesh/lsh/client/servers"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/api/resource"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -31,7 +32,8 @@ type UpdateServerOperation struct {
 func (o *UpdateServerOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "update",
-		Short:  "Update server information.",
+		Short:  "Update a server",
+		Long:   "Update server information.",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -70,6 +72,12 @@ func (o *UpdateServerOperation) registerFlags(cmd *cobra.Command) {
 			Options:     server.SupportedBillingTypes,
 			Required:    false,
 		},
+		&cmdflag.StringSlice{
+			Name:        "tags",
+			Label:       "Tags",
+			Description: "Tags",
+			Required:    false,
+		},
 	}
 
 	o.PathParamFlags.Register(pathParamsSchema)
@@ -100,8 +108,8 @@ func (o *UpdateServerOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -111,7 +119,7 @@ func (o *UpdateServerOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil

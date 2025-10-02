@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/servers"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/api/resource"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -27,7 +28,7 @@ type CreateServerOperation struct {
 func (o *CreateServerOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "create",
-		Short:  "Deploy a new server.",
+		Short:  "Deploy a bare metal server",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -62,12 +63,6 @@ func (o *CreateServerOperation) registerFlags(cmd *cobra.Command) {
 			Description: `Enum: ["c2-large-x86","c2-medium-x86","c2-small-x86","c3-large-x86","c3-medium-x86","c3-small-x86","c3-xlarge-x86","g3-large-x86","g3-medium-x86","g3-small-x86","g3-xlarge-x86","m3-large-x86","s2-small-x86","s3-large-x86"]. The plan to choose server from`,
 			Required:    true,
 			Options:     server.SupportedPlans,
-		},
-		&cmdflag.String{
-			Name:        "project",
-			Label:       "Project",
-			Description: "The project (ID or Slug) to deploy the server",
-			Required:    true,
 		},
 		&cmdflag.String{
 			Name:        "site",
@@ -108,12 +103,21 @@ func (o *CreateServerOperation) registerFlags(cmd *cobra.Command) {
 			Description: "User data to set on the server",
 			Required:    false,
 		},
+		&cmdflag.String{
+			Name:        "project",
+			Label:       "Project",
+			Description: "The project (ID or Slug) to deploy the server",
+			Required:    true,
+		},
 	}
 
 	o.BodyAttributesFlags.Register(schema)
 }
 
 func (o *CreateServerOperation) preRun(cmd *cobra.Command, args []string) {
+	projects := fetchUserProjects()
+	o.BodyAttributesFlags.AddFlagOption("project", projects)
+
 	o.BodyAttributesFlags.PreRun(cmd, args)
 }
 
@@ -126,8 +130,8 @@ func (o *CreateServerOperation) run(cmd *cobra.Command, args []string) error {
 	params := servers.NewCreateServerParams()
 	o.BodyAttributesFlags.AssignValues(params.Body.Data.Attributes)
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -137,9 +141,26 @@ func (o *CreateServerOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 
 	return nil
+}
+
+func fetchUserProjects() []string {
+	userProjects := []string{}
+	c := lsh.NewClient()
+
+	projects, _, err := c.Projects.List(nil)
+	if err != nil {
+		utils.PrintError(err)
+		return nil
+	}
+
+	for _, proj := range projects {
+		userProjects = append(userProjects, proj.Name)
+	}
+
+	return userProjects
 }

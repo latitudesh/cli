@@ -60,7 +60,6 @@ GetAPIKeysParams contains all the parameters to send to the API endpoint
 	Typically these are written to a http.Request.
 */
 type GetAPIKeysParams struct {
-
 	timeout    time.Duration
 	Context    context.Context
 	HTTPClient *http.Client

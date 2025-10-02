@@ -12,7 +12,7 @@ permissions:
 
 jobs:
 
- goreleaser:
+  goreleaser:
     runs-on: ubuntu-latest
     steps:
       -
@@ -30,7 +30,34 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: latest
-          args: release --clean
+          version: 'v1.26.2'
+          args: release --clean --config .goreleaser.yaml
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GORELEASER_TOKEN }}
+
+  generate-docs:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      -
+        name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.6'
+      -
+        name: Generate documentation
+        run: go run internal/generator/documentation/generate.go 
+      -
+        name: Sync to readme
+        run: |
+          docs=$( jq -sR '{"body": .}' commands.md )
+          curl --request PUT \
+            --url https://dash.readme.com/api/v1/docs/cli-commands \
+            --header 'accept: application/json' \
+            --header 'authorization: Basic ${{ secrets.README_API_KEY }}' \
+            --header 'content-type: application/json' \
+            --data   $docs

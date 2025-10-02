@@ -14,7 +14,7 @@ import (
 
 var (
 	createvirtualNetworkType = "virtual_network"
-	updatevirtualNetworkType = "virtual_networks" 
+	updatevirtualNetworkType = "virtual_networks"
 )
 
 // New creates a new virtual networks API client.

@@ -57,3 +57,8 @@ func (f *String) description() string {
 
 	return fmt.Sprintf("[Required] %v", f.Description)
 }
+
+func (f *String) UpdateOptions(options interface{}) {
+	option := options.([]string)
+	f.Options = append(f.Options, option...)
+}

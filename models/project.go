@@ -122,6 +122,10 @@ func (m *Project) TableRow() table.Row {
 			Label: "ID",
 			Value: table.String(m.ID),
 		},
+		"tags": table.Cell{
+			Label: "Tags",
+			Value: table.StringList(tags(attr.Tags), ","),
+		},
 		"name": table.Cell{
 			Label: "Name",
 			Value: table.String(attr.Name),
@@ -166,6 +170,8 @@ func (m *Project) TableRow() table.Row {
 // swagger:model ProjectAttributes
 type ProjectAttributes struct {
 
+	Tags []*TagsIncude `json:"tags,omitempty"`
+	
 	// billing
 	Billing *ProjectAttributesBilling `json:"billing,omitempty"`
 

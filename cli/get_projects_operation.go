@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/latitudesh/lsh/client/projects"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/utils"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,8 @@ import (
 func makeOperationProjectsGetProjectsCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: `Returns a list of all projects for the current team`,
+		Short: "List projects",
+		Long:  `Returns a list of all projects for the current team.`,
 		RunE:  runOperationProjectsGetProjects,
 	}
 
@@ -53,9 +55,12 @@ func runOperationProjectsGetProjects(cmd *cobra.Command, args []string) error {
 	if err, _ := retrieveOperationProjectsGetProjectsFilterSlugFlag(params, "", cmd); err != nil {
 		return err
 	}
-	if dryRun {
+	if err, _ := retrieveOperationProjectsGetProjectsFilterTagsFlag(params, "", cmd); err != nil {
+		return err
+	}
+	if lsh.DryRun {
 
-		logDebugf("dry-run flag specified. Skip sending request.")
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -65,7 +70,7 @@ func runOperationProjectsGetProjects(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil
@@ -89,6 +94,9 @@ func registerOperationProjectsGetProjectsParamFlags(cmd *cobra.Command) error {
 		return err
 	}
 	if err := registerOperationProjectsGetProjectsFilterSlugParamFlags("", cmd); err != nil {
+		return err
+	}
+	if err := registerOperationProjectsGetProjectsFilterTagsFlag("", cmd); err != nil {
 		return err
 	}
 	return nil
@@ -195,6 +203,24 @@ func registerOperationProjectsGetProjectsFilterSlugParamFlags(cmdPrefix string, 
 	var filterSlugFlagDefault string
 
 	_ = cmd.PersistentFlags().String(filterSlugFlagName, filterSlugFlagDefault, filterSlugDescription)
+
+	return nil
+}
+
+func registerOperationProjectsGetProjectsFilterTagsFlag(cmdPrefix string, cmd *cobra.Command) error {
+
+	filterTagsDescription := `The Tags to filter by`
+
+	var filterTagsFlagName string
+	if cmdPrefix == "" {
+		filterTagsFlagName = "tags"
+	} else {
+		filterTagsFlagName = fmt.Sprintf("%v.tags", cmdPrefix)
+	}
+
+	var filterTagsFlagDefault = ""
+
+	_ = cmd.PersistentFlags().String(filterTagsFlagName, filterTagsFlagDefault, filterTagsDescription)
 
 	return nil
 }
@@ -315,6 +341,27 @@ func retrieveOperationProjectsGetProjectsFilterSlugFlag(m *projects.GetProjectsP
 			return err, false
 		}
 		m.FilterSlug = &filterSlugFlagValue
+
+	}
+	return nil, retAdded
+}
+
+func retrieveOperationProjectsGetProjectsFilterTagsFlag(m *projects.GetProjectsParams, cmdPrefix string, cmd *cobra.Command) (error, bool) {
+	retAdded := false
+	if cmd.Flags().Changed("tags") {
+
+		var filterTagsFlagName string
+		if cmdPrefix == "" {
+			filterTagsFlagName = "tags"
+		} else {
+			filterTagsFlagName = fmt.Sprintf("%v.tags", cmdPrefix)
+		}
+
+		filterTagsFlagValue, err := cmd.Flags().GetString(filterTagsFlagName)
+		if err != nil {
+			return err, false
+		}
+		m.FilterTags = &filterTagsFlagValue
 
 	}
 	return nil, retAdded

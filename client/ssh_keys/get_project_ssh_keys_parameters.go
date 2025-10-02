@@ -64,6 +64,8 @@ type GetProjectSSHKeysParams struct {
 	// ProjectIDOrSlug.
 	ProjectIDOrSlug string
 
+	FilterTags *string
+
 	timeout    time.Duration
 	Context    context.Context
 	HTTPClient *http.Client
@@ -133,6 +135,15 @@ func (o *GetProjectSSHKeysParams) SetProjectIDOrSlug(projectIDOrSlug string) {
 	o.ProjectIDOrSlug = projectIDOrSlug
 }
 
+func (o *GetProjectSSHKeysParams) WithFilterTags(filterTags *string) *GetProjectSSHKeysParams {
+	o.SetFilterTags(filterTags)
+	return o
+}
+
+func (o *GetProjectSSHKeysParams) SetFilterTags(filterTags *string) {
+	o.FilterTags = filterTags
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *GetProjectSSHKeysParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -148,6 +159,22 @@ func (o *GetProjectSSHKeysParams) WriteToRequest(r runtime.ClientRequest, reg st
 	// path param project_id_or_slug
 	if err := r.SetPathParam("project_id_or_slug", o.ProjectIDOrSlug); err != nil {
 		return err
+	}
+
+	if o.FilterTags != nil {
+
+		var qrFilterTags string
+
+		if o.FilterTags != nil {
+			qrFilterTags = *o.FilterTags
+		}
+		qFilterTags := qrFilterTags
+		if qFilterTags != "" {
+
+			if err := r.SetQueryParam("filter[tags]", qFilterTags); err != nil {
+				return err
+			}
+		}
 	}
 
 	if len(res) > 0 {

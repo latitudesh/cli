@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/virtual_networks"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
 
@@ -26,7 +27,7 @@ func makeOperationVirtualNetworksDestroyVirtualNetworkCmd() (*cobra.Command, err
 func (o *DeleteVirtualNetworkOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "destroy",
-		Short:  "Delete virtual network.",
+		Short:  "Delete a virtual network",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -64,8 +65,8 @@ func (o *DeleteVirtualNetworkOperation) run(cmd *cobra.Command, args []string) e
 	params := virtual_networks.NewDestroyVirtualNetworkParams()
 	o.PathParamFlags.AssignValues(params)
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -75,7 +76,7 @@ func (o *DeleteVirtualNetworkOperation) run(cmd *cobra.Command, args []string) e
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		response.Render()
 	}
 	return nil

@@ -169,6 +169,10 @@ func (m *SSHKeyData) TableRow() table.Row {
 			Label: "ID",
 			Value: table.String(m.ID),
 		},
+		"tags": table.Cell{
+			Label: "Tags",
+			Value: table.StringList(tags(attr.Tags), ","),
+		},
 		"name": table.Cell{
 			Label: "Name",
 			Value: table.String(attr.Name),
@@ -193,7 +197,7 @@ func (m *SSHKeyData) TableRow() table.Row {
 //
 // swagger:model SSHKeyDataAttributes
 type SSHKeyDataAttributes struct {
-
+	Tags []*TagsIncude `json:"tags,omitempty"`
 	// created at
 	CreatedAt string `json:"created_at,omitempty"`
 

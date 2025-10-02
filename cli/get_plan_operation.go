@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/latitudesh/lsh/client/plans"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/utils"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,7 @@ import (
 func makeOperationPlansGetPlanCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "get",
-		Short: `Returns a plan`,
+		Short: "Retrieve information of a plan",
 		RunE:  runOperationPlansGetPlan,
 	}
 
@@ -38,9 +39,9 @@ func runOperationPlansGetPlan(cmd *cobra.Command, args []string) error {
 	if err, _ := retrieveOperationPlansGetPlanPlanIDFlag(params, "", cmd); err != nil {
 		return err
 	}
-	if dryRun {
+	if lsh.DryRun {
 
-		logDebugf("dry-run flag specified. Skip sending request.")
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -50,7 +51,7 @@ func runOperationPlansGetPlan(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil

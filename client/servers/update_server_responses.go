@@ -298,6 +298,8 @@ type UpdateServerParamsBodyAttributes struct {
 
 	// hostname
 	Hostname string `json:"hostname,omitempty"`
+
+	Tags []string `json:"tags,omitempty"`
 }
 
 // Validate validates this update server params body attributes

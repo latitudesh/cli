@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/servers"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
 
@@ -26,7 +27,7 @@ type DestroyServerOperation struct {
 func (o *DestroyServerOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "destroy",
-		Short:  "Remove a server.",
+		Short:  "Delete a server",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -64,8 +65,8 @@ func (o *DestroyServerOperation) run(cmd *cobra.Command, args []string) error {
 	params := servers.NewDestroyServerParams()
 	o.PathParamFlags.AssignValues(params)
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -75,7 +76,7 @@ func (o *DestroyServerOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		response.Render()
 	}
 	return nil

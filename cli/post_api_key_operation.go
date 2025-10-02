@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/api_keys"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
 
@@ -26,7 +27,8 @@ type CreateAPIKeyOperation struct {
 func (o *CreateAPIKeyOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "create",
-		Short:  `Create a new API Key that is tied to the current user account. The created API key is only listed ONCE upon creation. It can however be regenerated or deleted.`,
+		Short:  "Create an API Key",
+		Long:   `Create a new API Key that is tied to the current user account. The created API key is only listed ONCE upon creation. It can however be regenerated or deleted.`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -64,8 +66,8 @@ func (o *CreateAPIKeyOperation) run(cmd *cobra.Command, args []string) error {
 	params := api_keys.NewPostAPIKeyParams()
 	o.BodyAttributesFlags.AssignValues(params.Body.Data.Attributes)
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -75,7 +77,7 @@ func (o *CreateAPIKeyOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil

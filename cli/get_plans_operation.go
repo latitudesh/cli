@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/latitudesh/lsh/client/plans"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/utils"
 
 	"github.com/spf13/cobra"
@@ -17,7 +18,7 @@ import (
 func makeOperationPlansGetPlansCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: `Lists all plans. Availability by region is included in ` + "`" + `attributes.regions.locations.available[*]` + "`" + ` node for a given plan.`,
+		Short: "List available plans",
 		RunE:  runOperationPlansGetPlans,
 	}
 
@@ -72,9 +73,9 @@ func runOperationPlansGetPlans(cmd *cobra.Command, args []string) error {
 	if err, _ := retrieveOperationPlansGetPlansFilterStockLevelFlag(params, "", cmd); err != nil {
 		return err
 	}
-	if dryRun {
+	if lsh.DryRun {
 
-		logDebugf("dry-run flag specified. Skip sending request.")
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -84,7 +85,7 @@ func runOperationPlansGetPlans(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil
@@ -585,52 +586,5 @@ func retrieveOperationPlansGetPlansFilterStockLevelFlag(m *plans.GetPlansParams,
 		m.FilterStockLevel = &filterStockLevelFlagValue
 
 	}
-	return nil, retAdded
-}
-
-// register flags to command
-func registerModelGetPlansOKBodyFlags(depth int, cmdPrefix string, cmd *cobra.Command) error {
-
-	if err := registerGetPlansOKBodyData(depth, cmdPrefix, cmd); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func registerGetPlansOKBodyData(depth int, cmdPrefix string, cmd *cobra.Command) error {
-	if depth > maxDepth {
-		return nil
-	}
-
-	// warning: data []*models.PlanData array type is not supported by go-swagger cli yet
-
-	return nil
-}
-
-// retrieve flags from commands, and set value in model. Return true if any flag is passed by user to fill model field.
-func retrieveModelGetPlansOKBodyFlags(depth int, m *plans.GetPlansOKBody, cmdPrefix string, cmd *cobra.Command) (error, bool) {
-	retAdded := false
-
-	err, dataAdded := retrieveGetPlansOKBodyDataFlags(depth, m, cmdPrefix, cmd)
-	if err != nil {
-		return err, false
-	}
-	retAdded = retAdded || dataAdded
-
-	return nil, retAdded
-}
-
-func retrieveGetPlansOKBodyDataFlags(depth int, m *plans.GetPlansOKBody, cmdPrefix string, cmd *cobra.Command) (error, bool) {
-	if depth > maxDepth {
-		return nil, false
-	}
-	retAdded := false
-
-	dataFlagName := fmt.Sprintf("%v.data", cmdPrefix)
-	if cmd.Flags().Changed(dataFlagName) {
-		// warning: data array type []*models.PlanData is not supported by go-swagger cli yet
-	}
-
 	return nil, retAdded
 }

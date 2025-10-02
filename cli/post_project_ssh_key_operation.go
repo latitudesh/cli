@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/ssh_keys"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
 
@@ -27,7 +28,8 @@ type CreateSSHKeyOperation struct {
 func (o *CreateSSHKeyOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "create",
-		Short:  `Allow you create SSH Keys in a project. These keys can be used to access servers after deploy and reinstall actions.`,
+		Short:  "Create an SSH key",
+		Long:   `Allow you create SSH Keys in a project. These keys can be used to access servers after deploy and reinstall actions.`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -44,11 +46,10 @@ func (o *CreateSSHKeyOperation) registerFlags(cmd *cobra.Command) {
 	pathParamsSchema := &cmdflag.FlagsSchema{
 		&cmdflag.String{
 			Name:        "project",
-			Label:       "ID or Slug from the project you want to add the SSH Key",
-			Description: "ID or Slug from the project you want to add the SSH Key",
+			Label:       "Project ID or Slug",
+			Description: "Project ID or Slug",
 			Required:    true,
-		},
-	}
+		}}
 
 	bodyFlagsSchema := &cmdflag.FlagsSchema{
 		&cmdflag.String{
@@ -70,6 +71,9 @@ func (o *CreateSSHKeyOperation) registerFlags(cmd *cobra.Command) {
 }
 
 func (o *CreateSSHKeyOperation) preRun(cmd *cobra.Command, args []string) {
+	projects := fetchUserProjects()
+	o.PathParamFlags.AddFlagOption("project", projects)
+
 	o.PathParamFlags.PreRun(cmd, args)
 	o.BodyAttributesFlags.PreRun(cmd, args)
 }
@@ -84,8 +88,8 @@ func (o *CreateSSHKeyOperation) run(cmd *cobra.Command, args []string) error {
 	o.PathParamFlags.AssignValues(params)
 	o.BodyAttributesFlags.AssignValues(params.Body.Data.Attributes)
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -95,7 +99,7 @@ func (o *CreateSSHKeyOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil

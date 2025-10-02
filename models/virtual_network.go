@@ -167,6 +167,10 @@ func (m *VirtualNetwork) TableRow() table.Row {
 			Label: "ID",
 			Value: table.String(m.ID),
 		},
+		"tags": table.Cell{
+			Label: "Tags",
+			Value: table.StringList(tags(attr.Tags), ","),
+		},
 		"vid": table.Cell{
 			Label: "VID",
 			Value: table.Int(attr.Vid),
@@ -200,6 +204,7 @@ func virtualNetworkLocation(attributes *VirtualNetworkAttributes) string {
 //
 // swagger:model VirtualNetworkAttributes
 type VirtualNetworkAttributes struct {
+	Tags []*TagsIncude `json:"tags,omitempty"`
 
 	// Amount of devices assigned to the virtual network
 	AssignmentsCount int64 `json:"assignments_count,omitempty"`

@@ -51,3 +51,7 @@ func (f *Bool) description() string {
 
 	return fmt.Sprintf("[Required] %v", f.Description)
 }
+
+func (f *Bool) UpdateOptions(options interface{}) {
+	//Function needed to implement interface
+}

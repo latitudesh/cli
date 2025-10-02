@@ -5,6 +5,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/api_keys"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/utils"
 
 	"github.com/spf13/cobra"
@@ -14,7 +15,8 @@ import (
 func makeOperationAPIKeysGetAPIKeysCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: `Returns a list of all API keys from the team members`,
+		Short: "List API Keys",
+		Long:  `Returns a list of all API keys from the team members.`,
 		RunE:  runOperationAPIKeysGetAPIKeys,
 	}
 
@@ -29,9 +31,9 @@ func runOperationAPIKeysGetAPIKeys(cmd *cobra.Command, args []string) error {
 	}
 	// retrieve flag values from cmd and fill params
 	params := api_keys.NewGetAPIKeysParams()
-	if dryRun {
+	if lsh.DryRun {
 
-		logDebugf("dry-run flag specified. Skip sending request.")
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -41,7 +43,7 @@ func runOperationAPIKeysGetAPIKeys(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil

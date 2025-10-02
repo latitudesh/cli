@@ -13,6 +13,7 @@ import (
 
 type FlagSchema interface {
 	Register(f *pflag.FlagSet)
+	UpdateOptions(options interface{})
 	GetValue() interface{}
 	GetName() string
 	Prompt() prompt.PromptInput
@@ -32,6 +33,14 @@ func (f *Flags) Register(s *FlagsSchema) {
 
 	for _, v := range *s {
 		v.Register(f.FlagSet)
+	}
+}
+
+func (f *Flags) AddFlagOption(flagName string, option []string) {
+	for _, flag := range *f.schema {
+		if flag.GetName() == flagName {
+			flag.UpdateOptions(option)
+		}
 	}
 }
 

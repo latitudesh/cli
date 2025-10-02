@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/latitudesh/lsh/client/virtual_networks"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/api/resource"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -27,7 +28,7 @@ type CreateVirtualNetworkOperation struct {
 func (o *CreateVirtualNetworkOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "create",
-		Short:  "Creates a new Virtual Network.",
+		Short:  "Creates a virtual network",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -50,17 +51,17 @@ func (o *CreateVirtualNetworkOperation) registerFlags(cmd *cobra.Command) {
 			Required:    true,
 		},
 		&cmdflag.String{
-			Name:        "project",
-			Label:       "Project ID or slug",
-			Description: "Project ID or slug",
-			Required:    true,
-		},
-		&cmdflag.String{
 			Name:        "site",
 			Label:       "Site ID or slug",
 			Description: "Site ID or slug",
 			Options:     virtualNetwork.SupportedSites,
 			Required:    false,
+		},
+		&cmdflag.String{
+			Name:        "project",
+			Label:       "Project ID or Slug",
+			Description: "Project ID or Slug",
+			Required:    true,
 		},
 	}
 
@@ -68,6 +69,9 @@ func (o *CreateVirtualNetworkOperation) registerFlags(cmd *cobra.Command) {
 }
 
 func (o *CreateVirtualNetworkOperation) preRun(cmd *cobra.Command, args []string) {
+	projects := fetchUserProjects()
+	o.BodyAttributesFlags.AddFlagOption("project", projects)
+
 	o.BodyAttributesFlags.PreRun(cmd, args)
 }
 
@@ -80,8 +84,8 @@ func (o *CreateVirtualNetworkOperation) run(cmd *cobra.Command, args []string) e
 	params := virtual_networks.NewCreateVirtualNetworkParams()
 	o.BodyAttributesFlags.AssignValues(params.Body.Data.Attributes)
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -91,7 +95,7 @@ func (o *CreateVirtualNetworkOperation) run(cmd *cobra.Command, args []string) e
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		utils.Render(response.GetData())
 	}
 	return nil
