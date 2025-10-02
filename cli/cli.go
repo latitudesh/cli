@@ -161,6 +161,12 @@ func MakeRootCmd() (*cobra.Command, error) {
 	}
 	rootCmd.AddCommand(operationGroupVirtualNetworksCmd)
 
+	operationGroupBlockCmd, err := makeOperationGroupBlockCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationGroupBlockCmd)
+
 	// add cobra completion
 	rootCmd.AddCommand(makeGenCompletionCmd())
 
@@ -454,4 +460,32 @@ func makeOperationGroupVirtualNetworksCmd() (*cobra.Command, error) {
 	operationGroupVirtualNetworksCmd.AddCommand(operationVirtualNetworkAssignmentCmd)
 
 	return operationGroupVirtualNetworksCmd, nil
+}
+
+func makeOperationGroupBlockCmd() (*cobra.Command, error) {
+	operationGroupBlockCmd := &cobra.Command{
+		Use:   "block",
+		Short: "Manage block storage",
+		Long:  `Commands to manage block storage operations such as listing, mounting, and managing`,
+	}
+
+	operationBlockListCmd, err := makeOperationBlockListCmd()
+	if err != nil {
+		return nil, err
+	}
+	operationGroupBlockCmd.AddCommand(operationBlockListCmd)
+
+	operationBlockGetCmd, err := makeOperationBlockGetCmd()
+	if err != nil {
+		return nil, err
+	}
+	operationGroupBlockCmd.AddCommand(operationBlockGetCmd)
+
+	operationBlockMountCmd, err := makeOperationBlockMountCmd()
+	if err != nil {
+		return nil, err
+	}
+	operationGroupBlockCmd.AddCommand(operationBlockMountCmd)
+
+	return operationGroupBlockCmd, nil
 }
