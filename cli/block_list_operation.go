@@ -6,6 +6,7 @@ import (
 	"os"
 
 	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
@@ -64,8 +65,8 @@ func (o *BlockListOperation) run(cmd *cobra.Command, args []string) error {
 	// Get optional project filter
 	project, _ := cmd.Flags().GetString("project")
 
-	if dryRun {
-		logDebugf("dry-run flag specified. Skip sending request.")
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
@@ -93,7 +94,7 @@ func (o *BlockListOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !debug {
+	if !lsh.Debug {
 		if response != nil && response.HTTPMeta.Response != nil {
 			fmt.Fprintf(os.Stdout, "Block storages listed successfully (Status: %s)\n", response.HTTPMeta.Response.Status)
 			fmt.Fprintf(os.Stdout, "\nNote: Use 'lsh block get --id <BLOCK_ID>' to see full details including connector information\n")

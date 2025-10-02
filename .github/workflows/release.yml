@@ -7,6 +7,10 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+  create:
+    tags:
+      - 'v*'
 permissions:
   contents: write
 
@@ -25,6 +29,11 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.22.0'
+      -
+        name: Remove conflicting go.mod
+        run: |
+          # Remove cmd/lsh/go.mod as it conflicts with root go.mod
+          rm -f cmd/lsh/go.mod
       -
         name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
@@ -48,6 +57,11 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.22.0'
+      -
+        name: Remove conflicting go.mod
+        run: |
+          # Remove cmd/lsh/go.mod as it conflicts with root go.mod
+          rm -f cmd/lsh/go.mod
       -
         name: Generate documentation
         run: go run internal/generator/documentation/generate.go 
