@@ -1,6 +1,6 @@
 module github.com/latitudesh/lsh
 
-go 1.21
+go 1.22
 
 require (
 	github.com/dave/jennifer v1.7.0
@@ -9,6 +9,7 @@ require (
 	github.com/go-openapi/strfmt v0.22.0
 	github.com/go-openapi/swag v0.22.7
 	github.com/go-openapi/validate v0.22.6
+	github.com/latitudesh/latitudesh-go-sdk v1.7.1
 	github.com/latitudesh/latitudesh-go v0.3.2
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
@@ -51,6 +52,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
+	github.com/spyzhov/ajson v0.8.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
