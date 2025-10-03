@@ -136,7 +136,20 @@ func printError(msg string) {
 // checkRoot verifies if the command is running as root
 func checkRoot() error {
 	if os.Geteuid() != 0 {
-		return fmt.Errorf("this command must be run as root (use sudo)")
+		return fmt.Errorf(`this command must be run as root (use sudo)
+
+This command requires root privileges to:
+- Install nvme-cli if not present
+- Load NVMe kernel modules
+- Configure NVMe host settings
+- Connect to NVMe-oF targets
+
+Usage:
+  sudo lsh block mount --id <BLOCK_ID>
+
+Note: Your API key will be automatically detected from your user config,
+      so make sure you've logged in first:
+  lsh login <API_KEY>`)
 	}
 	return nil
 }

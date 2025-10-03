@@ -46,11 +46,11 @@ func NewClient() *sdk.Client {
 
 func InitViperConfigs() {
 	// look for default config
-	// Find home directory.
+	// Find home directory
 	home, err := homedir.Dir()
 	cobra.CheckErr(err)
 
-	// Search config in home directory with name ".cobra" (without extension).
+	// Search config in home directory with name "config" (without extension)
 	viper.AddConfigPath(path.Join(home, ".config", ExeName))
 	viper.SetConfigName("config")
 

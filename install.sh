@@ -28,6 +28,19 @@ mkdir -p $INSTALL_DIR
 tar -xzf lsh.tar.gz
 mv "$FILENAME/lsh" $INSTALL_DIR
 
+# Try to create system-wide symlink for sudo access
+SYSTEM_BIN="/usr/local/bin"
+CREATED_SYSTEM_LINK=false
+
+if [ -w "$SYSTEM_BIN" ] || sudo -n true 2>/dev/null; then
+  # Can write to /usr/local/bin or have passwordless sudo
+  echo -e "[lsh] Creating system-wide symlink for sudo access...\n"
+  if sudo ln -sf "$INSTALL_DIR/lsh" "$SYSTEM_BIN/lsh" 2>/dev/null; then
+    CREATED_SYSTEM_LINK=true
+    echo -e "[lsh] ✅ System-wide symlink created at $SYSTEM_BIN/lsh\n"
+  fi
+fi
+
 # Detect the current shell and add the directory to the user's PATH
 SHELL_NAME=$(basename "$SHELL")
 
@@ -36,15 +49,21 @@ SHELL_CONFIG_PATH=""
 case "$SHELL_NAME" in
 "bash")
   SHELL_CONFIG_PATH=~/.bashrc
-  echo 'export PATH="$PATH:$HOME/.lsh"' >>$SHELL_CONFIG_PATH
+  if ! grep -q "export PATH=.*HOME/.lsh" "$SHELL_CONFIG_PATH" 2>/dev/null; then
+    echo 'export PATH="$PATH:$HOME/.lsh"' >>$SHELL_CONFIG_PATH
+  fi
   ;;
 "zsh")
   SHELL_CONFIG_PATH=~/.zshrc
-  echo 'export PATH="$PATH:$HOME/.lsh"' >>$SHELL_CONFIG_PATH
+  if ! grep -q "export PATH=.*HOME/.lsh" "$SHELL_CONFIG_PATH" 2>/dev/null; then
+    echo 'export PATH="$PATH:$HOME/.lsh"' >>$SHELL_CONFIG_PATH
+  fi
   ;;
 "fish")
   SHELL_CONFIG_PATH=~/.config/fish/config.fish
-  echo 'set -gx PATH $PATH $HOME_DIR/.lsh' >>$SHELL_CONFIG_PATH
+  if ! grep -q "set -gx PATH.*HOME/.lsh" "$SHELL_CONFIG_PATH" 2>/dev/null; then
+    echo 'set -gx PATH $PATH $HOME_DIR/.lsh' >>$SHELL_CONFIG_PATH
+  fi
   ;;
 *)
   echo "Unsupported shell: $SHELL_NAME"
@@ -55,5 +74,5 @@ echo -e "[lsh] Removing installation files\n"
 rm lsh.tar.gz
 rm -rf $FILENAME
 
-echo -e "[lsh] Installation finished! To enable the lsh command, run: \n"
-echo -e "    source $SHELL_CONFIG_PATH \n"
+echo -e "[lsh] Installation finished!\n"
+echo -e "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
