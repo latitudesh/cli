@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/user"
 	"path"
 
 	sdk "github.com/latitudesh/latitudesh-go"
@@ -54,16 +55,15 @@ func InitViperConfigs() {
 	// When running with sudo, try to use the real user's config first
 	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
 		LogDebugf("Detected sudo context. SUDO_USER=%s", sudoUser)
-		// Try to get the real user's home directory
-		realHome := os.Getenv("HOME")
-		if os.Getenv("SUDO_UID") != "" {
-			// Try to construct the real user's home path
-			realHome = path.Join("/home", sudoUser)
+		// Look up the real user's home directory
+		if usr, err := user.Lookup(sudoUser); err == nil {
+			realHome := usr.HomeDir
+			configPath := path.Join(realHome, ".config", ExeName)
+			viper.AddConfigPath(configPath)
+			LogDebugf("Added sudo user config path: %s", configPath)
+		} else {
+			LogDebugf("Could not lookup user %s: %v", sudoUser, err)
 		}
-
-		// Try real user's config first
-		viper.AddConfigPath(path.Join(realHome, ".config", ExeName))
-		LogDebugf("Added config path: %s", path.Join(realHome, ".config", ExeName))
 	}
 
 	// Also check current home directory (works for both sudo and non-sudo)
