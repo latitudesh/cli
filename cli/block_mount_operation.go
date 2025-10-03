@@ -372,51 +372,62 @@ func verifyConnection(subsystemNQN string) error {
 		return fmt.Errorf("subsystem not found after connection")
 	}
 
-	// Find the NVMe device
+	// Find the NVMe device (dynamically detects nvme0, nvme1, nvme2, etc.)
 	lines := strings.Split(output, "\n")
 	var nvmeDevice string
 	for _, line := range lines {
-		if strings.Contains(line, "nvme") && strings.Contains(line, " nvme") {
+		// Look for lines with NVMe controller info (e.g., " +- nvme1 tcp traddr=...")
+		if strings.Contains(line, "nvme") {
 			fields := strings.Fields(line)
 			for _, field := range fields {
-				if strings.HasPrefix(field, "nvme") && !strings.Contains(field, "/") {
+				// Find field that starts with "nvme" followed by a number
+				if strings.HasPrefix(field, "nvme") && !strings.Contains(field, "/") && !strings.Contains(field, "-") {
 					nvmeDevice = field
 					break
 				}
+			}
+			if nvmeDevice != "" {
+				break // Found it, stop searching
 			}
 		}
 	}
 
 	if nvmeDevice == "" {
-		return fmt.Errorf("could not find NVMe device")
+		printError("Could not detect NVMe controller from nvme list-subsys")
+		printWarning("Output was:")
+		fmt.Fprintf(os.Stderr, "%s\n", output)
+		return fmt.Errorf("could not find NVMe device - check if connection succeeded")
 	}
 
-	printStatus(fmt.Sprintf("NVMe controller: %s", nvmeDevice))
+	printStatus(fmt.Sprintf("✓ Detected NVMe controller: %s", nvmeDevice))
 
-	// Check for block devices
-	blockDevices, _ := runCommand("ls", "-1", fmt.Sprintf("/dev/%sn*", nvmeDevice))
+	// Check for block devices using find (e.g., /dev/nvme0n1, /dev/nvme1n1, etc.)
+	blockDevices, _ := runCommand("find", "/dev", "-name", fmt.Sprintf("%sn*", nvmeDevice))
 	if blockDevices != "" {
 		printStatus("Block devices available:")
 		devices := strings.Split(blockDevices, "\n")
+		var validDevices []string
 		for _, dev := range devices {
+			dev = strings.TrimSpace(dev)
 			if dev != "" {
+				validDevices = append(validDevices, dev)
 				fmt.Fprintf(os.Stdout, "  %s\n", dev)
 			}
 		}
 
-		fmt.Fprintf(os.Stdout, "\n")
-		printStatus("To use the block storage, format and mount it. For example:")
-		for _, dev := range devices {
-			if dev != "" {
-				mountpoint := fmt.Sprintf("/mnt/%s", strings.TrimPrefix(dev, "/dev/"))
-				fmt.Fprintf(os.Stdout, "  sudo mkfs.ext4 %s\n", dev)
-				fmt.Fprintf(os.Stdout, "  sudo mkdir -p %s\n", mountpoint)
-				fmt.Fprintf(os.Stdout, "  sudo mount %s %s\n\n", dev, mountpoint)
-			}
+		if len(validDevices) > 0 {
+			fmt.Fprintf(os.Stdout, "\n")
+			printStatus("To use the block storage, format and mount it. For example:")
+			dev := validDevices[0] // Use first device
+			deviceName := strings.TrimPrefix(dev, "/dev/")
+			mountpoint := fmt.Sprintf("/mnt/%s", deviceName)
+			fmt.Fprintf(os.Stdout, "  sudo mkfs.ext4 %s\n", dev)
+			fmt.Fprintf(os.Stdout, "  sudo mkdir -p %s\n", mountpoint)
+			fmt.Fprintf(os.Stdout, "  sudo mount %s %s\n\n", dev, mountpoint)
 		}
 	} else {
 		printWarning("No block devices found. The storage may not be accessible yet.")
-		printWarning("Check the ANA (Asymmetric Namespace Access) state on the gateway.")
+		printWarning("Wait a few seconds and check: sudo nvme list")
 	}
 
 	return nil
@@ -641,7 +652,6 @@ func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(os.Stdout, "\nConnection Summary:\n")
 	fmt.Fprintf(os.Stdout, "  Client NQN: %s\n", nqn)
 	fmt.Fprintf(os.Stdout, "  Subsystem NQN: %s\n", subsystemNQN)
-	fmt.Fprintf(os.Stdout, "  Gateway: %s:%s\n", gatewayIP, gatewayPort)
 
 	return nil
 }

@@ -437,5 +437,17 @@ func makeOperationGroupBlockCmd() (*cobra.Command, error) {
 	}
 	operationGroupBlockCmd.AddCommand(operationBlockMountCmd)
 
+	operationBlockCreateCmd, err := makeOperationBlockCreateCmd()
+	if err != nil {
+		return nil, err
+	}
+	operationGroupBlockCmd.AddCommand(operationBlockCreateCmd)
+
+	operationBlockDeleteCmd, err := makeOperationBlockDeleteCmd()
+	if err != nil {
+		return nil, err
+	}
+	operationGroupBlockCmd.AddCommand(operationBlockDeleteCmd)
+
 	return operationGroupBlockCmd, nil
 }
