@@ -55,19 +55,10 @@ func runOperationLogin(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("✅ Success! Configuration file updated.")
 	fmt.Printf("   Config stored at: %s\n", configPath)
-
-	// Also copy to root's config directory so sudo commands work
-	rootFolderPath := path.Join("/root", ".config", exeName)
-	rootConfigPath := path.Join(rootFolderPath, "config.json")
-
-	// Try to create root's config directory and copy the file
-	if err := os.MkdirAll(rootFolderPath, 0700); err == nil {
-		if input, err := os.ReadFile(configPath); err == nil {
-			if err := os.WriteFile(rootConfigPath, input, 0600); err == nil {
-				fmt.Printf("   Also copied to: %s (for sudo commands)\n", rootConfigPath)
-			}
-		}
-	}
+	fmt.Printf("\n")
+	fmt.Printf("You can now use both regular and sudo commands:\n")
+	fmt.Printf("  lsh servers list\n")
+	fmt.Printf("  sudo lsh block mount --id <BLOCK_ID>\n")
 
 	return nil
 }

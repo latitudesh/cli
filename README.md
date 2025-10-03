@@ -55,7 +55,7 @@ Log in into Latitude.sh. An API Key is required.
 lsh login <API_KEY>
 ```
 
-**Note:** The login command stores your API key in `~/.config/lsh/config.json` and automatically copies it to `/root/.config/lsh/` so sudo commands work seamlessly.
+The CLI automatically detects when you use `sudo` and loads your credentials from your user directory.
 
   
 
@@ -115,7 +115,7 @@ lsh block list --project <PROJECT_ID>
 Mount block storage to a server (requires sudo, auto-installs nvme-cli and connects)
 
 ```bash
-# First, login without sudo
+# First, login as normal user
 lsh login <API_KEY>
 
 # Then mount with sudo (automatically uses your credentials)
@@ -129,9 +129,9 @@ sudo lsh block mount --id blk_abc123
 - Runs privileged `nvme connect` commands
 
 **Important:** 
-- Login **without** `sudo` first (stores credentials in both your home and root's home)
-- Use `sudo` **only** for the mount command (needs root access for nvme operations)
-- Config is automatically available for sudo commands
+- Login as a **normal user** (without sudo): `lsh login <API_KEY>`
+- The CLI automatically finds your credentials when you run commands with sudo
+- Block mount needs sudo for nvme-cli installation and NVMe operations
 
 
 ## Troubleshooting
@@ -145,13 +145,17 @@ curl -sSL  https://raw.githubusercontent.com/latitudesh/lsh/main/uninstall.sh | 
 
 ### Sudo Authentication Issues
 
-If `sudo lsh block mount` can't find your credentials, just run login again (it will copy to root automatically):
+If `sudo lsh block mount` says "API key not found":
 
 ```bash
+# Make sure you've logged in as your normal user (not with sudo)
 lsh login <API_KEY>
+
+# Then try mount again
+sudo lsh block mount --id <BLOCK_ID>
 ```
 
-This stores your credentials in both your home directory and root's directory, so sudo commands work seamlessly.
+The CLI automatically detects your username via the `SUDO_USER` environment variable and loads your config.
 
 ## Docs
 
