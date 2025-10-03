@@ -16,7 +16,10 @@ func makeOperationLoginCmd() (*cobra.Command, error) {
 		Use:   "login [api-token]",
 		Short: "Set your Auth Token",
 		Long: `login will create a configuration file and save your API authentication 
-token in it, allowing it to be used when interacting with the API.`,
+token in it, allowing it to be used when interacting with the API.
+
+The configuration will be stored in your home directory and also copied to
+root's directory so sudo commands work seamlessly.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: runOperationLogin,
 	}
@@ -39,7 +42,8 @@ func runOperationLogin(cmd *cobra.Command, args []string) error {
 		os.MkdirAll(folderPath, 0700)
 	}
 
-	f, err := os.Create(path.Join(folderPath, "config.json"))
+	configPath := path.Join(folderPath, "config.json")
+	f, err := os.Create(configPath)
 	if err != nil {
 		return err
 	}
@@ -48,7 +52,13 @@ func runOperationLogin(cmd *cobra.Command, args []string) error {
 	viper.Set("API-Version", "2023-06-01")
 	viper.Set("authorization", args[0])
 	viper.WriteConfig()
-	fmt.Println("Success, configuration file updated!")
+
+	fmt.Println("✅ Success! Configuration file updated.")
+	fmt.Printf("   Config stored at: %s\n", configPath)
+	fmt.Printf("\n")
+	fmt.Printf("You can now use both regular and sudo commands:\n")
+	fmt.Printf("  lsh servers list\n")
+	fmt.Printf("  sudo lsh block mount --id <BLOCK_ID>\n")
 
 	return nil
 }
