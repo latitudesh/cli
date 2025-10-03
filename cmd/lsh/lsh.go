@@ -52,27 +52,36 @@ func InitViperConfigs() {
 	home, err := homedir.Dir()
 	cobra.CheckErr(err)
 
-	// When running with sudo, try to use the real user's config first
-	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
-		LogDebugf("Detected sudo context. SUDO_USER=%s", sudoUser)
+	// Always log this regardless of debug flag since it's critical for troubleshooting
+	sudoUser := os.Getenv("SUDO_USER")
+	if sudoUser != "" {
+		log.Printf("[SUDO] Detected sudo context. SUDO_USER=%s\n", sudoUser)
 		// Look up the real user's home directory
 		if usr, err := user.Lookup(sudoUser); err == nil {
 			realHome := usr.HomeDir
 			configPath := path.Join(realHome, ".config", ExeName)
 			viper.AddConfigPath(configPath)
-			LogDebugf("Added sudo user config path: %s", configPath)
+			log.Printf("[SUDO] Added sudo user config path: %s\n", configPath)
 		} else {
-			LogDebugf("Could not lookup user %s: %v", sudoUser, err)
+			log.Printf("[SUDO] Could not lookup user %s: %v\n", sudoUser, err)
 		}
+	} else {
+		log.Printf("[CONFIG] Running as normal user (no sudo)\n")
 	}
 
 	// Also check current home directory (works for both sudo and non-sudo)
-	viper.AddConfigPath(path.Join(home, ".config", ExeName))
+	currentConfigPath := path.Join(home, ".config", ExeName)
+	viper.AddConfigPath(currentConfigPath)
+	log.Printf("[CONFIG] Added current home config path: %s\n", currentConfigPath)
 	viper.SetConfigName("config")
 
 	if err := viper.ReadInConfig(); err != nil {
-		LogDebugf("Error: loading config file: %v", err)
+		log.Printf("[CONFIG] Error loading config file: %v\n", err)
+		log.Printf("[CONFIG] Searched in paths: %s/.config/%s\n", home, ExeName)
+		if sudoUser != "" {
+			log.Printf("[CONFIG] Also searched sudo user paths\n")
+		}
 		return
 	}
-	LogDebugf("Using config file: %v", viper.ConfigFileUsed())
+	log.Printf("[CONFIG] ✓ Using config file: %v\n", viper.ConfigFileUsed())
 }
