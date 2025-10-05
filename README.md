@@ -108,18 +108,18 @@ lsh plans list --gpu true
 
 ```bash
 
-lsh block list --project <PROJECT_ID>
+lsh volume list --project <PROJECT_ID>
 
 ```
 
-Mount block storage to a server (requires sudo, auto-installs nvme-cli and connects)
+Mount volume storage to a server (requires sudo, auto-installs nvme-cli and connects)
 
 ```bash
 # First, login as normal user
 lsh login <API_KEY>
 
 # Then mount with sudo (automatically uses your credentials)
-sudo lsh block mount --id blk_abc123
+sudo lsh volume mount --id vol_abc123
 ```
 
 **Why sudo is required:**
@@ -131,7 +131,7 @@ sudo lsh block mount --id blk_abc123
 **Important:** 
 - Login as a **normal user** (without sudo): `lsh login <API_KEY>`
 - The CLI automatically finds your credentials when you run commands with sudo
-- Block mount needs sudo for nvme-cli installation and NVMe operations
+- Volume mount needs sudo for nvme-cli installation and NVMe operations
 
 
 ## Troubleshooting
@@ -145,14 +145,14 @@ curl -sSL  https://raw.githubusercontent.com/latitudesh/lsh/main/uninstall.sh | 
 
 ### Sudo Authentication Issues
 
-If `sudo lsh block mount` says "API key not found":
+If `sudo lsh volume mount` says "API key not found":
 
 ```bash
 # Make sure you've logged in as your normal user (not with sudo)
 lsh login <API_KEY>
 
 # Then try mount again
-sudo lsh block mount --id <BLOCK_ID>
+sudo lsh volume mount --id <VOLUME_ID>
 ```
 
 The CLI automatically detects your username via the `SUDO_USER` environment variable and loads your config.

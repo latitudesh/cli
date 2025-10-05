@@ -135,11 +135,11 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	}
 	rootCmd.AddCommand(operationGroupVirtualNetworksCmd)
 
-	operationGroupBlockCmd, err := makeOperationGroupBlockCmd()
+	operationGroupVolumeCmd, err := makeOperationGroupVolumeCmd()
 	if err != nil {
 		return nil, err
 	}
-	rootCmd.AddCommand(operationGroupBlockCmd)
+	rootCmd.AddCommand(operationGroupVolumeCmd)
 
 	// add cobra completion
 	rootCmd.AddCommand(makeGenCompletionCmd())
@@ -412,42 +412,42 @@ func makeOperationGroupVirtualNetworksCmd() (*cobra.Command, error) {
 	return operationGroupVirtualNetworksCmd, nil
 }
 
-func makeOperationGroupBlockCmd() (*cobra.Command, error) {
-	operationGroupBlockCmd := &cobra.Command{
-		Use:   "block",
-		Short: "Manage block storage",
-		Long:  `Commands to manage block storage operations such as listing, mounting, and managing`,
+func makeOperationGroupVolumeCmd() (*cobra.Command, error) {
+	operationGroupVolumeCmd := &cobra.Command{
+		Use:   "volume",
+		Short: "Manage volumes",
+		Long:  `Commands to manage volume operations such as listing, mounting, creating, and deleting volumes`,
 	}
 
-	operationBlockListCmd, err := makeOperationBlockListCmd()
+	operationVolumeListCmd, err := makeOperationVolumeListCmd()
 	if err != nil {
 		return nil, err
 	}
-	operationGroupBlockCmd.AddCommand(operationBlockListCmd)
+	operationGroupVolumeCmd.AddCommand(operationVolumeListCmd)
 
-	operationBlockGetCmd, err := makeOperationBlockGetCmd()
+	operationVolumeGetCmd, err := makeOperationVolumeGetCmd()
 	if err != nil {
 		return nil, err
 	}
-	operationGroupBlockCmd.AddCommand(operationBlockGetCmd)
+	operationGroupVolumeCmd.AddCommand(operationVolumeGetCmd)
 
-	operationBlockMountCmd, err := makeOperationBlockMountCmd()
+	operationVolumeMountCmd, err := makeOperationVolumeMountCmd()
 	if err != nil {
 		return nil, err
 	}
-	operationGroupBlockCmd.AddCommand(operationBlockMountCmd)
+	operationGroupVolumeCmd.AddCommand(operationVolumeMountCmd)
 
-	operationBlockCreateCmd, err := makeOperationBlockCreateCmd()
+	operationVolumeCreateCmd, err := makeOperationVolumeCreateCmd()
 	if err != nil {
 		return nil, err
 	}
-	operationGroupBlockCmd.AddCommand(operationBlockCreateCmd)
+	operationGroupVolumeCmd.AddCommand(operationVolumeCreateCmd)
 
-	operationBlockDeleteCmd, err := makeOperationBlockDeleteCmd()
+	operationVolumeDeleteCmd, err := makeOperationVolumeDeleteCmd()
 	if err != nil {
 		return nil, err
 	}
-	operationGroupBlockCmd.AddCommand(operationBlockDeleteCmd)
+	operationGroupVolumeCmd.AddCommand(operationVolumeDeleteCmd)
 
-	return operationGroupBlockCmd, nil
+	return operationGroupVolumeCmd, nil
 }
