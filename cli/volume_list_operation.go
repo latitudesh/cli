@@ -3,18 +3,18 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 
 	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
+	"github.com/latitudesh/lsh/internal/output"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-func makeOperationBlockListCmd() (*cobra.Command, error) {
-	operation := BlockListOperation{}
+func makeOperationVolumeListCmd() (*cobra.Command, error) {
+	operation := VolumeListOperation{}
 
 	cmd, err := operation.Register()
 	if err != nil {
@@ -24,11 +24,11 @@ func makeOperationBlockListCmd() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-type BlockListOperation struct {
+type VolumeListOperation struct {
 	QueryParamFlags cmdflag.Flags
 }
 
-func (o *BlockListOperation) Register() (*cobra.Command, error) {
+func (o *VolumeListOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "list",
 		Short:  "List all block storages",
@@ -42,7 +42,7 @@ func (o *BlockListOperation) Register() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func (o *BlockListOperation) registerFlags(cmd *cobra.Command) {
+func (o *VolumeListOperation) registerFlags(cmd *cobra.Command) {
 	o.QueryParamFlags = cmdflag.Flags{FlagSet: cmd.Flags()}
 
 	queryParamsSchema := &cmdflag.FlagsSchema{
@@ -57,11 +57,11 @@ func (o *BlockListOperation) registerFlags(cmd *cobra.Command) {
 	o.QueryParamFlags.Register(queryParamsSchema)
 }
 
-func (o *BlockListOperation) preRun(cmd *cobra.Command, args []string) {
+func (o *VolumeListOperation) preRun(cmd *cobra.Command, args []string) {
 	o.QueryParamFlags.PreRun(cmd, args)
 }
 
-func (o *BlockListOperation) run(cmd *cobra.Command, args []string) error {
+func (o *VolumeListOperation) run(cmd *cobra.Command, args []string) error {
 	// Get optional project filter
 	project, _ := cmd.Flags().GetString("project")
 
@@ -88,16 +88,16 @@ func (o *BlockListOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Call the API
-	response, err := client.Storage.GetStorageBlocks(ctx, filterProject)
+	response, err := client.Storage.GetStorageVolumes(ctx, filterProject)
 	if err != nil {
 		utils.PrintError(err)
 		return nil
 	}
 
 	if !lsh.Debug {
-		if response != nil && response.HTTPMeta.Response != nil {
-			fmt.Fprintf(os.Stdout, "Block storages listed successfully (Status: %s)\n", response.HTTPMeta.Response.Status)
-			fmt.Fprintf(os.Stdout, "\nNote: Use 'lsh block get --id <BLOCK_ID>' to see full details including connector information\n")
+		if response.Object != nil && response.Object.Data != nil {
+			// Display volumes as JSON
+			output.RenderAsJSON(response.Object.Data)
 		}
 	}
 

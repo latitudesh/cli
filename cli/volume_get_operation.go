@@ -3,18 +3,18 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 
 	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
+	"github.com/latitudesh/lsh/internal/output"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-func makeOperationBlockGetCmd() (*cobra.Command, error) {
-	operation := BlockGetOperation{}
+func makeOperationVolumeGetCmd() (*cobra.Command, error) {
+	operation := VolumeGetOperation{}
 
 	cmd, err := operation.Register()
 	if err != nil {
@@ -24,11 +24,11 @@ func makeOperationBlockGetCmd() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-type BlockGetOperation struct {
+type VolumeGetOperation struct {
 	PathParamFlags cmdflag.Flags
 }
 
-func (o *BlockGetOperation) Register() (*cobra.Command, error) {
+func (o *VolumeGetOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "get",
 		Short:  "Get block storage details",
@@ -42,7 +42,7 @@ func (o *BlockGetOperation) Register() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func (o *BlockGetOperation) registerFlags(cmd *cobra.Command) {
+func (o *VolumeGetOperation) registerFlags(cmd *cobra.Command) {
 	o.PathParamFlags = cmdflag.Flags{FlagSet: cmd.Flags()}
 
 	pathParamsSchema := &cmdflag.FlagsSchema{
@@ -57,11 +57,11 @@ func (o *BlockGetOperation) registerFlags(cmd *cobra.Command) {
 	o.PathParamFlags.Register(pathParamsSchema)
 }
 
-func (o *BlockGetOperation) preRun(cmd *cobra.Command, args []string) {
+func (o *VolumeGetOperation) preRun(cmd *cobra.Command, args []string) {
 	o.PathParamFlags.PreRun(cmd, args)
 }
 
-func (o *BlockGetOperation) run(cmd *cobra.Command, args []string) error {
+func (o *VolumeGetOperation) run(cmd *cobra.Command, args []string) error {
 	// Get the block ID from flags
 	blockID, err := cmd.Flags().GetString("id")
 	if err != nil {
@@ -84,27 +84,28 @@ func (o *BlockGetOperation) run(cmd *cobra.Command, args []string) error {
 		latitudeshgosdk.WithSecurity(apiKey),
 	)
 
-	// NOTE: The SDK doesn't seem to have a GetStorageBlock (singular) method yet
-	// We'll need to use GetStorageBlocks and filter, or wait for the API to add this endpoint
-	fmt.Fprintf(os.Stdout, "Fetching block storage details for: %s\n", blockID)
-
-	// For now, use list and filter
-	response, err := client.Storage.GetStorageBlocks(ctx, nil)
+	// NOTE: The SDK doesn't seem to have a GetStorageVolume (singular) method yet
+	// For now, use list and filter by ID
+	response, err := client.Storage.GetStorageVolumes(ctx, nil)
 	if err != nil {
 		utils.PrintError(err)
 		return nil
 	}
 
-	if !lsh.Debug {
-		if response != nil && response.HTTPMeta.Response != nil {
-			fmt.Fprintf(os.Stdout, "Block storage details retrieved (Status: %s)\n", response.HTTPMeta.Response.Status)
-			fmt.Fprintf(os.Stdout, "\nNote: This command will show connector_id, gateway IP, and port once the API returns them.\n")
-			fmt.Fprintf(os.Stdout, "Look for:\n")
-			fmt.Fprintf(os.Stdout, "  - connector_id: The NVMe subsystem NQN (nqn.2001-07.com.ceph:...)\n")
-			fmt.Fprintf(os.Stdout, "  - gateway_ip: The IP address of the storage gateway\n")
-			fmt.Fprintf(os.Stdout, "  - gateway_port: The port (typically 4420)\n")
+	// Filter the response to find the matching volume
+	if response != nil && response.Object != nil && response.Object.Data != nil {
+		for _, volume := range response.Object.Data {
+			if volume.ID != nil && *volume.ID == blockID {
+				if !lsh.Debug {
+					// Display single volume as JSON
+					output.RenderAsJSON(volume)
+				}
+				return nil
+			}
 		}
+		// Volume not found
+		return fmt.Errorf("volume with ID '%s' not found", blockID)
 	}
 
-	return nil
+	return fmt.Errorf("no data returned from API")
 }

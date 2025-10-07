@@ -9,8 +9,8 @@ require (
 	github.com/go-openapi/strfmt v0.22.0
 	github.com/go-openapi/swag v0.22.7
 	github.com/go-openapi/validate v0.22.6
-	github.com/latitudesh/latitudesh-go-sdk v1.7.1
 	github.com/latitudesh/latitudesh-go v0.3.2
+	github.com/latitudesh/latitudesh-go-sdk v1.7.2
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/olekukonko/tablewriter v0.0.5

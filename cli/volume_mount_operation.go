@@ -26,8 +26,8 @@ const (
 	colorReset  = "\033[0m"
 )
 
-func makeOperationBlockMountCmd() (*cobra.Command, error) {
-	operation := BlockMountOperation{}
+func makeOperationVolumeMountCmd() (*cobra.Command, error) {
+	operation := VolumeMountOperation{}
 
 	cmd, err := operation.Register()
 	if err != nil {
@@ -37,12 +37,12 @@ func makeOperationBlockMountCmd() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-type BlockMountOperation struct {
+type VolumeMountOperation struct {
 	PathParamFlags cmdflag.Flags
 	OptionsFlags   cmdflag.Flags
 }
 
-func (o *BlockMountOperation) Register() (*cobra.Command, error) {
+func (o *VolumeMountOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "mount",
 		Short: "Mount a block storage to a server",
@@ -72,7 +72,7 @@ Example:
 	return cmd, nil
 }
 
-func (o *BlockMountOperation) registerFlags(cmd *cobra.Command) {
+func (o *VolumeMountOperation) registerFlags(cmd *cobra.Command) {
 	o.PathParamFlags = cmdflag.Flags{FlagSet: cmd.Flags()}
 	o.OptionsFlags = cmdflag.Flags{FlagSet: cmd.Flags()}
 
@@ -116,7 +116,7 @@ func (o *BlockMountOperation) registerFlags(cmd *cobra.Command) {
 	o.OptionsFlags.Register(optionsSchema)
 }
 
-func (o *BlockMountOperation) preRun(cmd *cobra.Command, args []string) {
+func (o *VolumeMountOperation) preRun(cmd *cobra.Command, args []string) {
 	o.PathParamFlags.PreRun(cmd, args)
 	o.OptionsFlags.PreRun(cmd, args)
 }
@@ -136,7 +136,20 @@ func printError(msg string) {
 // checkRoot verifies if the command is running as root
 func checkRoot() error {
 	if os.Geteuid() != 0 {
-		return fmt.Errorf("this command must be run as root (use sudo)")
+		return fmt.Errorf(`this command must be run as root (use sudo)
+
+This command requires root privileges to:
+- Install nvme-cli if not present
+- Load NVMe kernel modules
+- Configure NVMe host settings
+- Connect to NVMe-oF targets
+
+Usage:
+  sudo lsh block mount --id <BLOCK_ID>
+
+Note: Your API key will be automatically detected from your user config,
+      so make sure you've logged in first:
+  lsh login <API_KEY>`)
 	}
 	return nil
 }
@@ -359,57 +372,68 @@ func verifyConnection(subsystemNQN string) error {
 		return fmt.Errorf("subsystem not found after connection")
 	}
 
-	// Find the NVMe device
+	// Find the NVMe device (dynamically detects nvme0, nvme1, nvme2, etc.)
 	lines := strings.Split(output, "\n")
 	var nvmeDevice string
 	for _, line := range lines {
-		if strings.Contains(line, "nvme") && strings.Contains(line, " nvme") {
+		// Look for lines with NVMe controller info (e.g., " +- nvme1 tcp traddr=...")
+		if strings.Contains(line, "nvme") {
 			fields := strings.Fields(line)
 			for _, field := range fields {
-				if strings.HasPrefix(field, "nvme") && !strings.Contains(field, "/") {
+				// Find field that starts with "nvme" followed by a number
+				if strings.HasPrefix(field, "nvme") && !strings.Contains(field, "/") && !strings.Contains(field, "-") {
 					nvmeDevice = field
 					break
 				}
+			}
+			if nvmeDevice != "" {
+				break // Found it, stop searching
 			}
 		}
 	}
 
 	if nvmeDevice == "" {
-		return fmt.Errorf("could not find NVMe device")
+		printError("Could not detect NVMe controller from nvme list-subsys")
+		printWarning("Output was:")
+		fmt.Fprintf(os.Stderr, "%s\n", output)
+		return fmt.Errorf("could not find NVMe device - check if connection succeeded")
 	}
 
-	printStatus(fmt.Sprintf("NVMe controller: %s", nvmeDevice))
+	printStatus(fmt.Sprintf("✓ Detected NVMe controller: %s", nvmeDevice))
 
-	// Check for block devices
-	blockDevices, _ := runCommand("ls", "-1", fmt.Sprintf("/dev/%sn*", nvmeDevice))
+	// Check for block devices using find (e.g., /dev/nvme0n1, /dev/nvme1n1, etc.)
+	blockDevices, _ := runCommand("find", "/dev", "-name", fmt.Sprintf("%sn*", nvmeDevice))
 	if blockDevices != "" {
-		printStatus("Block devices available:")
+		printStatus("Volume devices available:")
 		devices := strings.Split(blockDevices, "\n")
+		var validDevices []string
 		for _, dev := range devices {
+			dev = strings.TrimSpace(dev)
 			if dev != "" {
+				validDevices = append(validDevices, dev)
 				fmt.Fprintf(os.Stdout, "  %s\n", dev)
 			}
 		}
 
-		fmt.Fprintf(os.Stdout, "\n")
-		printStatus("To use the block storage, format and mount it. For example:")
-		for _, dev := range devices {
-			if dev != "" {
-				mountpoint := fmt.Sprintf("/mnt/%s", strings.TrimPrefix(dev, "/dev/"))
-				fmt.Fprintf(os.Stdout, "  sudo mkfs.ext4 %s\n", dev)
-				fmt.Fprintf(os.Stdout, "  sudo mkdir -p %s\n", mountpoint)
-				fmt.Fprintf(os.Stdout, "  sudo mount %s %s\n\n", dev, mountpoint)
-			}
+		if len(validDevices) > 0 {
+			fmt.Fprintf(os.Stdout, "\n")
+			printStatus("To use the volume, format and mount it. For example:")
+			dev := validDevices[0] // Use first device
+			deviceName := strings.TrimPrefix(dev, "/dev/")
+			mountpoint := fmt.Sprintf("/mnt/%s", deviceName)
+			fmt.Fprintf(os.Stdout, "  sudo mkfs.ext4 %s\n", dev)
+			fmt.Fprintf(os.Stdout, "  sudo mkdir -p %s\n", mountpoint)
+			fmt.Fprintf(os.Stdout, "  sudo mount %s %s\n\n", dev, mountpoint)
 		}
 	} else {
-		printWarning("No block devices found. The storage may not be accessible yet.")
-		printWarning("Check the ANA (Asymmetric Namespace Access) state on the gateway.")
+		printWarning("No devices found. The volume may not be accessible yet.")
+		printWarning("Wait a few seconds and check: sudo nvme list")
 	}
 
 	return nil
 }
 
-func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
+func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 	// Check if running as root
 	if err := checkRoot(); err != nil {
 		printError(err.Error())
@@ -422,7 +446,7 @@ func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error getting block ID: %w", err)
 	}
 
-	fmt.Fprintf(os.Stdout, "\n🔧 Preparing server for block storage mount...\n\n")
+	fmt.Fprintf(os.Stdout, "\n🔧 Preparing server for volume mount...\n\n")
 
 	// STEP 1: Install prerequisites (nvme-cli) BEFORE getting NQN
 	if err := checkPrerequisites(); err != nil {
@@ -476,23 +500,23 @@ func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
 
 	if subsystemNQN == "" {
 		// Auto-fetch connector_id from API
-		fmt.Fprintf(os.Stdout, "\n📋 Fetching block storage details...\n")
+		fmt.Fprintf(os.Stdout, "\n📋 Fetching volume details...\n")
 		printStatus(fmt.Sprintf("Block ID: %s", blockID))
 
 		if lsh.Debug {
 			fmt.Fprintf(os.Stdout, "[DEBUG] Fetching block storage details to get connector_id\n")
 		}
 
-		blocksResponse, err := client.Storage.GetStorageBlocks(ctx, nil)
+		volumesResponse, err := client.Storage.GetStorageVolumes(ctx, nil)
 		if err != nil {
 			printError(fmt.Sprintf("Failed to fetch block storage details: %v", err))
 			utils.PrintError(err)
 			return err
 		}
 
-		// Parse response body manually to get block data
-		if blocksResponse != nil && blocksResponse.HTTPMeta.Response != nil {
-			bodyBytes, err := io.ReadAll(blocksResponse.HTTPMeta.Response.Body)
+		// Parse response body manually to get volume data
+		if volumesResponse != nil && volumesResponse.HTTPMeta.Response != nil {
+			bodyBytes, err := io.ReadAll(volumesResponse.HTTPMeta.Response.Body)
 			if err != nil {
 				printError(fmt.Sprintf("Failed to read response body: %v", err))
 				return err
@@ -543,22 +567,22 @@ func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
 		printStatus(fmt.Sprintf("Using provided subsystem NQN: %s", subsystemNQN))
 	}
 
-	fmt.Fprintf(os.Stdout, "\n📦 Authorizing client and mounting block storage...\n")
+	fmt.Fprintf(os.Stdout, "\n📦 Authorizing client and mounting volume...\n")
 	printStatus(fmt.Sprintf("Block ID: %s", blockID))
 	printStatus(fmt.Sprintf("Client NQN (for authorization): %s", nqn))
 
 	if lsh.Debug {
-		fmt.Fprintf(os.Stdout, "[DEBUG] API Request: POST /storage/blocks/%s/mount\n", blockID)
+		fmt.Fprintf(os.Stdout, "[DEBUG] API Request: POST /storage/volumes/%s/mount\n", blockID)
 		fmt.Fprintf(os.Stdout, "[DEBUG] Request Body: {\"data\":{\"type\":\"blocks\",\"attributes\":{\"nqn\":\"%s\"}}}\n", nqn)
 	}
 
 	// Call the API to authorize the client NQN and mount
 	// The NQN authorizes this client to access the storage
 	// The subsystem-nqn (connector_id) defines which storage subsystem to connect to
-	response, err := client.Storage.PostStorageBlocksMount(ctx, blockID, operations.PostStorageBlocksMountRequestBody{
-		Data: operations.PostStorageBlocksMountData{
-			Type: operations.PostStorageBlocksMountTypeBlocks,
-			Attributes: operations.PostStorageBlocksMountAttributes{
+	response, err := client.Storage.PostStorageVolumesMount(ctx, blockID, operations.PostStorageVolumesMountRequestBody{
+		Data: operations.PostStorageVolumesMountData{
+			Type: operations.PostStorageVolumesMountTypeVolumes,
+			Attributes: operations.PostStorageVolumesMountAttributes{
 				Nqn: nqn, // Send client NQN to authorize
 			},
 		},
@@ -575,7 +599,7 @@ func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
 
 	if response != nil && response.HTTPMeta.Response != nil {
 		if response.HTTPMeta.Response.StatusCode == 204 || response.HTTPMeta.Response.StatusCode == 200 {
-			printStatus("✓ Successfully authorized client and mounted block storage!")
+			printStatus("✓ Successfully authorized client and mounted volume!")
 		} else {
 			printWarning(fmt.Sprintf("Unexpected status code: %d", response.HTTPMeta.Response.StatusCode))
 		}
@@ -624,11 +648,10 @@ func (o *BlockMountOperation) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(os.Stdout, "\n✅ Block storage mount complete!\n")
+	fmt.Fprintf(os.Stdout, "\n✅ Volume mount complete!\n")
 	fmt.Fprintf(os.Stdout, "\nConnection Summary:\n")
 	fmt.Fprintf(os.Stdout, "  Client NQN: %s\n", nqn)
 	fmt.Fprintf(os.Stdout, "  Subsystem NQN: %s\n", subsystemNQN)
-	fmt.Fprintf(os.Stdout, "  Gateway: %s:%s\n", gatewayIP, gatewayPort)
 
 	return nil
 }
