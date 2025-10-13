@@ -30,8 +30,8 @@ type VolumeDeleteOperation struct {
 func (o *VolumeDeleteOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "delete",
-		Short:  "Delete a block storage",
-		Long:   "Delete a block storage by ID. Warning: This action cannot be undone!",
+		Short:  "Delete a volume storage",
+		Long:   "Delete a volume storage by ID. Warning: This action cannot be undone!",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -47,8 +47,8 @@ func (o *VolumeDeleteOperation) registerFlags(cmd *cobra.Command) {
 	pathParamsSchema := &cmdflag.FlagsSchema{
 		&cmdflag.String{
 			Name:        "id",
-			Label:       "Block Storage ID",
-			Description: "The ID of the block storage to delete",
+			Label:       "Volume Storage ID",
+			Description: "The ID of the volume storage to delete",
 			Required:    true,
 		},
 	}
@@ -61,10 +61,10 @@ func (o *VolumeDeleteOperation) preRun(cmd *cobra.Command, args []string) {
 }
 
 func (o *VolumeDeleteOperation) run(cmd *cobra.Command, args []string) error {
-	// Get the block ID from flags
-	blockID, err := cmd.Flags().GetString("id")
+	// Get the volume ID from flags
+	volumeID, err := cmd.Flags().GetString("id")
 	if err != nil {
-		return fmt.Errorf("error getting block ID: %w", err)
+		return fmt.Errorf("error getting volume ID: %w", err)
 	}
 
 	if lsh.DryRun {
@@ -84,7 +84,7 @@ func (o *VolumeDeleteOperation) run(cmd *cobra.Command, args []string) error {
 	)
 
 	// Confirm deletion
-	fmt.Fprintf(os.Stdout, "⚠️  Warning: You are about to delete block storage: %s\n", blockID)
+	fmt.Fprintf(os.Stdout, "⚠️  Warning: You are about to delete volume storage: %s\n", volumeID)
 	fmt.Fprintf(os.Stdout, "This action cannot be undone. All data will be lost.\n\n")
 	fmt.Fprintf(os.Stdout, "Type 'yes' to confirm: ")
 
@@ -97,15 +97,15 @@ func (o *VolumeDeleteOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Call the API
-	response, err := client.Storage.DeleteStorageVolumes(ctx, blockID)
+	response, err := client.Storage.DeleteStorageVolumes(ctx, volumeID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error deleting block storage: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error deleting volume storage: %v\n", err)
 		return err
 	}
 
 	if !lsh.Debug {
 		if response != nil && response.HTTPMeta.Response != nil {
-			fmt.Fprintf(os.Stdout, "✅ Block storage deleted successfully (Status: %s)\n", response.HTTPMeta.Response.Status)
+			fmt.Fprintf(os.Stdout, "✅ Volume storage deleted successfully (Status: %s)\n", response.HTTPMeta.Response.Status)
 		}
 	}
 

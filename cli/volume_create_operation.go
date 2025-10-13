@@ -30,8 +30,8 @@ type VolumeCreateOperation struct {
 func (o *VolumeCreateOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "create",
-		Short:  "Create a new block storage",
-		Long:   "Create a new block storage with specified size and location",
+		Short:  "Create a new volume storage",
+		Long:   "Create a new volume storage with specified size and location",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -48,7 +48,7 @@ func (o *VolumeCreateOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "project",
 			Label:       "Project ID or Slug",
-			Description: "The project to create the block storage in",
+			Description: "The project to create the volume storage in",
 			Required:    true,
 		},
 		&cmdflag.String{
@@ -60,13 +60,13 @@ func (o *VolumeCreateOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "location",
 			Label:       "Location",
-			Description: "The location/site for the block storage",
+			Description: "The location/site for the volume storage",
 			Required:    true,
 		},
 		&cmdflag.String{
 			Name:        "description",
 			Label:       "Description",
-			Description: "Optional description for the block storage",
+			Description: "Optional description for the volume storage",
 			Required:    false,
 		},
 	}
@@ -101,16 +101,16 @@ func (o *VolumeCreateOperation) run(cmd *cobra.Command, args []string) error {
 		latitudeshgosdk.WithSecurity(apiKey),
 	)
 
-	fmt.Fprintf(os.Stdout, "Creating block storage...\n")
+	fmt.Fprintf(os.Stdout, "Creating volume storage...\n")
 	fmt.Fprintf(os.Stdout, "  Project: %s\n", project)
 	fmt.Fprintf(os.Stdout, "  Plan: %s\n", plan)
 	fmt.Fprintf(os.Stdout, "  Location: %s\n", location)
 	if description != "" {
 		fmt.Fprintf(os.Stdout, "  Description: %s\n", description)
 	}
-	fmt.Fprintf(os.Stdout, "\n⚠️  Note: Block storage creation via CLI is coming soon.\n")
+	fmt.Fprintf(os.Stdout, "\n⚠️  Note: Volume storage creation via CLI is coming soon.\n")
 	fmt.Fprintf(os.Stdout, "The SDK method exists but needs proper request body mapping.\n")
-	fmt.Fprintf(os.Stdout, "For now, create block storage via the web dashboard at https://www.latitude.sh\n")
+	fmt.Fprintf(os.Stdout, "For now, create volume storage via the web dashboard at https://www.latitude.sh\n")
 
 	_ = client
 	_ = ctx

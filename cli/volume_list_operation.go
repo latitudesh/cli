@@ -31,8 +31,8 @@ type VolumeListOperation struct {
 func (o *VolumeListOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "list",
-		Short:  "List all block storages",
-		Long:   "List all block storages for your team, optionally filtered by project",
+		Short:  "List all volume storages",
+		Long:   "List all volume storages for your team, optionally filtered by project",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -49,7 +49,7 @@ func (o *VolumeListOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "project",
 			Label:       "Project ID or Slug",
-			Description: "Filter block storages by project ID or slug",
+			Description: "Filter volume storages by project ID or slug",
 			Required:    false,
 		},
 	}

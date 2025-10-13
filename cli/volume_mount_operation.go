@@ -45,24 +45,24 @@ type VolumeMountOperation struct {
 func (o *VolumeMountOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "mount",
-		Short: "Mount a block storage to a server",
-		Long: `Mount a block storage to a server. This command will:
-  1. Auto-fetch block storage details (including connector_id)
+		Short: "Mount a volume storage to a server",
+		Long: `Mount a volume storage to a server. This command will:
+  1. Auto-fetch volume storage details (including connector_id)
   2. Auto-detect the server's NQN from /etc/nvme/hostnqn
      (or generate a new one if the file doesn't exist)
   3. Send the client NQN to the API to authorize access
   4. Execute all NVMe-oF connection steps automatically
 
 The mount process:
-- Block ID: Used to fetch connector_id (subsystem NQN) automatically
+- Volume ID: Used to fetch connector_id (subsystem NQN) automatically
 - Client NQN (--nqn or auto-detected): Sent to API to authorize this client
-- Subsystem NQN: Auto-fetched from block storage's connector_id
+- Subsystem NQN: Auto-fetched from volume storage's connector_id
 - Gateway: The NVMe-oF gateway IP and port (defaults to 67.213.118.147:4420)
 
 This command must be run with sudo/root privileges on the target server.
 
 Example:
-  sudo lsh block mount --id blk_abc123`,
+  sudo lsh volume mount --id vol_abc123`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -79,8 +79,8 @@ func (o *VolumeMountOperation) registerFlags(cmd *cobra.Command) {
 	pathParamsSchema := &cmdflag.FlagsSchema{
 		&cmdflag.String{
 			Name:        "id",
-			Label:       "Block Storage ID",
-			Description: "The ID of the block storage to mount",
+			Label:       "Volume Storage ID",
+			Description: "The ID of the volume storage to mount",
 			Required:    true,
 		},
 	}
@@ -107,7 +107,7 @@ func (o *VolumeMountOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "subsystem-nqn",
 			Label:       "Subsystem NQN",
-			Description: "Override the subsystem NQN (optional, auto-fetched from block storage's connector_id)",
+			Description: "Override the subsystem NQN (optional, auto-fetched from volume storage's connector_id)",
 			Required:    false,
 		},
 	}
@@ -145,7 +145,7 @@ This command requires root privileges to:
 - Connect to NVMe-oF targets
 
 Usage:
-  sudo lsh block mount --id <BLOCK_ID>
+  sudo lsh volume mount --id <VOLUME_ID>
 
 Note: Your API key will be automatically detected from your user config,
       so make sure you've logged in first:
@@ -354,7 +354,7 @@ func connectNVMeoF(gatewayIP, gatewayPort, subsystemNQN string) error {
 		return fmt.Errorf(`connection failed. Please check:
   1. Gateway is accessible from this server
   2. Client NQN is authorized on the gateway
-  3. Block storage is properly configured`)
+  3. Volume storage is properly configured`)
 	}
 
 	printStatus("Successfully connected!")
@@ -440,10 +440,10 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Get the block ID from flags
-	blockID, err := cmd.Flags().GetString("id")
+	// Get the volume ID from flags
+	volumeID, err := cmd.Flags().GetString("id")
 	if err != nil {
-		return fmt.Errorf("error getting block ID: %w", err)
+		return fmt.Errorf("error getting volume ID: %w", err)
 	}
 
 	fmt.Fprintf(os.Stdout, "\n🔧 Preparing server for volume mount...\n\n")
@@ -468,7 +468,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			printError(fmt.Sprintf("Could not get or generate NQN: %v", err))
 			printError("\nOr provide NQN manually:")
-			printError(fmt.Sprintf("  sudo lsh block mount --id %s --nqn nqn.2014-08.org.nvmexpress:uuid:YOUR-UUID", blockID))
+			printError(fmt.Sprintf("  sudo lsh volume mount --id %s --nqn nqn.2014-08.org.nvmexpress:uuid:YOUR-UUID", volumeID))
 			return fmt.Errorf("NQN is required but could not be obtained")
 		}
 		nqn = detectedNQN
@@ -495,21 +495,21 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 		latitudeshgosdk.WithSecurity(apiKey),
 	)
 
-	// Step 1: Fetch block storage details to get connector_id (subsystem NQN)
+	// Step 1: Fetch volume storage details to get connector_id (subsystem NQN)
 	subsystemNQN, _ := cmd.Flags().GetString("subsystem-nqn")
 
 	if subsystemNQN == "" {
 		// Auto-fetch connector_id from API
 		fmt.Fprintf(os.Stdout, "\n📋 Fetching volume details...\n")
-		printStatus(fmt.Sprintf("Block ID: %s", blockID))
+		printStatus(fmt.Sprintf("Volume ID: %s", volumeID))
 
 		if lsh.Debug {
-			fmt.Fprintf(os.Stdout, "[DEBUG] Fetching block storage details to get connector_id\n")
+			fmt.Fprintf(os.Stdout, "[DEBUG] Fetching volume storage details to get connector_id\n")
 		}
 
 		volumesResponse, err := client.Storage.GetStorageVolumes(ctx, nil)
 		if err != nil {
-			printError(fmt.Sprintf("Failed to fetch block storage details: %v", err))
+			printError(fmt.Sprintf("Failed to fetch volume storage details: %v", err))
 			utils.PrintError(err)
 			return err
 		}
@@ -538,26 +538,26 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 				return err
 			}
 
-			// Find the block by ID
+			// Find the volume by ID
 			var found bool
-			for _, block := range responseData.Data {
-				if block.ID == blockID {
-					if block.Attributes.ConnectorID != nil && *block.Attributes.ConnectorID != "" {
-						subsystemNQN = *block.Attributes.ConnectorID
+			for _, volume := range responseData.Data {
+				if volume.ID == volumeID {
+					if volume.Attributes.ConnectorID != nil && *volume.Attributes.ConnectorID != "" {
+						subsystemNQN = *volume.Attributes.ConnectorID
 						printStatus(fmt.Sprintf("✓ Retrieved connector_id (subsystem NQN): %s", subsystemNQN))
 						found = true
 						break
 					} else {
-						printError("Block storage does not have a connector_id configured")
-						printError("The block storage must have a connector_id before mounting")
-						return fmt.Errorf("connector_id not found for block storage %s", blockID)
+						printError("Volume storage does not have a connector_id configured")
+						printError("The volume storage must have a connector_id before mounting")
+						return fmt.Errorf("connector_id not found for volume storage %s", volumeID)
 					}
 				}
 			}
 
 			if !found {
-				printError(fmt.Sprintf("Block storage not found: %s", blockID))
-				return fmt.Errorf("block storage %s not found", blockID)
+				printError(fmt.Sprintf("Volume storage not found: %s", volumeID))
+				return fmt.Errorf("volume storage %s not found", volumeID)
 			}
 		} else {
 			printError("No response from API")
@@ -568,18 +568,18 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintf(os.Stdout, "\n📦 Authorizing client and mounting volume...\n")
-	printStatus(fmt.Sprintf("Block ID: %s", blockID))
+	printStatus(fmt.Sprintf("Volume ID: %s", volumeID))
 	printStatus(fmt.Sprintf("Client NQN (for authorization): %s", nqn))
 
 	if lsh.Debug {
-		fmt.Fprintf(os.Stdout, "[DEBUG] API Request: POST /storage/volumes/%s/mount\n", blockID)
-		fmt.Fprintf(os.Stdout, "[DEBUG] Request Body: {\"data\":{\"type\":\"blocks\",\"attributes\":{\"nqn\":\"%s\"}}}\n", nqn)
+		fmt.Fprintf(os.Stdout, "[DEBUG] API Request: POST /storage/volumes/%s/mount\n", volumeID)
+		fmt.Fprintf(os.Stdout, "[DEBUG] Request Body: {\"data\":{\"type\":\"volumes\",\"attributes\":{\"nqn\":\"%s\"}}}\n", nqn)
 	}
 
 	// Call the API to authorize the client NQN and mount
 	// The NQN authorizes this client to access the storage
 	// The subsystem-nqn (connector_id) defines which storage subsystem to connect to
-	response, err := client.Storage.PostStorageVolumesMount(ctx, blockID, operations.PostStorageVolumesMountRequestBody{
+	response, err := client.Storage.PostStorageVolumesMount(ctx, volumeID, operations.PostStorageVolumesMountRequestBody{
 		Data: operations.PostStorageVolumesMountData{
 			Type: operations.PostStorageVolumesMountTypeVolumes,
 			Attributes: operations.PostStorageVolumesMountAttributes{

@@ -112,7 +112,7 @@ lsh volume list --project <PROJECT_ID>
 
 ```
 
-Mount volume storage to a server (requires sudo, auto-installs nvme-cli and connects)
+Mount volume to a server (requires sudo, auto-installs nvme-cli and connects)
 
 ```bash
 # First, login as normal user

@@ -31,8 +31,8 @@ type VolumeGetOperation struct {
 func (o *VolumeGetOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:    "get",
-		Short:  "Get block storage details",
-		Long:   "Get detailed information about a specific block storage including connector details needed for mounting",
+		Short:  "Get volume storage details",
+		Long:   "Get detailed information about a specific volume storage including connector details needed for mounting",
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -48,8 +48,8 @@ func (o *VolumeGetOperation) registerFlags(cmd *cobra.Command) {
 	pathParamsSchema := &cmdflag.FlagsSchema{
 		&cmdflag.String{
 			Name:        "id",
-			Label:       "Block Storage ID",
-			Description: "The ID of the block storage to retrieve",
+			Label:       "Volume Storage ID",
+			Description: "The ID of the volume storage to retrieve",
 			Required:    true,
 		},
 	}
@@ -62,10 +62,10 @@ func (o *VolumeGetOperation) preRun(cmd *cobra.Command, args []string) {
 }
 
 func (o *VolumeGetOperation) run(cmd *cobra.Command, args []string) error {
-	// Get the block ID from flags
-	blockID, err := cmd.Flags().GetString("id")
+	// Get the volume ID from flags
+	volumeID, err := cmd.Flags().GetString("id")
 	if err != nil {
-		return fmt.Errorf("error getting block ID: %w", err)
+		return fmt.Errorf("error getting volume ID: %w", err)
 	}
 
 	if lsh.DryRun {
@@ -95,7 +95,7 @@ func (o *VolumeGetOperation) run(cmd *cobra.Command, args []string) error {
 	// Filter the response to find the matching volume
 	if response != nil && response.Object != nil && response.Object.Data != nil {
 		for _, volume := range response.Object.Data {
-			if volume.ID != nil && *volume.ID == blockID {
+			if volume.ID != nil && *volume.ID == volumeID {
 				if !lsh.Debug {
 					// Display single volume as JSON
 					output.RenderAsJSON(volume)
@@ -104,7 +104,7 @@ func (o *VolumeGetOperation) run(cmd *cobra.Command, args []string) error {
 			}
 		}
 		// Volume not found
-		return fmt.Errorf("volume with ID '%s' not found", blockID)
+		return fmt.Errorf("volume with ID '%s' not found", volumeID)
 	}
 
 	return fmt.Errorf("no data returned from API")
