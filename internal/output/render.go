@@ -12,3 +12,4 @@ func RenderAsJSON(data interface{}) error {
 	}
 	return RenderJSON(jsonBytes)
 }
+
