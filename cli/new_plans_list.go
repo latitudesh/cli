@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // register in your root.go: rootCmd.AddCommand(newPlansCmd())
@@ -43,7 +44,10 @@ func newPlansListCmd() *cobra.Command {
 				token = os.Getenv("LATITUDESH_AUTH_TOKEN")
 			}
 			if token == "" {
-				return errors.New("missing token: set --token or LATITUDESH_AUTH_TOKEN")
+				token = viper.GetString("authorization")
+			}
+			if token == "" {
+				return errors.New("missing token: set --token or LATITUDESH_AUTH_TOKEN or run 'lsh login <token>'")
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 20*time.Second)
 			defer cancel()
