@@ -52,36 +52,36 @@ func InitViperConfigs() {
 	home, err := homedir.Dir()
 	cobra.CheckErr(err)
 
-	// Always log this regardless of debug flag since it's critical for troubleshooting
+	// Only log in debug mode
 	sudoUser := os.Getenv("SUDO_USER")
 	if sudoUser != "" {
-		log.Printf("[SUDO] Detected sudo context. SUDO_USER=%s\n", sudoUser)
+		LogDebugf("[SUDO] Detected sudo context. SUDO_USER=%s\n", sudoUser)
 		// Look up the real user's home directory
 		if usr, err := user.Lookup(sudoUser); err == nil {
 			realHome := usr.HomeDir
 			configPath := path.Join(realHome, ".config", ExeName)
 			viper.AddConfigPath(configPath)
-			log.Printf("[SUDO] Added sudo user config path: %s\n", configPath)
+			LogDebugf("[SUDO] Added sudo user config path: %s\n", configPath)
 		} else {
-			log.Printf("[SUDO] Could not lookup user %s: %v\n", sudoUser, err)
+			LogDebugf("[SUDO] Could not lookup user %s: %v\n", sudoUser, err)
 		}
 	} else {
-		log.Printf("[CONFIG] Running as normal user (no sudo)\n")
+		LogDebugf("[CONFIG] Running as normal user (no sudo)\n")
 	}
 
 	// Also check current home directory (works for both sudo and non-sudo)
 	currentConfigPath := path.Join(home, ".config", ExeName)
 	viper.AddConfigPath(currentConfigPath)
-	log.Printf("[CONFIG] Added current home config path: %s\n", currentConfigPath)
+	LogDebugf("[CONFIG] Added current home config path: %s\n", currentConfigPath)
 	viper.SetConfigName("config")
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Printf("[CONFIG] Error loading config file: %v\n", err)
-		log.Printf("[CONFIG] Searched in paths: %s/.config/%s\n", home, ExeName)
+		LogDebugf("[CONFIG] Error loading config file: %v\n", err)
+		LogDebugf("[CONFIG] Searched in paths: %s/.config/%s\n", home, ExeName)
 		if sudoUser != "" {
-			log.Printf("[CONFIG] Also searched sudo user paths\n")
+			LogDebugf("[CONFIG] Also searched sudo user paths\n")
 		}
 		return
 	}
-	log.Printf("[CONFIG] ✓ Using config file: %v\n", viper.ConfigFileUsed())
+	LogDebugf("[CONFIG] ✓ Using config file: %v\n", viper.ConfigFileUsed())
 }
