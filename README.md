@@ -18,9 +18,7 @@ brew install latitudesh/tools/lsh
 #### Installation Script
 
 ```bash
-
-curl -sSL  https://raw.githubusercontent.com/latitudesh/cli/main/install.sh | bash
-
+curl -fsSL https://cli.latitude.sh/install.sh | sh
 ```
 
 #### Windows is not supported yet
