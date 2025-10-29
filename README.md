@@ -29,7 +29,7 @@ curl -sSL  https://raw.githubusercontent.com/latitudesh/cli/main/install.sh | ba
 
 ### From Github
 
-Visit the Releases page and select any version you want to download.
+Visit the [releases page](https://github.com/latitudesh/cli/releases) and select any version you want to download.
 
 ## [](https://docs.latitude.sh/docs/getting-started)Getting Started
 
