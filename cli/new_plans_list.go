@@ -344,7 +344,7 @@ func groupPlans(pr *plansResponse, gpu bool, name, slug string, inStock bool, lo
 
 func renderGroupedPlans(plans []groupedPlan) {
 	if len(plans) == 0 {
-		fmt.Println("\nNo plans found matching your filters.\n")
+		fmt.Println("\nNo plans found matching your filters.")
 		return
 	}
 
@@ -403,7 +403,7 @@ func wrapLocations(locs []string, maxPerLine int) string {
 
 func renderStockTable(rows []flatRow) {
 	if len(rows) == 0 {
-		fmt.Println("\nNo plans found matching your filters.\n")
+		fmt.Println("\nNo plans found matching your filters.")
 		return
 	}
 

@@ -6,6 +6,8 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 
+version: 2
+
 project_name: lsh
 
 before:
@@ -49,11 +51,11 @@ changelog:
       - "^docs:"
       - "^test:"
 
-brews:
-  -
-    name: lsh
+homebrew_casks:
+  - name: lsh
     homepage: "https://www.latitude.sh/"
-
+    description: "Latitude.sh CLI tool"
     repository:
       owner: latitudesh
       name: homebrew-tools
+      token: "{{ .Env.GITHUB_TOKEN }}"

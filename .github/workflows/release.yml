@@ -32,13 +32,13 @@ jobs:
           rm -f cmd/lsh/go.mod
       -
         name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: 'v1.26.2'
+          version: latest
           args: release --clean --config .goreleaser.yaml
         env:
-          GITHUB_TOKEN: ${{ secrets.GORELEASER_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   generate-docs:
     runs-on: ubuntu-latest
