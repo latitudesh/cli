@@ -228,6 +228,7 @@ func makeOperationGroupPlansCmd() (*cobra.Command, error) {
 
 	// Add the new enhanced plans list command
 	operationGroupPlansCmd.AddCommand(newPlansListCmd())
+	operationGroupPlansCmd.AddCommand(newPlansAvailabilityCmd())
 
 	return operationGroupPlansCmd, nil
 }

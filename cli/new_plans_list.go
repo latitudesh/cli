@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -20,22 +21,94 @@ import (
 func newPlansCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "plans", Short: "Inspect Latitude.sh server plans"}
 	cmd.AddCommand(newPlansListCmd())
+	cmd.AddCommand(newPlansAvailabilityCmd())
 	return cmd
 }
 
 func newPlansListCmd() *cobra.Command {
 	var (
-		region    string
-		location  string
-		inStock   bool
-		available bool
-		format    string
-		token     string
+		gpu        bool
+		inStock    bool
+		location   string
+		name       string
+		slug       string
+		stockLevel string
+		diskEql    int
+		diskGte    int
+		diskLte    int
+		ramEql     int
+		ramGte     int
+		ramLte     int
+		token      string
 	)
 
 	c := &cobra.Command{
 		Use:   "list",
-		Short: "List plans with optional filters (region/location/stock) and choose output format",
+		Short: "List available plans in grouped format",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if token == "" {
+				token = os.Getenv("LATITUDESH_AUTH_TOKEN")
+			}
+			if token == "" {
+				token = viper.GetString("authorization")
+			}
+			if token == "" {
+				return errors.New("missing token: set --token or LATITUDESH_AUTH_TOKEN or run 'lsh login <token>'")
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), 20*time.Second)
+			defer cancel()
+
+			plans, err := fetchPlans(ctx, token)
+			if err != nil {
+				return err
+			}
+
+			grouped := groupPlans(plans, gpu, name, slug, inStock, location, stockLevel, diskEql, diskGte, diskLte, ramEql, ramGte, ramLte)
+			renderGroupedPlans(grouped)
+			return nil
+		},
+	}
+
+	c.Flags().BoolVar(&gpu, "gpu", false, "Filter by the existence of an associated GPU")
+	c.Flags().BoolVar(&inStock, "in_stock", false, "The stock available at the site to filter by")
+	c.Flags().StringVar(&location, "location", "", "The location of the site to filter by")
+	c.Flags().StringVar(&name, "name", "", "The plan name to filter by")
+	c.Flags().StringVar(&slug, "slug", "", "The plan slug to filter by")
+	c.Flags().StringVar(&stockLevel, "stock_level", "", "Enum: [\"Unavailable\",\"Low\",\"Medium\",\"High\",\"Unique\"]. The stock level at the site to filter by")
+	c.Flags().IntVar(&diskEql, "disk_eql", 0, "Filter plans with disk size in Gigabytes equals the provided value.")
+	c.Flags().IntVar(&diskGte, "disk_gte", 0, "Filter plans with disk size in Gigabytes greater than or equal the provided value.")
+	c.Flags().IntVar(&diskLte, "disk_lte", 0, "Filter plans with disk size in Gigabytes less than or equal the provided value.")
+	c.Flags().IntVar(&ramEql, "ram_eql", 0, "Filter plans with RAM size (in GB) equals the provided value.")
+	c.Flags().IntVar(&ramGte, "ram_gte", 0, "Filter plans with RAM size (in GB) greater than or equal the provided value.")
+	c.Flags().IntVar(&ramLte, "ram_lte", 0, "Filter plans with RAM size (in GB) less than or equal the provided value.")
+	c.Flags().StringVar(&token, "token", "", "API token (defaults to LATITUDESH_AUTH_TOKEN)")
+
+	return c
+}
+
+func newPlansAvailabilityCmd() *cobra.Command {
+	var (
+		region     string
+		location   string
+		inStock    bool
+		available  bool
+		gpu        bool
+		name       string
+		slug       string
+		stockLevel string
+		diskEql    int
+		diskGte    int
+		diskLte    int
+		ramEql     int
+		ramGte     int
+		ramLte     int
+		format     string
+		token      string
+	)
+
+	c := &cobra.Command{
+		Use:   "stock",
+		Short: "Show detailed plan availability by location with optional filters",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if format == "" {
 				format = "table"
@@ -57,7 +130,7 @@ func newPlansListCmd() *cobra.Command {
 				return err
 			}
 
-			rows := filterAndFlatten(plans, region, location, inStock, available)
+			rows := filterAndFlatten(plans, region, location, inStock, available, gpu, name, slug, stockLevel, diskEql, diskGte, diskLte, ramEql, ramGte, ramLte)
 
 			switch strings.ToLower(format) {
 			case "json":
@@ -73,26 +146,324 @@ func newPlansListCmd() *cobra.Command {
 				w.Flush()
 				return w.Error()
 			default:
-				// pretty table (no third-party deps)
-				fmt.Fprintf(os.Stdout, "%s\n", "PLAN SLUG                      CPU  CORES  CLOCK    TYPE           RAM(GB)  DRIVES                              STOCK     PRICE(USD)  REGION  LOC")
-				fmt.Fprintf(os.Stdout, "%s\n", strings.Repeat("-", 120))
-				for _, r := range rows {
-					fmt.Fprintf(os.Stdout, "%-30s %3d  %5d  %-7s %-14s %7d  %-35s %-9s %-11s %-6s %-4s\n",
-						r.PlanSlug, r.CPUCount, r.CPUCores, r.CPUClock, r.CPUType, r.MemoryTotalGB, strings.Join(r.DriveTypes, "; "), r.StockLevel, r.MonthlyUSD, r.Region, r.Location)
-				}
+				renderStockTable(rows)
 				return nil
 			}
 		},
 	}
 
 	c.Flags().StringVar(&region, "region", "", "Filter by region name (e.g. 'Japan')")
-	c.Flags().StringVar(&location, "location", "", "Filter by location slug (e.g. 'TYO3')")
-	c.Flags().BoolVar(&inStock, "in-stock", false, "Only include locations currently in stock")
+	c.Flags().StringVar(&location, "location", "", "The location of the site to filter by")
+	c.Flags().StringVar(&location, "site", "", "The location of the site to filter by (alias for --location)")
+	c.Flags().BoolVar(&inStock, "in_stock", false, "The stock available at the site to filter by")
 	c.Flags().BoolVar(&available, "available", false, "Only include locations marked as available")
+	c.Flags().BoolVar(&gpu, "gpu", false, "Filter by the existence of an associated GPU")
+	c.Flags().StringVar(&name, "name", "", "The plan name to filter by")
+	c.Flags().StringVar(&slug, "slug", "", "The plan slug to filter by")
+	c.Flags().StringVar(&stockLevel, "stock_level", "", "Enum: [\"Unavailable\",\"Low\",\"Medium\",\"High\",\"Unique\"]. The stock level at the site to filter by")
+	c.Flags().IntVar(&diskEql, "disk_eql", 0, "Filter plans with disk size in Gigabytes equals the provided value.")
+	c.Flags().IntVar(&diskGte, "disk_gte", 0, "Filter plans with disk size in Gigabytes greater than or equal the provided value.")
+	c.Flags().IntVar(&diskLte, "disk_lte", 0, "Filter plans with disk size in Gigabytes less than or equal the provided value.")
+	c.Flags().IntVar(&ramEql, "ram_eql", 0, "Filter plans with RAM size (in GB) equals the provided value.")
+	c.Flags().IntVar(&ramGte, "ram_gte", 0, "Filter plans with RAM size (in GB) greater than or equal the provided value.")
+	c.Flags().IntVar(&ramLte, "ram_lte", 0, "Filter plans with RAM size (in GB) less than or equal the provided value.")
 	c.Flags().StringVar(&format, "format", "table", "Output format: table|csv|json")
 	c.Flags().StringVar(&token, "token", "", "API token (defaults to LATITUDESH_AUTH_TOKEN)")
 
 	return c
+}
+
+// --- Grouped Plans (for plans list command) ---
+
+type groupedPlan struct {
+	Slug        string
+	CPU         string
+	Drives      string
+	NIC         string
+	ID          string
+	AvailableIn []string
+	InStock     []string
+	Features    []string
+	Memory      string
+}
+
+func groupPlans(pr *plansResponse, gpu bool, name, slug string, inStock bool, location, stockLevel string, diskEql, diskGte, diskLte, ramEql, ramGte, ramLte int) []groupedPlan {
+	var grouped []groupedPlan
+
+	for _, d := range pr.Data {
+		attr := d.Attributes
+
+		// Filter by GPU if requested
+		if gpu && !strings.HasPrefix(attr.Slug, "g") {
+			continue
+		}
+
+		// Filter by name
+		if name != "" && !strings.Contains(strings.ToLower(attr.Slug), strings.ToLower(name)) {
+			continue
+		}
+
+		// Filter by slug (exact match)
+		if slug != "" && !strings.EqualFold(attr.Slug, slug) {
+			continue
+		}
+
+		// Filter by RAM
+		if ramEql > 0 && attr.Specs.Memory.Total != ramEql {
+			continue
+		}
+		if ramGte > 0 && attr.Specs.Memory.Total < ramGte {
+			continue
+		}
+		if ramLte > 0 && attr.Specs.Memory.Total > ramLte {
+			continue
+		}
+
+		// Calculate total disk size for filtering
+		totalDiskGB := 0
+		for _, dv := range attr.Specs.Drives {
+			// Parse disk size (e.g., "3.8TB" -> 3800GB, "960GB" -> 960GB)
+			sizeStr := strings.TrimSpace(dv.Size)
+			var diskGB int
+			if strings.HasSuffix(sizeStr, "TB") {
+				var sizeTB float64
+				fmt.Sscanf(sizeStr, "%f", &sizeTB)
+				diskGB = int(sizeTB * 1000)
+			} else if strings.HasSuffix(sizeStr, "GB") {
+				fmt.Sscanf(sizeStr, "%d", &diskGB)
+			}
+			totalDiskGB += dv.Count * diskGB
+		}
+
+		// Filter by disk size
+		if diskEql > 0 && totalDiskGB != diskEql {
+			continue
+		}
+		if diskGte > 0 && totalDiskGB < diskGte {
+			continue
+		}
+		if diskLte > 0 && totalDiskGB > diskLte {
+			continue
+		}
+
+		// Collect all available and in-stock locations across all regions
+		availableSet := make(map[string]bool)
+		inStockSet := make(map[string]bool)
+		planHasStockLevel := false
+
+		for _, r := range attr.Regions {
+			// Check stock_level filter at region level
+			if stockLevel != "" && !strings.EqualFold(r.StockLevel, stockLevel) {
+				continue
+			}
+			if stockLevel != "" && strings.EqualFold(r.StockLevel, stockLevel) {
+				planHasStockLevel = true
+			}
+
+			for _, loc := range r.Locations.Available {
+				// Filter by location if specified
+				if location != "" && !strings.EqualFold(loc, location) {
+					continue
+				}
+				availableSet[strings.ToUpper(loc)] = true
+			}
+			for _, loc := range r.Locations.InStock {
+				// Filter by location if specified
+				if location != "" && !strings.EqualFold(loc, location) {
+					continue
+				}
+				inStockSet[strings.ToUpper(loc)] = true
+			}
+		}
+
+		// If stock_level filter is set and no regions matched, skip this plan
+		if stockLevel != "" && !planHasStockLevel {
+			continue
+		}
+
+		// Filter by inStock - if the flag is set and there are no in-stock locations, skip
+		if inStock && len(inStockSet) == 0 {
+			continue
+		}
+
+		// Convert sets to sorted slices
+		var available, inStockLocs []string
+		for loc := range availableSet {
+			available = append(available, loc)
+		}
+		for loc := range inStockSet {
+			inStockLocs = append(inStockLocs, loc)
+		}
+		sort.Strings(available)
+		sort.Strings(inStockLocs)
+
+		// Build CPU string
+		cpuStr := fmt.Sprintf("%dx %s", attr.Specs.CPU.Count, attr.Specs.CPU.Type)
+		if attr.Specs.CPU.Clock.Value != "" {
+			cpuStr += " " + attr.Specs.CPU.Clock.Value
+		}
+		if attr.Specs.CPU.Cores > 0 {
+			cpuStr += fmt.Sprintf(" (%d cores)", attr.Specs.CPU.Cores)
+		}
+
+		// Build drives string
+		var driveStrings []string
+		for _, dv := range attr.Specs.Drives {
+			driveStrings = append(driveStrings, fmt.Sprintf("%dx %s %s", dv.Count, dv.Type, dv.Size))
+		}
+		drivesStr := strings.Join(driveStrings, "\n")
+
+		// Extract features (we'll assume ssh, raid, user_data for now - these come from the API usually)
+		features := []string{"ssh", "user_data"}
+		if len(attr.Specs.Drives) > 1 {
+			features = append(features, "raid")
+		}
+
+		// Get first region's NIC info (assuming it's consistent)
+		nicStr := ""
+		if len(attr.Regions) > 0 {
+			// NIC info isn't in the struct, we'll leave it empty or could parse from another field
+			nicStr = "N/A"
+		}
+
+		grouped = append(grouped, groupedPlan{
+			Slug:        attr.Slug,
+			CPU:         cpuStr,
+			Drives:      drivesStr,
+			NIC:         nicStr,
+			ID:          d.ID,
+			Memory:      fmt.Sprintf("%dGB", attr.Specs.Memory.Total),
+			AvailableIn: available,
+			InStock:     inStockLocs,
+			Features:    features,
+		})
+	}
+
+	return grouped
+}
+
+func renderGroupedPlans(plans []groupedPlan) {
+	if len(plans) == 0 {
+		fmt.Println("\nNo plans found matching your filters.\n")
+		return
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"SLUG", "CPU", "DRIVES", "NIC", "ID", "FEATURES", "MEMORY", "AVAILABLE IN", "IN STOCK"})
+	table.SetRowLine(true)
+	table.SetColWidth(18)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAutoFormatHeaders(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+
+	for _, p := range plans {
+		availStr := wrapLocations(p.AvailableIn, 20)
+		stockStr := wrapLocations(p.InStock, 10)
+
+		table.Append([]string{
+			p.Slug,
+			p.CPU,
+			p.Drives,
+			p.NIC,
+			p.ID,
+			strings.Join(p.Features, "\n"),
+			p.Memory,
+			availStr,
+			stockStr,
+		})
+	}
+
+	fmt.Println()
+	table.Render()
+	fmt.Printf("\nTotal: %d plans\n\n", len(plans))
+}
+
+func wrapLocations(locs []string, maxPerLine int) string {
+	if len(locs) == 0 {
+		return ""
+	}
+
+	var lines []string
+	var currentLine []string
+
+	for _, loc := range locs {
+		currentLine = append(currentLine, loc)
+		if len(currentLine) >= maxPerLine {
+			lines = append(lines, strings.Join(currentLine, ", "))
+			currentLine = nil
+		}
+	}
+
+	if len(currentLine) > 0 {
+		lines = append(lines, strings.Join(currentLine, ", "))
+	}
+
+	return strings.Join(lines, ",\n")
+}
+
+func renderStockTable(rows []flatRow) {
+	if len(rows) == 0 {
+		fmt.Println("\nNo plans found matching your filters.\n")
+		return
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"PLAN", "ID", "CPU", "RAM", "DRIVES", "FEATURES", "STOCK", "PRICE/MO", "REGION", "LOCATION"})
+	table.SetRowLine(true)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("|")
+	table.SetColumnSeparator("|")
+	table.SetRowSeparator("-")
+
+	for _, r := range rows {
+		// Format CPU info more compactly
+		cpuInfo := fmt.Sprintf("%dx %s", r.CPUCount, r.CPUType)
+		if r.CPUClock != "" {
+			cpuInfo += fmt.Sprintf("\n%s", r.CPUClock)
+		}
+		if r.CPUCores > 0 {
+			cpuInfo += fmt.Sprintf("\n(%d cores)", r.CPUCores)
+		}
+
+		// Format RAM
+		ramInfo := fmt.Sprintf("%dGB", r.MemoryTotalGB)
+
+		// Format drives
+		drivesInfo := strings.Join(r.DriveTypes, "\n")
+
+		// Format features (similar to plans list)
+		features := []string{"ssh", "user_data"}
+		if r.DriveCount > 1 {
+			features = append(features, "raid")
+		}
+		featuresInfo := strings.Join(features, "\n")
+
+		// Format stock level with better visual
+		stockDisplay := strings.ToUpper(r.StockLevel)
+
+		// Format price
+		priceDisplay := fmt.Sprintf("$%s", r.MonthlyUSD)
+
+		table.Append([]string{
+			r.PlanSlug,
+			r.PlanID,
+			cpuInfo,
+			ramInfo,
+			drivesInfo,
+			featuresInfo,
+			stockDisplay,
+			priceDisplay,
+			r.Region,
+			r.Location,
+		})
+	}
+
+	fmt.Println()
+	table.Render()
+	fmt.Printf("\nTotal: %d results\n\n", len(rows))
 }
 
 // --- API layer ---
@@ -128,6 +499,7 @@ func (fs *flexibleString) UnmarshalJSON(data []byte) error {
 
 type plansResponse struct {
 	Data []struct {
+		ID         string `json:"id"`
 		Attributes struct {
 			Slug  string `json:"slug"`
 			Specs struct {
@@ -165,12 +537,14 @@ type plansResponse struct {
 
 type flatRow struct {
 	PlanSlug      string   `json:"plan_slug"`
+	PlanID        string   `json:"plan_id"`
 	CPUCount      int      `json:"cpu_count"`
 	CPUCores      int      `json:"cpu_cores"`
 	CPUClock      string   `json:"cpu_clock"`
 	CPUType       string   `json:"cpu_type"`
 	MemoryTotalGB int      `json:"memory_total_gb"`
 	DriveTypes    []string `json:"drive_types"`
+	DriveCount    int      `json:"drive_count"`
 	StockLevel    string   `json:"stock_level"`
 	MonthlyUSD    string   `json:"monthly_usd"`
 	Region        string   `json:"region"`
@@ -200,10 +574,64 @@ func fetchPlans(ctx context.Context, token string) (*plansResponse, error) {
 	return &out, nil
 }
 
-func filterAndFlatten(pr *plansResponse, regionName, loc string, inStock, available bool) []flatRow {
+func filterAndFlatten(pr *plansResponse, regionName, loc string, inStock, available, gpu bool, name, slug, stockLevel string, diskEql, diskGte, diskLte, ramEql, ramGte, ramLte int) []flatRow {
 	rows := make([]flatRow, 0)
 	for _, d := range pr.Data {
 		attr := d.Attributes
+
+		// Filter by GPU if requested - plans with GPU typically start with 'g' (e.g., g3-a100-large, g4-rtx6kpro-large)
+		if gpu && !strings.HasPrefix(attr.Slug, "g") {
+			continue
+		}
+
+		// Filter by name
+		if name != "" && !strings.Contains(strings.ToLower(attr.Slug), strings.ToLower(name)) {
+			continue
+		}
+
+		// Filter by slug (exact match)
+		if slug != "" && !strings.EqualFold(attr.Slug, slug) {
+			continue
+		}
+
+		// Filter by RAM
+		if ramEql > 0 && attr.Specs.Memory.Total != ramEql {
+			continue
+		}
+		if ramGte > 0 && attr.Specs.Memory.Total < ramGte {
+			continue
+		}
+		if ramLte > 0 && attr.Specs.Memory.Total > ramLte {
+			continue
+		}
+
+		// Calculate total disk size for filtering
+		totalDiskGB := 0
+		for _, dv := range attr.Specs.Drives {
+			// Parse disk size (e.g., "3.8TB" -> 3800GB, "960GB" -> 960GB)
+			sizeStr := strings.TrimSpace(dv.Size)
+			var diskGB int
+			if strings.HasSuffix(sizeStr, "TB") {
+				var sizeTB float64
+				fmt.Sscanf(sizeStr, "%f", &sizeTB)
+				diskGB = int(sizeTB * 1000)
+			} else if strings.HasSuffix(sizeStr, "GB") {
+				fmt.Sscanf(sizeStr, "%d", &diskGB)
+			}
+			totalDiskGB += dv.Count * diskGB
+		}
+
+		// Filter by disk size
+		if diskEql > 0 && totalDiskGB != diskEql {
+			continue
+		}
+		if diskGte > 0 && totalDiskGB < diskGte {
+			continue
+		}
+		if diskLte > 0 && totalDiskGB > diskLte {
+			continue
+		}
+
 		driveStrings := make([]string, 0, len(attr.Specs.Drives))
 		for _, dv := range attr.Specs.Drives {
 			driveStrings = append(driveStrings, fmt.Sprintf("%dx%s %s", dv.Count, dv.Size, dv.Type))
@@ -211,6 +639,11 @@ func filterAndFlatten(pr *plansResponse, regionName, loc string, inStock, availa
 
 		for _, r := range attr.Regions {
 			if regionName != "" && !strings.EqualFold(r.Name, regionName) {
+				continue
+			}
+
+			// Filter by stock level
+			if stockLevel != "" && !strings.EqualFold(r.StockLevel, stockLevel) {
 				continue
 			}
 
@@ -233,12 +666,14 @@ func filterAndFlatten(pr *plansResponse, regionName, loc string, inStock, availa
 
 				rows = append(rows, flatRow{
 					PlanSlug:      attr.Slug,
+					PlanID:        d.ID,
 					CPUCount:      attr.Specs.CPU.Count,
 					CPUCores:      attr.Specs.CPU.Cores,
 					CPUClock:      attr.Specs.CPU.Clock.Value,
 					CPUType:       attr.Specs.CPU.Type,
 					MemoryTotalGB: attr.Specs.Memory.Total,
 					DriveTypes:    driveStrings,
+					DriveCount:    len(attr.Specs.Drives),
 					StockLevel:    r.StockLevel,
 					MonthlyUSD:    r.Pricing.USD.Month.Value,
 					Region:        r.Name,
