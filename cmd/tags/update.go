@@ -1,7 +1,9 @@
 package tags
 
 import (
-	sdk "github.com/latitudesh/latitudesh-go"
+	"context"
+
+	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -76,41 +78,62 @@ func (o *UpdateTagOperation) preRun(cmd *cobra.Command, args []string) {
 }
 
 func (o *UpdateTagOperation) run(cmd *cobra.Command, args []string) error {
-	c := lsh.NewClient()
+	client := lsh.NewClient()
+	ctx := context.Background()
 
 	pAttr := struct {
 		ID string `json:"id"`
 	}{}
 	o.PathParamFlags.AssignValues(&pAttr)
 
-	bAttr := sdk.TagUpdateAttributes{}
-	o.BodyAttributesFlags.AssignValues(&bAttr)
-
-	request := &sdk.TagUpdateRequest{
-		Data: sdk.TagUpdateData{
-			ID:         pAttr.ID,
-			Type:       "Tag",
-			Attributes: bAttr,
-		},
-	}
+	var name, description, slug, color string
+	o.BodyAttributesFlags.AssignValues(&struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Slug        string `json:"slug"`
+		Color       string `json:"color"`
+	}{
+		Name:        name,
+		Description: description,
+		Slug:        slug,
+		Color:       color,
+	})
 
 	if lsh.DryRun {
 		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
-	tag, _, err := c.Tags.Update(pAttr.ID, request)
+	// Create request
+	updateTagType := operations.UpdateTagTagsTypeTags
+	request := operations.UpdateTagTagsRequestBody{
+		Data: &operations.UpdateTagTagsData{
+			ID:   &pAttr.ID,
+			Type: &updateTagType,
+			Attributes: &operations.UpdateTagTagsAttributes{
+				Name:        &name,
+				Description: &description,
+				Color:       &color,
+			},
+		},
+	}
+
+	// Call API
+	response, err := client.Tags.Update(ctx, pAttr.ID, request)
 	if err != nil {
 		utils.PrintError(err)
 		return err
 	}
 
-	lshTag := Tag{
-		Attributes: *tag,
-	}
+	// Render response
+	if response.CustomTag != nil && response.CustomTag.Data != nil {
+		lshTag := Tag{
+			Attributes: *response.CustomTag.Data,
+		}
 
-	if !lsh.Debug {
-		utils.Render(lshTag.GetData())
+		if !lsh.Debug {
+			utils.Render(lshTag.GetData())
+		}
 	}
 
 	return nil
