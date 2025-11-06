@@ -59,5 +59,8 @@ brews:
       owner: latitudesh
       name: homebrew-tools
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      branch: main
       pull_request:
         enabled: true
+        draft: false
+        base: main
