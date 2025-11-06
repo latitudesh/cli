@@ -51,11 +51,13 @@ changelog:
       - "^docs:"
       - "^test:"
 
-homebrew_casks:
+brews:
   - name: lsh
     homepage: "https://www.latitude.sh/"
     description: "Latitude.sh CLI tool"
     repository:
       owner: latitudesh
       name: homebrew-tools
-      token: "{{ .Env.GITHUB_TOKEN }}"
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      pull_request:
+        enabled: true
