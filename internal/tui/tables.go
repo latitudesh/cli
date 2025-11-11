@@ -20,7 +20,7 @@ var (
 			Padding(0, 1)
 	
 	selectedRowStyle = lipgloss.NewStyle().
-    			Foreground(lipgloss.Color("0")). // Preto (ANSI)
+    			Foreground(lipgloss.Color("0")).
     			Background(lipgloss.Color("14")).
 				Bold(true)
 
