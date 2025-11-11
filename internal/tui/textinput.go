@@ -79,8 +79,15 @@ func RunTextInput(label, placeholder string) (string, error) {
 	}
 
 	if model, ok := m.(TextInputModel); ok {
+		if !model.Submitted() {
+			return "", fmt.Errorf("input cancelled")
+		}
 		return model.Value(), nil
 	}
 
 	return "", fmt.Errorf("unexpected model type")
+}
+
+func (m TextInputModel) Submitted() bool {
+	return m.submitted
 }
