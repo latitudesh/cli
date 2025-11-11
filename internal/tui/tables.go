@@ -20,9 +20,9 @@ var (
 			Padding(0, 1)
 	
 	selectedRowStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("229")).
-				Background(PrimaryColor).
-				Bold(false)
+    			Foreground(lipgloss.Color("0")). // Preto (ANSI)
+    			Background(lipgloss.Color("14")).
+				Bold(true)
 
 	footerStyle = lipgloss.NewStyle().
 			Foreground(MutedColor).
