@@ -50,12 +50,3 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
-
-homebrew_casks:
-  - name: lsh
-    homepage: "https://www.latitude.sh/"
-    description: "Latitude.sh CLI tool"
-    repository:
-      owner: latitudesh
-      name: homebrew-tools
-      token: "{{ .Env.GITHUB_TOKEN }}"

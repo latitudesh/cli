@@ -1,0 +1,151 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  update-homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+      -
+        name: Get release info
+        id: release_info
+        run: |
+          VERSION=${{ github.event.release.tag_name }}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Get release assets URLs
+          LINUX_AMD64_URL="https://github.com/latitudesh/cli/releases/download/${VERSION}/lsh_Linux_x86_64.tar.gz"
+          DARWIN_AMD64_URL="https://github.com/latitudesh/cli/releases/download/${VERSION}/lsh_Darwin_x86_64.tar.gz"
+          DARWIN_ARM64_URL="https://github.com/latitudesh/cli/releases/download/${VERSION}/lsh_Darwin_arm64.tar.gz"
+
+          echo "linux_amd64_url=$LINUX_AMD64_URL" >> $GITHUB_OUTPUT
+          echo "darwin_amd64_url=$DARWIN_AMD64_URL" >> $GITHUB_OUTPUT
+          echo "darwin_arm64_url=$DARWIN_ARM64_URL" >> $GITHUB_OUTPUT
+      -
+        name: Download assets and calculate SHA256
+        id: checksums
+        run: |
+          VERSION=${{ steps.release_info.outputs.version }}
+
+          # Download checksums file from release
+          wget -q "https://github.com/latitudesh/cli/releases/download/${VERSION}/checksums.txt"
+
+          # Extract SHA256 for each platform
+          LINUX_AMD64_SHA=$(grep "lsh_Linux_x86_64.tar.gz" checksums.txt | cut -d' ' -f1)
+          DARWIN_AMD64_SHA=$(grep "lsh_Darwin_x86_64.tar.gz" checksums.txt | cut -d' ' -f1)
+          DARWIN_ARM64_SHA=$(grep "lsh_Darwin_arm64.tar.gz" checksums.txt | cut -d' ' -f1)
+
+          echo "linux_amd64_sha=$LINUX_AMD64_SHA" >> $GITHUB_OUTPUT
+          echo "darwin_amd64_sha=$DARWIN_AMD64_SHA" >> $GITHUB_OUTPUT
+          echo "darwin_arm64_sha=$DARWIN_ARM64_SHA" >> $GITHUB_OUTPUT
+      -
+        name: Update Homebrew formula
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          script: |
+            const version = '${{ steps.release_info.outputs.version }}';
+            const versionNumber = version.replace('v', '');
+
+            // Get current formula content
+            const { data: currentFile } = await github.rest.repos.getContent({
+              owner: 'latitudesh',
+              repo: 'homebrew-tools',
+              path: 'lsh.rb',
+              ref: 'main'
+            });
+
+            // Create new formula content
+            const formulaContent = `class Lsh < Formula
+              desc "Latitude.sh CLI tool"
+              homepage "https://www.latitude.sh/"
+              version "${versionNumber}"
+              license "MIT"
+
+              on_macos do
+                if Hardware::CPU.arm?
+                  url "${{ steps.release_info.outputs.darwin_arm64_url }}"
+                  sha256 "${{ steps.checksums.outputs.darwin_arm64_sha }}"
+                else
+                  url "${{ steps.release_info.outputs.darwin_amd64_url }}"
+                  sha256 "${{ steps.checksums.outputs.darwin_amd64_sha }}"
+                end
+              end
+
+              on_linux do
+                if Hardware::CPU.intel?
+                  url "${{ steps.release_info.outputs.linux_amd64_url }}"
+                  sha256 "${{ steps.checksums.outputs.linux_amd64_sha }}"
+                end
+              end
+
+              def install
+                bin.install "lsh"
+              end
+
+              test do
+                system "#{bin}/lsh", "version"
+              end
+            end
+            `;
+
+            // Create a new branch
+            const branchName = `update-lsh-${versionNumber}`;
+            const { data: mainRef } = await github.rest.git.getRef({
+              owner: 'latitudesh',
+              repo: 'homebrew-tools',
+              ref: 'heads/main'
+            });
+
+            try {
+              await github.rest.git.createRef({
+                owner: 'latitudesh',
+                repo: 'homebrew-tools',
+                ref: `refs/heads/${branchName}`,
+                sha: mainRef.object.sha
+              });
+            } catch (error) {
+              console.log('Branch might already exist, deleting and recreating...');
+              await github.rest.git.deleteRef({
+                owner: 'latitudesh',
+                repo: 'homebrew-tools',
+                ref: `heads/${branchName}`
+              });
+              await github.rest.git.createRef({
+                owner: 'latitudesh',
+                repo: 'homebrew-tools',
+                ref: `refs/heads/${branchName}`,
+                sha: mainRef.object.sha
+              });
+            }
+
+            // Update the file in the new branch
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: 'latitudesh',
+              repo: 'homebrew-tools',
+              path: 'lsh.rb',
+              message: `chore: update lsh formula to ${version}`,
+              content: Buffer.from(formulaContent).toString('base64'),
+              branch: branchName,
+              sha: currentFile.sha
+            });
+
+            // Create pull request
+            const { data: pr } = await github.rest.pulls.create({
+              owner: 'latitudesh',
+              repo: 'homebrew-tools',
+              title: `chore: update lsh to ${version}`,
+              head: branchName,
+              base: 'main',
+              body: `Updates lsh Homebrew formula to version ${version}\n\nAuto-generated by release workflow.`
+            });
+
+            console.log(`Pull request created: ${pr.html_url}`);
