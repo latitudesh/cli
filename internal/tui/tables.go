@@ -18,10 +18,10 @@ var (
 			Foreground(PrimaryColor).
 			Bold(true).
 			Padding(0, 1)
-	
+
 	selectedRowStyle = lipgloss.NewStyle().
-    			Foreground(lipgloss.Color("0")).
-    			Background(lipgloss.Color("14")).
+				Foreground(lipgloss.Color("#000000")).
+				Background(PrimaryColor).
 				Bold(true)
 
 	footerStyle = lipgloss.NewStyle().
@@ -63,9 +63,9 @@ func NewInteractiveTable(title string, columns []table.Column, rows []table.Row)
 		BorderBottom(true).
 		Bold(true).
 		Foreground(PrimaryColor)
-	
+
 	s.Selected = selectedRowStyle
-	
+
 	s.Cell = s.Cell.
 		Padding(0, 1)
 
@@ -84,7 +84,7 @@ func (m TableModel) Init() tea.Cmd {
 
 func (m TableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -98,7 +98,7 @@ func (m TableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
-	
+
 	m.table, cmd = m.table.Update(msg)
 	return m, cmd
 }
@@ -121,7 +121,7 @@ func (m TableModel) View() string {
 	footer := footerStyle.Render(
 		fmt.Sprintf("Showing %d records", m.totalRecords),
 	)
-	
+
 	help := HelpStyle.Render("↑/↓: navigate • q/esc: quit • enter: select")
 
 	return lipgloss.JoinVertical(
@@ -150,7 +150,7 @@ func RunInteractiveTable(title string, columns []table.Column, rows []table.Row)
 		NewInteractiveTable(title, columns, rows),
 		tea.WithAltScreen(), // Use alternative screen
 	)
-	
+
 	_, err := p.Run()
 	return err
 }

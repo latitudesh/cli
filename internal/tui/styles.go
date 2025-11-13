@@ -5,9 +5,10 @@ import (
 )
 
 var (
-	// Main colors
-	PrimaryColor   = lipgloss.Color("#00D9FF")
-	SecondaryColor = lipgloss.Color("#7C3AED")
+	// Main colors - Updated based on user feedback
+	// Dark mode colors (priority)
+	PrimaryColor   = lipgloss.Color("#E0FE58") // Highlight color - yellow-lime
+	SecondaryColor = lipgloss.Color("#EBFF8D") // Secondary color - lighter yellow
 	SuccessColor   = lipgloss.Color("#10B981")
 	ErrorColor     = lipgloss.Color("#EF4444")
 	WarningColor   = lipgloss.Color("#F59E0B")
@@ -38,9 +39,9 @@ var (
 			Padding(1, 2)
 
 	SelectedStyle = lipgloss.NewStyle().
-			Foreground(PrimaryColor).
+			Foreground(lipgloss.Color("#000000")). // Black text for contrast
 			Bold(true).
-			Background(lipgloss.Color("#1F2937"))
+			Background(lipgloss.Color("#121400")) // Dark background for contrast
 
 	// Input styles
 	FocusedStyle = lipgloss.NewStyle().

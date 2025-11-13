@@ -350,13 +350,11 @@ func renderGroupedPlans(plans []groupedPlan) {
 		return
 	}
 
-	// Verificar se deve usar output clássico
 	if os.Getenv("LSH_CLASSIC_OUTPUT") == "true" {
 		renderGroupedPlansClassic(plans)
 		return
 	}
 
-	// Converter para formato Bubble Tea
 	columns := []table.Column{
 		{Title: "SLUG", Width: 20},
 		{Title: "CPU", Width: 25},
@@ -365,16 +363,16 @@ func renderGroupedPlans(plans []groupedPlan) {
 		{Title: "ID", Width: 18},
 		{Title: "FEATURES", Width: 15},
 		{Title: "MEMORY", Width: 10},
-		{Title: "AVAILABLE IN", Width: 25},
-		{Title: "IN STOCK", Width: 15},
+		{Title: "AVAILABLE IN", Width: 40},
+		{Title: "IN STOCK", Width: 30},
 	}
 
 	var rows []table.Row
 	var originalPlans []map[string]string
 
 	for _, p := range plans {
-		availStr := wrapLocationsSimple(p.AvailableIn, 25)
-		stockStr := wrapLocationsSimple(p.InStock, 15)
+		availStr := wrapLocationsSmartLimit(p.AvailableIn, 4)
+		stockStr := wrapLocationsSmartLimit(p.InStock, 3)
 
 		rows = append(rows, table.Row{
 			p.Slug,
@@ -388,7 +386,6 @@ func renderGroupedPlans(plans []groupedPlan) {
 			stockStr,
 		})
 
-		// Guardar dados originais para detalhes
 		originalPlans = append(originalPlans, map[string]string{
 			"SLUG":         p.Slug,
 			"CPU":          p.CPU,
@@ -402,7 +399,6 @@ func renderGroupedPlans(plans []groupedPlan) {
 		})
 	}
 
-	// Renderizar com Bubble Tea
 	tui.RunPlansTable("Available Plans", columns, rows, originalPlans)
 }
 
@@ -439,6 +435,20 @@ func wrapLocationsSimple(locs []string, maxLen int) string {
 		return joined[:maxLen-3] + "..."
 	}
 	return joined
+}
+
+func wrapLocationsSmartLimit(locs []string, maxDisplay int) string {
+	if len(locs) == 0 {
+		return ""
+	}
+
+	if len(locs) <= maxDisplay {
+		return strings.Join(locs, ", ")
+	}
+
+	displayed := strings.Join(locs[:maxDisplay], ", ")
+	remaining := len(locs) - maxDisplay
+	return fmt.Sprintf("%s, +%d", displayed, remaining)
 }
 
 func renderGroupedPlansClassic(plans []groupedPlan) {
@@ -478,7 +488,6 @@ func renderStockTable(rows []flatRow) {
 		return
 	}
 
-	// Verificar se deve usar output clássico
 	if os.Getenv("LSH_CLASSIC_OUTPUT") == "true" {
 		renderStockTableClassic(rows)
 		return
