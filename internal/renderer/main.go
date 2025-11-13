@@ -1,34 +1,39 @@
 package renderer
 
 import (
-	"context"
+	"os"
 
-	"github.com/go-openapi/strfmt"
-	"github.com/latitudesh/lsh/internal/output/table"
+	outputTable "github.com/latitudesh/lsh/internal/output/table"
+	"github.com/spf13/viper"
 )
 
 type ResponseData interface {
-	Validate(formats strfmt.Registry) error
-	ContextValidate(ctx context.Context, formats strfmt.Registry) error
-	MarshalBinary() ([]byte, error)
-	UnmarshalBinary(b []byte) error
-	TableRow() table.Row
+	TableRow() outputTable.Row
 }
 
 type Renderer interface {
 	Render(data []ResponseData)
 }
 
-type RenderContext struct {
-	renderer Renderer
-}
-
-func NewRenderContext(renderer Renderer) *RenderContext {
-	return &RenderContext{
-		renderer: renderer,
+// GetRenderer returns the appropriate renderer
+func GetRenderer() Renderer {
+	// Check if should use classic output (for scripts/CI)
+	if os.Getenv("LSH_CLASSIC_OUTPUT") == "true" {
+		return TableRenderer{} // Old ASCII
 	}
+
+	// Check if JSON was requested
+	if viper.GetBool("json") {
+		// You can create a JSONRenderer later
+		return TableRenderer{} // fallback
+	}
+
+	// Default: use interactive Bubble Tea
+	return BubbleTeaRenderer{}
 }
 
-func (rc *RenderContext) Render(data []ResponseData) {
-	rc.renderer.Render(data)
+// Render renders the data using the appropriate renderer
+func Render(data []ResponseData) {
+	renderer := GetRenderer()
+	renderer.Render(data)
 }

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/table"
+	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -348,6 +350,108 @@ func renderGroupedPlans(plans []groupedPlan) {
 		return
 	}
 
+	if os.Getenv("LSH_CLASSIC_OUTPUT") == "true" {
+		renderGroupedPlansClassic(plans)
+		return
+	}
+
+	columns := []table.Column{
+		{Title: "SLUG", Width: 20},
+		{Title: "CPU", Width: 25},
+		{Title: "DRIVES", Width: 30},
+		{Title: "NIC", Width: 10},
+		{Title: "ID", Width: 18},
+		{Title: "FEATURES", Width: 15},
+		{Title: "MEMORY", Width: 10},
+		{Title: "AVAILABLE IN", Width: 40},
+		{Title: "IN STOCK", Width: 30},
+	}
+
+	var rows []table.Row
+	var originalPlans []map[string]string
+
+	for _, p := range plans {
+		availStr := wrapLocationsSmartLimit(p.AvailableIn, 4)
+		stockStr := wrapLocationsSmartLimit(p.InStock, 3)
+
+		rows = append(rows, table.Row{
+			p.Slug,
+			p.CPU,
+			p.Drives,
+			p.NIC,
+			p.ID,
+			strings.Join(p.Features, ", "),
+			p.Memory,
+			availStr,
+			stockStr,
+		})
+
+		originalPlans = append(originalPlans, map[string]string{
+			"SLUG":         p.Slug,
+			"CPU":          p.CPU,
+			"DRIVES":       p.Drives,
+			"NIC":          p.NIC,
+			"ID":           p.ID,
+			"FEATURES":     strings.Join(p.Features, ", "),
+			"MEMORY":       p.Memory,
+			"AVAILABLE IN": strings.Join(p.AvailableIn, ", "),
+			"IN STOCK":     strings.Join(p.InStock, ", "),
+		})
+	}
+
+	tui.RunPlansTable("Available Plans", columns, rows, originalPlans)
+}
+
+func wrapLocations(locs []string, maxPerLine int) string {
+	if len(locs) == 0 {
+		return ""
+	}
+
+	var lines []string
+	var currentLine []string
+
+	for _, loc := range locs {
+		currentLine = append(currentLine, loc)
+		if len(currentLine) >= maxPerLine {
+			lines = append(lines, strings.Join(currentLine, ", "))
+			currentLine = nil
+		}
+	}
+
+	if len(currentLine) > 0 {
+		lines = append(lines, strings.Join(currentLine, ", "))
+	}
+
+	return strings.Join(lines, ",\n")
+}
+
+func wrapLocationsSimple(locs []string, maxLen int) string {
+	if len(locs) == 0 {
+		return ""
+	}
+
+	joined := strings.Join(locs, ", ")
+	if len(joined) > maxLen {
+		return joined[:maxLen-3] + "..."
+	}
+	return joined
+}
+
+func wrapLocationsSmartLimit(locs []string, maxDisplay int) string {
+	if len(locs) == 0 {
+		return ""
+	}
+
+	if len(locs) <= maxDisplay {
+		return strings.Join(locs, ", ")
+	}
+
+	displayed := strings.Join(locs[:maxDisplay], ", ")
+	remaining := len(locs) - maxDisplay
+	return fmt.Sprintf("%s, +%d", displayed, remaining)
+}
+
+func renderGroupedPlansClassic(plans []groupedPlan) {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{"SLUG", "CPU", "DRIVES", "NIC", "ID", "FEATURES", "MEMORY", "AVAILABLE IN", "IN STOCK"})
 	table.SetRowLine(true)
@@ -378,35 +482,91 @@ func renderGroupedPlans(plans []groupedPlan) {
 	fmt.Printf("\nTotal: %d plans\n\n", len(plans))
 }
 
-func wrapLocations(locs []string, maxPerLine int) string {
-	if len(locs) == 0 {
-		return ""
-	}
-
-	var lines []string
-	var currentLine []string
-
-	for _, loc := range locs {
-		currentLine = append(currentLine, loc)
-		if len(currentLine) >= maxPerLine {
-			lines = append(lines, strings.Join(currentLine, ", "))
-			currentLine = nil
-		}
-	}
-
-	if len(currentLine) > 0 {
-		lines = append(lines, strings.Join(currentLine, ", "))
-	}
-
-	return strings.Join(lines, ",\n")
-}
-
 func renderStockTable(rows []flatRow) {
 	if len(rows) == 0 {
 		fmt.Println("\nNo plans found matching your filters.")
 		return
 	}
 
+	if os.Getenv("LSH_CLASSIC_OUTPUT") == "true" {
+		renderStockTableClassic(rows)
+		return
+	}
+
+	// Converter para formato Bubble Tea
+	columns := []table.Column{
+		{Title: "PLAN", Width: 20},
+		{Title: "ID", Width: 18},
+		{Title: "CPU", Width: 25},
+		{Title: "RAM", Width: 10},
+		{Title: "DRIVES", Width: 20},
+		{Title: "FEATURES", Width: 15},
+		{Title: "STOCK", Width: 12},
+		{Title: "PRICE/MO", Width: 12},
+		{Title: "REGION", Width: 15},
+		{Title: "LOCATION", Width: 20},
+	}
+
+	var tableRows []table.Row
+	var originalPlans []map[string]string
+
+	for _, r := range rows {
+		// Format CPU
+		cpuInfo := fmt.Sprintf("%dx %s", r.CPUCount, r.CPUType)
+		if r.CPUClock != "" {
+			cpuInfo += " " + r.CPUClock
+		}
+
+		// Format RAM
+		ramInfo := fmt.Sprintf("%dGB", r.MemoryTotalGB)
+
+		// Format drives
+		drivesInfo := strings.Join(r.DriveTypes, ", ")
+
+		// Features
+		features := []string{"ssh", "user_data"}
+		if r.DriveCount > 1 {
+			features = append(features, "raid")
+		}
+		featuresInfo := strings.Join(features, ", ")
+
+		// Stock
+		stockDisplay := strings.ToUpper(r.StockLevel)
+
+		// Price
+		priceDisplay := fmt.Sprintf("$%s", r.MonthlyUSD)
+
+		tableRows = append(tableRows, table.Row{
+			r.PlanSlug,
+			r.PlanID,
+			cpuInfo,
+			ramInfo,
+			drivesInfo,
+			featuresInfo,
+			stockDisplay,
+			priceDisplay,
+			r.Region,
+			r.Location,
+		})
+
+		originalPlans = append(originalPlans, map[string]string{
+			"PLAN":     r.PlanSlug,
+			"ID":       r.PlanID,
+			"CPU":      cpuInfo,
+			"RAM":      ramInfo,
+			"DRIVES":   drivesInfo,
+			"FEATURES": featuresInfo,
+			"STOCK":    stockDisplay,
+			"PRICE/MO": priceDisplay,
+			"REGION":   r.Region,
+			"LOCATION": r.Location,
+		})
+	}
+
+	tui.RunPlansTable("Plans Availability", columns, tableRows, originalPlans)
+}
+
+func renderStockTableClassic(rows []flatRow) {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{"PLAN", "ID", "CPU", "RAM", "DRIVES", "FEATURES", "STOCK", "PRICE/MO", "REGION", "LOCATION"})
 	table.SetRowLine(true)
@@ -434,14 +594,14 @@ func renderStockTable(rows []flatRow) {
 		// Format drives
 		drivesInfo := strings.Join(r.DriveTypes, "\n")
 
-		// Format features (similar to plans list)
+		// Format features
 		features := []string{"ssh", "user_data"}
 		if r.DriveCount > 1 {
 			features = append(features, "raid")
 		}
 		featuresInfo := strings.Join(features, "\n")
 
-		// Format stock level with better visual
+		// Format stock level
 		stockDisplay := strings.ToUpper(r.StockLevel)
 
 		// Format price

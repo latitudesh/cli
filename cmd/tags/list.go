@@ -1,6 +1,8 @@
 package tags
 
 import (
+	"context"
+
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/utils"
 	cobra "github.com/spf13/cobra"
@@ -21,25 +23,28 @@ func NewListCmd() *cobra.Command {
 type ListTagOperation struct{}
 
 func (o *ListTagOperation) run(cmd *cobra.Command, args []string) error {
-	c := lsh.NewClient()
+	client := lsh.NewClient()
+	ctx := context.Background()
 
 	if lsh.DryRun {
 		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
-	tags, _, err := c.Tags.List(nil)
+	response, err := client.Tags.List(ctx)
 	if err != nil {
 		utils.PrintError(err)
 		return err
 	}
 
 	lsgTagData := []*Tag{}
-	for _, tag := range tags {
-		lshTag := Tag{
-			Attributes: tag,
+	if response.CustomTags != nil && response.CustomTags.Data != nil {
+		for _, tag := range response.CustomTags.Data {
+			lshTag := Tag{
+				Attributes: tag,
+			}
+			lsgTagData = append(lsgTagData, &lshTag)
 		}
-		lsgTagData = append(lsgTagData, &lshTag)
 	}
 
 	lshTags := Tags{

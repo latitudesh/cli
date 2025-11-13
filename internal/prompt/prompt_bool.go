@@ -1,12 +1,8 @@
 package prompt
 
 import (
-	"fmt"
-	"os"
-	"strconv"
-
+	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
-	"github.com/manifoldco/promptui"
 )
 
 type InputBool struct {
@@ -25,28 +21,11 @@ func (p *InputBool) AssignValue(attributes interface{}) {
 	currentValue := utils.GetFieldValue(attributes, p.Name).Bool()
 
 	if !currentValue {
-		prompt := promptui.Select{
-			Label: p.Label,
-			Items: []string{"SKIP", "true", "false"},
-		}
-
-		_, value, err := prompt.Run()
-
+		value, err := tui.RunConfirm(p.Label)
 		if err != nil {
-			fmt.Printf("Failed to read input: %v\n", err)
-			os.Exit(1)
-		}
-
-		if value == "SKIP" {
 			return
 		}
 
-		boolValue, err := strconv.ParseBool(value)
-		if err != nil {
-			fmt.Printf("Failed to read input: %v\n", err)
-			os.Exit(1)
-		}
-
-		utils.AssignValue(attributes, p.Name, boolValue)
+		utils.AssignValue(attributes, p.Name, value)
 	}
 }

@@ -2,13 +2,14 @@
 package lsh
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/user"
 	"path"
 
-	sdk "github.com/latitudesh/latitudesh-go"
+	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/lsh/internal/version"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -33,17 +34,16 @@ func LogDebugf(format string, v ...interface{}) {
 	log.Printf(format, v...)
 }
 
-func NewClient() *sdk.Client {
+func NewClient() *latitudeshgosdk.Latitudesh {
 	AuthorizationKey := viper.GetString("Authorization")
 
-	c := sdk.NewClientWithAuth("latitudesh", " ", nil)
+	return latitudeshgosdk.New(
+		latitudeshgosdk.WithSecurity(AuthorizationKey),
+	)
+}
 
-	if AuthorizationKey != "" {
-		c = sdk.NewClientWithAuth("latitudesh", AuthorizationKey, nil)
-		c.UserAgent = UserAgent
-	}
-
-	return c
+func NewContext() context.Context {
+	return context.Background()
 }
 
 func InitViperConfigs() {

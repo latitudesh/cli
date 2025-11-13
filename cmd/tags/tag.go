@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-openapi/strfmt"
-	sdk "github.com/latitudesh/latitudesh-go"
+	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/lsh/internal/output/table"
 	"github.com/latitudesh/lsh/internal/renderer"
 )
@@ -24,7 +24,7 @@ func (m *Tags) GetData() []renderer.ResponseData {
 }
 
 type Tag struct {
-	Attributes sdk.Tag
+	Attributes components.CustomTagData
 }
 
 func (m *Tag) GetData() []renderer.ResponseData {
@@ -54,30 +54,44 @@ func (m *Tag) UnmarshalBinary(b []byte) error {
 func (m *Tag) TableRow() table.Row {
 	attr := m.Attributes
 
+	// Helper function to safely get string value from pointer
+	getStr := func(s *string) string {
+		if s != nil {
+			return *s
+		}
+		return ""
+	}
+
+	// Get team name if available
+	teamName := ""
+	if attr.Attributes != nil && attr.Attributes.Team != nil {
+		teamName = getStr(attr.Attributes.Team.GetName())
+	}
+
 	return table.Row{
 		"id": table.Cell{
 			Label: "ID",
-			Value: table.String(attr.ID),
+			Value: table.String(getStr(attr.ID)),
 		},
 		"name": table.Cell{
 			Label: "Name",
-			Value: table.String(attr.Name),
+			Value: table.String(getStr(attr.Attributes.GetName())),
 		},
 		"description": table.Cell{
 			Label: "Description",
-			Value: table.String(attr.Description),
+			Value: table.String(getStr(attr.Attributes.GetDescription())),
 		},
 		"slug": table.Cell{
 			Label: "Slug",
-			Value: table.String(attr.Slug),
+			Value: table.String(getStr(attr.Attributes.GetSlug())),
 		},
 		"team": table.Cell{
 			Label: "Team",
-			Value: table.String(attr.TeamName),
+			Value: table.String(teamName),
 		},
 		"color": table.Cell{
 			Label: "Color",
-			Value: table.String(attr.Color),
+			Value: table.String(getStr(attr.Attributes.GetColor())),
 		},
 	}
 }
