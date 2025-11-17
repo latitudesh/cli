@@ -17,11 +17,51 @@ func (btr BubbleTeaRenderer) Render(data []ResponseData) {
 		return
 	}
 
+	// Check if this is server data to use specialized table
+	if isServerData(data) {
+		renderServersWithDetails(data)
+		return
+	}
+
 	// Convert ResponseData to Bubble Tea format
 	columns, rows := convertToTableFormat(data)
 
 	// Render interactive table using Bubble Tea
 	err := tui.RunInteractiveTable("Results", columns, rows)
+	if err != nil {
+		fmt.Printf("Error rendering table: %v\n", err)
+	}
+}
+
+// isServerData checks if the data is server data
+func isServerData(data []ResponseData) bool {
+	if len(data) == 0 {
+		return false
+	}
+
+	firstRow := data[0].TableRow()
+	// Check for server-specific fields
+	_, hasHostname := firstRow["hostname"]
+	_, hasIPMI := firstRow["ipmi_status"]
+	return hasHostname && hasIPMI
+}
+
+// renderServersWithDetails renders servers with details support
+func renderServersWithDetails(data []ResponseData) {
+	columns, rows := convertToTableFormat(data)
+
+	// Build original servers data for details view
+	var originalServers []map[string]string
+	for _, item := range data {
+		row := item.TableRow()
+		serverData := make(map[string]string)
+		for _, cell := range row {
+			serverData[cell.Label] = fmt.Sprintf("%v", cell.Value)
+		}
+		originalServers = append(originalServers, serverData)
+	}
+
+	err := tui.RunServersTable("Servers", columns, rows, originalServers)
 	if err != nil {
 		fmt.Printf("Error rendering table: %v\n", err)
 	}
@@ -83,7 +123,7 @@ func convertToTableFormat(data []ResponseData) ([]table.Column, []table.Row) {
 
 	// Extract headers from the first item
 	firstRow := data[0].TableRow()
-	
+
 	var columnIDs []string
 	columnWidths := make(map[string]int)
 
@@ -102,7 +142,7 @@ func convertToTableFormat(data []ResponseData) ([]table.Column, []table.Row) {
 		for id, cell := range row {
 			value := fmt.Sprintf("%v", cell.Value)
 			contentLen := len(value)
-			
+
 			// Update if this value is larger
 			if contentLen > columnWidths[id] {
 				columnWidths[id] = contentLen + 2 // +2 for padding
@@ -114,7 +154,7 @@ func convertToTableFormat(data []ResponseData) ([]table.Column, []table.Row) {
 	var columns []table.Column
 	for _, id := range columnIDs {
 		width := columnWidths[id]
-		
+
 		// Limits: minimum 10, maximum 50
 		if width < 10 {
 			width = 10
@@ -138,15 +178,15 @@ func convertToTableFormat(data []ResponseData) ([]table.Column, []table.Row) {
 		for _, id := range columnIDs {
 			cell := row[id]
 			value := fmt.Sprintf("%v", cell.Value)
-			
+
 			// Only truncate if really necessary
 			if len(value) > 50 {
 				value = value[:47] + "..."
 			}
-			
+
 			rowData = append(rowData, value)
 		}
-		
+
 		rows = append(rows, rowData)
 	}
 
