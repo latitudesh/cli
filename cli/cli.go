@@ -26,7 +26,7 @@ var exeName string = filepath.Base(os.Args[0])
 var maxDepth int = 5
 
 // makeClient constructs a client object
-func makeClient(cmd *cobra.Command, args []string) (*client.LatitudeShAPI, error) {
+func makeClient(cmd *cobra.Command, _ []string) (*client.LatitudeShAPI, error) {
 	hostname := viper.GetString("hostname")
 	viper.SetDefault("base_path", client.DefaultBasePath)
 	basePath := viper.GetString("base_path")
@@ -156,7 +156,7 @@ func registerAuthInoWriterFlags(cmd *cobra.Command) error {
 }
 
 // makeAuthInfoWriter retrieves cmd flags and construct an auth info writer
-func makeAuthInfoWriter(cmd *cobra.Command) (runtime.ClientAuthInfoWriter, error) {
+func makeAuthInfoWriter(_ *cobra.Command) (runtime.ClientAuthInfoWriter, error) {
 	auths := []runtime.ClientAuthInfoWriter{}
 	userAgent := fmt.Sprintf("Latitude-CLI: %s", version.Version)
 
@@ -178,8 +178,9 @@ func makeAuthInfoWriter(cmd *cobra.Command) (runtime.ClientAuthInfoWriter, error
 
 func makeOperationGroupAPIKeysCmd() (*cobra.Command, error) {
 	operationGroupAPIKeysCmd := &cobra.Command{
-		Use:  "api_keys",
-		Long: ``,
+		Use:   "api_keys",
+		Short: "Manage API keys",
+		Long:  `Commands to manage API keys for authentication`,
 	}
 
 	operationDeleteAPIKeyCmd, err := makeOperationAPIKeysDeleteAPIKeyCmd()
@@ -210,8 +211,9 @@ func makeOperationGroupAPIKeysCmd() (*cobra.Command, error) {
 }
 func makeOperationGroupPlansCmd() (*cobra.Command, error) {
 	operationGroupPlansCmd := &cobra.Command{
-		Use:  "plans",
-		Long: ``,
+		Use:   "plans",
+		Short: "View server plans",
+		Long:  `Commands to view available server plans and their specifications`,
 	}
 
 	operationGetBandwidthPlansCmd, err := makeOperationPlansGetBandwidthPlansCmd()
@@ -234,8 +236,9 @@ func makeOperationGroupPlansCmd() (*cobra.Command, error) {
 }
 func makeOperationGroupProjectsCmd() (*cobra.Command, error) {
 	operationGroupProjectsCmd := &cobra.Command{
-		Use:  "projects",
-		Long: ``,
+		Use:   "projects",
+		Short: "Manage projects",
+		Long:  `Commands to create, list, update and delete projects`,
 	}
 
 	operationCreateProjectCmd, err := makeOperationProjectsCreateProjectCmd()
@@ -272,8 +275,9 @@ func makeOperationGroupProjectsCmd() (*cobra.Command, error) {
 }
 func makeOperationGroupServersCmd() (*cobra.Command, error) {
 	operationGroupServersCmd := &cobra.Command{
-		Use:  "servers",
-		Long: ``,
+		Use:   "servers",
+		Short: "Manage servers",
+		Long:  `Commands to create, list, update and delete servers`,
 	}
 
 	operationCreateServerCmd, err := makeOperationServersCreateServerCmd()
@@ -326,10 +330,12 @@ func makeOperationGroupServersCmd() (*cobra.Command, error) {
 
 	return operationGroupServersCmd, nil
 }
+
 func makeOperationGroupSSHKeysCmd() (*cobra.Command, error) {
 	operationGroupSSHKeysCmd := &cobra.Command{
-		Use:  "ssh_keys",
-		Long: ``,
+		Use:   "ssh_keys",
+		Short: "Manage SSH keys",
+		Long:  `Commands to manage SSH keys for server access`,
 	}
 
 	operationDeleteProjectSSHKeyCmd, err := makeOperationSSHKeysDeleteProjectSSHKeyCmd()
@@ -367,8 +373,9 @@ func makeOperationGroupSSHKeysCmd() (*cobra.Command, error) {
 
 func makeOperationGroupVirtualNetworksCmd() (*cobra.Command, error) {
 	operationGroupVirtualNetworksCmd := &cobra.Command{
-		Use:  "virtual_networks",
-		Long: ``,
+		Use:   "virtual_networks",
+		Short: "Manage virtual networks",
+		Long:  `Commands to create, list, update and manage virtual networks`,
 	}
 
 	operationCreateVirtualNetworkCmd, err := makeOperationVirtualNetworksCreateVirtualNetworkCmd()

@@ -1,8 +1,8 @@
 package tags
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/latitudesh/lsh/cmd/lsh"
@@ -14,7 +14,7 @@ import (
 func NewDestroyCmd() *cobra.Command {
 	op := DestroyTagOperation{}
 	cmd := &cobra.Command{
-		Long:   "Update a Tag in the team.\n",
+		Long:   "Delete a Tag in the team.\n",
 		RunE:   op.run,
 		PreRun: op.preRun,
 		Short:  "Delete Tag",
@@ -49,7 +49,8 @@ func (o *DestroyTagOperation) preRun(cmd *cobra.Command, args []string) {
 }
 
 func (o *DestroyTagOperation) run(cmd *cobra.Command, args []string) error {
-	c := lsh.NewClient()
+	client := lsh.NewClient()
+	ctx := context.Background()
 
 	attr := struct {
 		ID string `json:"id"`
@@ -57,15 +58,16 @@ func (o *DestroyTagOperation) run(cmd *cobra.Command, args []string) error {
 
 	o.PathParamFlags.AssignValues(&attr)
 
-	resp, err := c.Tags.Delete(attr.ID)
+	resp, err := client.Tags.Delete(ctx, attr.ID)
 	if err != nil {
 		utils.PrintError(err)
 		return nil
 	}
 
 	if !lsh.Debug {
-		if resp.StatusCode != http.StatusNoContent {
-			log.Fatal("Something went wrong while deleting resource.")
+		// Check status code via HTTPMeta.Response.StatusCode
+		if resp.HTTPMeta.Response != nil && resp.HTTPMeta.Response.StatusCode != http.StatusNoContent {
+			fmt.Printf("Warning: Unexpected status code: %d\n", resp.HTTPMeta.Response.StatusCode)
 		}
 		fmt.Printf("\n\nTag deleted successfully!\n\n")
 	}

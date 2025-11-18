@@ -1,11 +1,8 @@
 package prompt
 
 import (
-	"fmt"
-	"os"
-
+	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
-	"github.com/manifoldco/promptui"
 )
 
 type InputText struct {
@@ -24,14 +21,9 @@ func (p *InputText) AssignValue(attributes interface{}) {
 	currentValue := utils.GetFieldValue(attributes, p.Name).String()
 
 	if currentValue == "" {
-		prompt := promptui.Prompt{
-			Label: p.Label,
-		}
-
-		value, err := prompt.Run()
+		value, err := tui.RunTextInput(p.Label, "")
 		if err != nil {
-			fmt.Printf("Failed to read input: %v\n", err)
-			os.Exit(1)
+			return
 		}
 
 		utils.AssignValue(attributes, p.Name, value)

@@ -1,11 +1,8 @@
 package prompt
 
 import (
-	"fmt"
-	"os"
-
+	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
-	"github.com/manifoldco/promptui"
 )
 
 type InputSelect struct {
@@ -26,16 +23,9 @@ func (p *InputSelect) AssignValue(attributes interface{}) {
 	currentValue := utils.GetFieldValue(attributes, p.Name).String()
 
 	if currentValue == "" {
-		prompt := promptui.Select{
-			Label: p.Label,
-			Items: p.Items,
-		}
-
-		_, value, err := prompt.Run()
-
+		value, err := tui.RunList(p.Label, p.Items, nil)
 		if err != nil {
-			fmt.Printf("Failed to read input: %v\n", err)
-			os.Exit(1)
+			return
 		}
 
 		if value == "SKIP" {

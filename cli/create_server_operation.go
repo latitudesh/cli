@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"context"
+
+	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/client/servers"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/api/resource"
@@ -150,16 +153,21 @@ func (o *CreateServerOperation) run(cmd *cobra.Command, args []string) error {
 
 func fetchUserProjects() []string {
 	userProjects := []string{}
-	c := lsh.NewClient()
+	client := lsh.NewClient()
+	ctx := context.Background()
 
-	projects, _, err := c.Projects.List(nil)
+	response, err := client.Projects.List(ctx, operations.GetProjectsRequest{})
 	if err != nil {
 		utils.PrintError(err)
 		return nil
 	}
 
-	for _, proj := range projects {
-		userProjects = append(userProjects, proj.Name)
+	if response.Projects != nil && response.Projects.Data != nil {
+		for _, proj := range response.Projects.Data {
+			if proj.Attributes != nil && proj.Attributes.Name != nil {
+				userProjects = append(userProjects, *proj.Attributes.Name)
+			}
+		}
 	}
 
 	return userProjects
