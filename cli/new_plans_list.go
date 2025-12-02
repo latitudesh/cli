@@ -178,15 +178,15 @@ func newPlansAvailabilityCmd() *cobra.Command {
 // --- Grouped Plans (for plans list command) ---
 
 type groupedPlan struct {
-	Slug        string
-	CPU         string
-	Drives      string
-	NIC         string
-	ID          string
-	AvailableIn []string
-	InStock     []string
-	Features    []string
-	Memory      string
+	Slug        string   `json:"slug"`
+	CPU         string   `json:"cpu"`
+	Drives      string   `json:"drives"`
+	NIC         string   `json:"nic"`
+	ID          string   `json:"id"`
+	AvailableIn []string `json:"available_in"`
+	InStock     []string `json:"in_stock"`
+	Features    []string `json:"features"`
+	Memory      string   `json:"memory"`
 }
 
 func groupPlans(pr *plansResponse, gpu bool, name, slug string, inStock bool, location, stockLevel string, diskEql, diskGte, diskLte, ramEql, ramGte, ramLte int) []groupedPlan {
@@ -350,6 +350,12 @@ func renderGroupedPlans(plans []groupedPlan) {
 		return
 	}
 
+	// Check if JSON output was requested
+	if viper.GetBool("json") || viper.GetString("output") == "json" {
+		renderGroupedPlansJSON(plans)
+		return
+	}
+
 	if os.Getenv("LSH_CLASSIC_OUTPUT") == "true" {
 		renderGroupedPlansClassic(plans)
 		return
@@ -449,6 +455,15 @@ func wrapLocationsSmartLimit(locs []string, maxDisplay int) string {
 	displayed := strings.Join(locs[:maxDisplay], ", ")
 	remaining := len(locs) - maxDisplay
 	return fmt.Sprintf("%s, +%d", displayed, remaining)
+}
+
+func renderGroupedPlansJSON(plans []groupedPlan) {
+	jsonData, err := json.MarshalIndent(plans, "", "    ")
+	if err != nil {
+		fmt.Println("Could not encode plans as JSON.")
+		return
+	}
+	fmt.Println(string(jsonData))
 }
 
 func renderGroupedPlansClassic(plans []groupedPlan) {
