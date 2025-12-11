@@ -167,6 +167,9 @@ func fetchUserProjects() []string {
 			if proj.Attributes != nil && proj.Attributes.Name != nil {
 				userProjects = append(userProjects, *proj.Attributes.Name)
 			}
+			if proj.ID != nil {
+				userProjects = append(userProjects, *proj.ID)
+			}
 		}
 	}
 
