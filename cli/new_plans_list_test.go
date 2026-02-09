@@ -104,29 +104,25 @@ func TestFilterAndFlatten_AvailableFlag(t *testing.T) {
 	// With --available: should only show locations with stock
 	rows := filterAndFlatten(pr, "", "", false, true, false, "", "", "", 0, 0, 0, 0, 0, 0)
 
+	// Assert exact set: only LAX, ASH, CHI (the in_stock locations from US region)
+	expected := map[string]bool{"LAX": true, "ASH": true, "CHI": true}
+	got := map[string]bool{}
 	for _, r := range rows {
-		if r.StockLevel == "unavailable" {
-			t.Errorf("--available should not include location %s with stock_level %q", r.Location, r.StockLevel)
+		got[r.Location] = true
+	}
+
+	if len(got) != len(expected) {
+		t.Errorf("--available returned %d locations %v, want %d locations %v", len(got), got, len(expected), expected)
+	}
+	for loc := range expected {
+		if !got[loc] {
+			t.Errorf("expected %s to be included with --available", loc)
 		}
 	}
-
-	// Should include LAX (in stock) but not LAX2 or SAO/SAO2 (not in stock)
-	locations := map[string]bool{}
-	for _, r := range rows {
-		locations[r.Location] = true
-	}
-
-	if !locations["LAX"] {
-		t.Error("expected LAX to be included with --available")
-	}
-	if locations["LAX2"] {
-		t.Error("expected LAX2 to NOT be included with --available")
-	}
-	if locations["SAO"] {
-		t.Error("expected SAO to NOT be included with --available")
-	}
-	if locations["SAO2"] {
-		t.Error("expected SAO2 to NOT be included with --available")
+	for loc := range got {
+		if !expected[loc] {
+			t.Errorf("unexpected location %s included with --available", loc)
+		}
 	}
 }
 
@@ -136,24 +132,28 @@ func TestFilterAndFlatten_StockLevelFilter(t *testing.T) {
 	// Filter by stock_level=high: should only include locations that have stock_level "high"
 	rows := filterAndFlatten(pr, "", "", false, false, false, "", "", "high", 0, 0, 0, 0, 0, 0)
 
+	// Assert exact set: only LAX, ASH, CHI (in_stock locations in US region with "high")
+	expected := map[string]bool{"LAX": true, "ASH": true, "CHI": true}
+	got := map[string]bool{}
 	for _, r := range rows {
 		if r.StockLevel != "high" {
 			t.Errorf("stock_level filter 'high' returned location %s with stock_level %q", r.Location, r.StockLevel)
 		}
+		got[r.Location] = true
 	}
 
-	// Should include LAX, ASH, CHI (in stock in US region with "high")
-	// Should NOT include LAX2 (not in in_stock, derived as "unavailable")
-	locations := map[string]bool{}
-	for _, r := range rows {
-		locations[r.Location] = true
+	if len(got) != len(expected) {
+		t.Errorf("stock_level=high returned %d locations %v, want %d locations %v", len(got), got, len(expected), expected)
 	}
-
-	if !locations["LAX"] {
-		t.Error("expected LAX to be included with stock_level=high")
+	for loc := range expected {
+		if !got[loc] {
+			t.Errorf("expected %s to be included with stock_level=high", loc)
+		}
 	}
-	if locations["LAX2"] {
-		t.Error("expected LAX2 to NOT be included with stock_level=high")
+	for loc := range got {
+		if !expected[loc] {
+			t.Errorf("unexpected location %s included with stock_level=high", loc)
+		}
 	}
 }
 
@@ -163,31 +163,28 @@ func TestFilterAndFlatten_StockLevelFilterUnavailable(t *testing.T) {
 	// Filter by stock_level=unavailable: should return locations NOT in in_stock
 	rows := filterAndFlatten(pr, "", "", false, false, false, "", "", "unavailable", 0, 0, 0, 0, 0, 0)
 
+	// Assert exact set: LAX2 (US, not in_stock), SAO, SAO2 (Brazil, not in_stock)
+	expected := map[string]bool{"LAX2": true, "SAO": true, "SAO2": true}
+	got := map[string]bool{}
 	for _, r := range rows {
 		if r.StockLevel != "unavailable" {
 			t.Errorf("stock_level filter 'unavailable' returned location %s with stock_level %q", r.Location, r.StockLevel)
 		}
+		got[r.Location] = true
 	}
 
-	locations := map[string]bool{}
-	for _, r := range rows {
-		locations[r.Location] = true
+	if len(got) != len(expected) {
+		t.Errorf("stock_level=unavailable returned %d locations %v, want %d locations %v", len(got), got, len(expected), expected)
 	}
-
-	// LAX2 is in available but NOT in in_stock -> derived as "unavailable"
-	if !locations["LAX2"] {
-		t.Error("expected LAX2 to be included with stock_level=unavailable")
+	for loc := range expected {
+		if !got[loc] {
+			t.Errorf("expected %s to be included with stock_level=unavailable", loc)
+		}
 	}
-	// SAO and SAO2 are in available but NOT in in_stock -> derived as "unavailable"
-	if !locations["SAO"] {
-		t.Error("expected SAO to be included with stock_level=unavailable")
-	}
-	if !locations["SAO2"] {
-		t.Error("expected SAO2 to be included with stock_level=unavailable")
-	}
-	// LAX is in in_stock -> should NOT appear
-	if locations["LAX"] {
-		t.Error("expected LAX to NOT be included with stock_level=unavailable")
+	for loc := range got {
+		if !expected[loc] {
+			t.Errorf("unexpected location %s included with stock_level=unavailable", loc)
+		}
 	}
 }
 
@@ -197,24 +194,24 @@ func TestFilterAndFlatten_InStockFlag(t *testing.T) {
 	// With --in_stock: should only show locations in the in_stock list
 	rows := filterAndFlatten(pr, "", "", true, false, false, "", "", "", 0, 0, 0, 0, 0, 0)
 
+	// Assert exact set: only LAX, ASH, CHI (the in_stock locations from US region)
+	expected := map[string]bool{"LAX": true, "ASH": true, "CHI": true}
+	got := map[string]bool{}
 	for _, r := range rows {
-		if r.StockLevel == "unavailable" {
-			t.Errorf("--in_stock should not include location %s with stock_level %q", r.Location, r.StockLevel)
+		got[r.Location] = true
+	}
+
+	if len(got) != len(expected) {
+		t.Errorf("--in_stock returned %d locations %v, want %d locations %v", len(got), got, len(expected), expected)
+	}
+	for loc := range expected {
+		if !got[loc] {
+			t.Errorf("expected %s to be included with --in_stock", loc)
 		}
 	}
-
-	locations := map[string]bool{}
-	for _, r := range rows {
-		locations[r.Location] = true
-	}
-
-	if !locations["LAX"] {
-		t.Error("expected LAX to be included with --in_stock")
-	}
-	if locations["LAX2"] {
-		t.Error("expected LAX2 to NOT be included with --in_stock")
-	}
-	if locations["SAO"] {
-		t.Error("expected SAO to NOT be included with --in_stock")
+	for loc := range got {
+		if !expected[loc] {
+			t.Errorf("unexpected location %s included with --in_stock", loc)
+		}
 	}
 }
