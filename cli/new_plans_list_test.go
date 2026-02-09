@@ -1,100 +1,65 @@
 package cli
 
 import (
+	"encoding/json"
 	"testing"
 )
 
 func makePlansResponse() *plansResponse {
+	const plansResponseFixture = `{
+		"data": [
+			{
+				"id": "plan_123",
+				"attributes": {
+					"slug": "m4-metal-medium",
+					"specs": {
+						"cpu": {
+							"count": 1,
+							"cores": 16,
+							"type": "AMD 9124"
+						},
+						"memory": {
+							"total": 128
+						}
+					},
+					"regions": [
+						{
+							"name": "United States",
+							"locations": {
+								"available": ["LAX", "LAX2", "ASH", "CHI"],
+								"in_stock": ["LAX", "ASH", "CHI"]
+							},
+							"pricing": {
+								"USD": {
+									"month": "455.00"
+								}
+							},
+							"stock_level": "high"
+						},
+						{
+							"name": "Brazil",
+							"locations": {
+								"available": ["SAO", "SAO2"],
+								"in_stock": []
+							},
+							"pricing": {
+								"USD": {
+									"month": "577.00"
+								}
+							},
+							"stock_level": "unavailable"
+						}
+					]
+				}
+			}
+		]
+	}`
+
 	pr := &plansResponse{}
-	pr.Data = append(pr.Data, struct {
-		ID         string `json:"id"`
-		Attributes struct {
-			Slug  string `json:"slug"`
-			Specs struct {
-				CPU struct {
-					Count int            `json:"count"`
-					Cores int            `json:"cores"`
-					Clock flexibleString `json:"clock"`
-					Type  string         `json:"type"`
-				} `json:"cpu"`
-				Memory struct {
-					Total int `json:"total"`
-				} `json:"memory"`
-				Drives []struct {
-					Count int    `json:"count"`
-					Size  string `json:"size"`
-					Type  string `json:"type"`
-				} `json:"drives"`
-			} `json:"specs"`
-			Regions []struct {
-				Name      string `json:"name"`
-				Locations struct {
-					Available []string `json:"available"`
-					InStock   []string `json:"in_stock"`
-				} `json:"locations"`
-				Pricing struct {
-					USD struct {
-						Month flexibleString `json:"month"`
-					} `json:"USD"`
-				} `json:"pricing"`
-				StockLevel string `json:"stock_level"`
-			} `json:"regions"`
-		} `json:"attributes"`
-	}{
-		ID: "plan_123",
-	})
-
-	d := &pr.Data[0]
-	d.Attributes.Slug = "m4-metal-medium"
-	d.Attributes.Specs.CPU.Count = 1
-	d.Attributes.Specs.CPU.Cores = 16
-	d.Attributes.Specs.CPU.Type = "AMD 9124"
-	d.Attributes.Specs.Memory.Total = 128
-
-	// United States region: LAX in stock, LAX2 NOT in stock
-	d.Attributes.Regions = append(d.Attributes.Regions, struct {
-		Name      string `json:"name"`
-		Locations struct {
-			Available []string `json:"available"`
-			InStock   []string `json:"in_stock"`
-		} `json:"locations"`
-		Pricing struct {
-			USD struct {
-				Month flexibleString `json:"month"`
-			} `json:"USD"`
-		} `json:"pricing"`
-		StockLevel string `json:"stock_level"`
-	}{
-		Name:       "United States",
-		StockLevel: "high",
-	})
-	usRegion := &d.Attributes.Regions[0]
-	usRegion.Locations.Available = []string{"LAX", "LAX2", "ASH", "CHI"}
-	usRegion.Locations.InStock = []string{"LAX", "ASH", "CHI"}
-	usRegion.Pricing.USD.Month = flexibleString{Value: "455.00"}
-
-	// Brazil region: all unavailable
-	d.Attributes.Regions = append(d.Attributes.Regions, struct {
-		Name      string `json:"name"`
-		Locations struct {
-			Available []string `json:"available"`
-			InStock   []string `json:"in_stock"`
-		} `json:"locations"`
-		Pricing struct {
-			USD struct {
-				Month flexibleString `json:"month"`
-			} `json:"USD"`
-		} `json:"pricing"`
-		StockLevel string `json:"stock_level"`
-	}{
-		Name:       "Brazil",
-		StockLevel: "unavailable",
-	})
-	brRegion := &d.Attributes.Regions[1]
-	brRegion.Locations.Available = []string{"SAO", "SAO2"}
-	brRegion.Locations.InStock = []string{}
-	brRegion.Pricing.USD.Month = flexibleString{Value: "577.00"}
-
+	if err := json.Unmarshal([]byte(plansResponseFixture), pr); err != nil {
+		// In tests, a panic on invalid fixture data is acceptable.
+		panic(err)
+	}
 	return pr
 }
 
