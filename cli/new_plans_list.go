@@ -827,9 +827,12 @@ func filterAndFlatten(pr *plansResponse, regionName, loc string, inStock, availa
 					continue
 				}
 
+				upperLoc := strings.ToUpper(l)
+				hasStock := stockSet[upperLoc]
+
 				// Derive per-location stock level: locations not in in_stock are "unavailable"
 				locStockLevel := r.StockLevel
-				if !stockSet[strings.ToUpper(l)] {
+				if !hasStock {
 					locStockLevel = "unavailable"
 				}
 
@@ -838,11 +841,8 @@ func filterAndFlatten(pr *plansResponse, regionName, loc string, inStock, availa
 					continue
 				}
 
-				// --available: only show locations that have stock (not unavailable)
-				if available && !stockSet[strings.ToUpper(l)] {
-					continue
-				}
-				if inStock && !stockSet[strings.ToUpper(l)] {
+				// --available / --in_stock: only show locations that have stock
+				if (available || inStock) && !hasStock {
 					continue
 				}
 
