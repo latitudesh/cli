@@ -192,6 +192,40 @@ func TestFilterAndFlatten_StockLevelFilter(t *testing.T) {
 	}
 }
 
+func TestFilterAndFlatten_StockLevelFilterUnavailable(t *testing.T) {
+	pr := makePlansResponse()
+
+	// Filter by stock_level=unavailable: should return locations NOT in in_stock
+	rows := filterAndFlatten(pr, "", "", false, false, false, "", "", "unavailable", 0, 0, 0, 0, 0, 0)
+
+	for _, r := range rows {
+		if r.StockLevel != "unavailable" {
+			t.Errorf("stock_level filter 'unavailable' returned location %s with stock_level %q", r.Location, r.StockLevel)
+		}
+	}
+
+	locations := map[string]bool{}
+	for _, r := range rows {
+		locations[r.Location] = true
+	}
+
+	// LAX2 is in available but NOT in in_stock -> derived as "unavailable"
+	if !locations["LAX2"] {
+		t.Error("expected LAX2 to be included with stock_level=unavailable")
+	}
+	// SAO and SAO2 are in available but NOT in in_stock -> derived as "unavailable"
+	if !locations["SAO"] {
+		t.Error("expected SAO to be included with stock_level=unavailable")
+	}
+	if !locations["SAO2"] {
+		t.Error("expected SAO2 to be included with stock_level=unavailable")
+	}
+	// LAX is in in_stock -> should NOT appear
+	if locations["LAX"] {
+		t.Error("expected LAX to NOT be included with stock_level=unavailable")
+	}
+}
+
 func TestFilterAndFlatten_InStockFlag(t *testing.T) {
 	pr := makePlansResponse()
 
