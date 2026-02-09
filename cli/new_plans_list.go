@@ -817,13 +817,7 @@ func filterAndFlatten(pr *plansResponse, regionName, loc string, inStock, availa
 				continue
 			}
 
-			// Filter by stock level
-			if stockLevel != "" && !strings.EqualFold(r.StockLevel, stockLevel) {
-				continue
-			}
-
 			// build a set for faster lookup
-			availSet := toSet(r.Locations.Available)
 			stockSet := toSet(r.Locations.InStock)
 
 			// candidate locations are the union of available and in_stock (to avoid missing price/stock info)
@@ -832,7 +826,20 @@ func filterAndFlatten(pr *plansResponse, regionName, loc string, inStock, availa
 				if loc != "" && !strings.EqualFold(l, loc) {
 					continue
 				}
-				if available && !availSet[strings.ToUpper(l)] {
+
+				// Derive per-location stock level: locations not in in_stock are "unavailable"
+				locStockLevel := r.StockLevel
+				if !stockSet[strings.ToUpper(l)] {
+					locStockLevel = "unavailable"
+				}
+
+				// Filter by stock level using per-location stock level
+				if stockLevel != "" && !strings.EqualFold(locStockLevel, stockLevel) {
+					continue
+				}
+
+				// --available: only show locations that have stock (not unavailable)
+				if available && !stockSet[strings.ToUpper(l)] {
 					continue
 				}
 				if inStock && !stockSet[strings.ToUpper(l)] {
@@ -849,7 +856,7 @@ func filterAndFlatten(pr *plansResponse, regionName, loc string, inStock, availa
 					MemoryTotalGB: attr.Specs.Memory.Total,
 					DriveTypes:    driveStrings,
 					DriveCount:    len(attr.Specs.Drives),
-					StockLevel:    r.StockLevel,
+					StockLevel:    locStockLevel,
 					MonthlyUSD:    r.Pricing.USD.Month.Value,
 					Region:        r.Name,
 					Location:      strings.ToUpper(l),
