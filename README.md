@@ -77,6 +77,30 @@ lsh plans list --gpu true
 
 ```
 
+Check plan availability per location (one row per plan × location, with `stock_level`):
+
+```bash
+lsh plans stock
+```
+
+Show only locations that currently have stock:
+
+```bash
+lsh plans stock --in_stock
+```
+
+Filter by region, GPU, or hardware spec and export as CSV:
+
+```bash
+lsh plans stock --region "United States" --in_stock --format csv > us_plans.csv
+```
+
+Combine filters for scripting with `jq` (use `--format json` when piping — the default table requires a TTY):
+
+```bash
+lsh plans stock --gpu --ram_gte 64 --format json | jq '.[] | {plan: .plan_slug, loc: .location, stock: .stock_level}'
+```
+
 List volumes:
 
 ```bash
