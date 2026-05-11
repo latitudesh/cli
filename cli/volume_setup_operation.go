@@ -50,17 +50,20 @@ This command:
   - Persists NVMe kernel modules across reboots (/etc/modules-load.d/nvme-tcp.conf)
   - Tunes nvme_core max_retries (/etc/modprobe.d/nvme-core.conf)
   - Installs the round-robin multipath I/O udev rule
-  - Seeds /etc/nvme/discovery.conf with the gateway IP
+  - Optionally seeds /etc/nvme/discovery.conf with a gateway IP
   - Rebuilds initramfs (Ubuntu: update-initramfs / RHEL: dracut)
   - Enables the nvmf-autoconnect service for reboot-resilient mounts
 
-Run once per server. After this, "lsh volume mount --id <vol>" will reconnect
-automatically after reboot with round-robin multipath I/O.
+Run once per server. After this, "lsh volume mount --id <vol>" populates
+/etc/nvme/discovery.conf with the gateway VIPs returned by the API and
+the volume reconnects automatically after reboot with round-robin
+multipath I/O.
 
 This command must be run with sudo/root privileges.
 
-Example:
-  sudo lsh volume setup --gateway-ip 10.0.1.10`,
+Examples:
+  sudo lsh volume setup
+  sudo lsh volume setup --gateway-ip 10.0.1.10    # pre-seed discovery.conf`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -75,8 +78,8 @@ func (o *VolumeSetupOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "gateway-ip",
 			Label:       "Gateway IP",
-			Description: "The block storage gateway IP to seed into /etc/nvme/discovery.conf",
-			Required:    true,
+			Description: "Optionally pre-seed /etc/nvme/discovery.conf with this gateway IP; otherwise `lsh volume mount` populates it from the API response on first mount",
+			Required:    false,
 		},
 		&cmdflag.String{
 			Name:        "gateway-port",
@@ -122,10 +125,16 @@ func (o *VolumeSetupOperation) run(cmd *cobra.Command, args []string) error {
 		writeModprobeConfig,
 		writeUdevRule,
 		reloadUdev,
-		func() error { return writeDiscoveryConf(gatewayIP, gatewayPort) },
+	}
+	// Pre-seed discovery.conf only if the operator passed --gateway-ip;
+	// otherwise `lsh volume mount` populates it from the API response.
+	if gatewayIP != "" {
+		steps = append(steps, func() error { return writeDiscoveryConf(gatewayIP, gatewayPort) })
+	}
+	steps = append(steps,
 		rebuildInitramfs,
 		enableAutoconnect,
-	}
+	)
 	for _, step := range steps {
 		if err := step(); err != nil {
 			printError(err.Error())

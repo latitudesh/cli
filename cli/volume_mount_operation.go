@@ -1,20 +1,14 @@
 package cli
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
-	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
-	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
-	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -46,18 +40,13 @@ func (o *VolumeMountOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "mount",
 		Short: "Mount a volume storage to a server",
-		Long: `Mount a volume storage to a server. This command will:
-  1. Auto-fetch volume storage details (including connector_id)
-  2. Auto-detect the server's NQN from /etc/nvme/hostnqn
+		Long: `Mount a block storage volume to a server. This command will:
+  1. Auto-detect the server's NQN from /etc/nvme/hostnqn
      (or generate a new one if the file doesn't exist)
-  3. Send the client NQN to the API to authorize access
-  4. Execute all NVMe-oF connection steps automatically
-
-The mount process:
-- Volume ID: Used to fetch connector_id (subsystem NQN) automatically
-- Client NQN (--nqn or auto-detected): Sent to API to authorize this client
-- Subsystem NQN: Auto-fetched from volume storage's connector_id
-- Gateway: The NVMe-oF gateway IP and port (defaults to 67.213.118.147:4420)
+  2. Send the client NQN to the API to authorize access
+  3. Receive the subsystem NQN, namespace ID, and gateway VIPs back from the API
+  4. Seed /etc/nvme/discovery.conf with the gateway VIPs
+  5. Run "nvme connect-all" to attach the volume
 
 This command must be run with sudo/root privileges on the target server.
 
@@ -90,24 +79,6 @@ func (o *VolumeMountOperation) registerFlags(cmd *cobra.Command) {
 			Name:        "nqn",
 			Label:       "NVMe Qualified Name (NQN)",
 			Description: "NVMe Qualified Name of the server (will auto-detect if not provided)",
-			Required:    false,
-		},
-		&cmdflag.String{
-			Name:        "gateway-ip",
-			Label:       "Gateway IP",
-			Description: "Override the gateway IP address (optional, default: 67.213.118.147)",
-			Required:    false,
-		},
-		&cmdflag.String{
-			Name:        "gateway-port",
-			Label:       "Gateway Port",
-			Description: "Override the gateway port (optional, default: 4420)",
-			Required:    false,
-		},
-		&cmdflag.String{
-			Name:        "subsystem-nqn",
-			Label:       "Subsystem NQN",
-			Description: "Override the subsystem NQN (optional, auto-fetched from volume storage's connector_id)",
 			Required:    false,
 		},
 	}
@@ -350,24 +321,6 @@ func disconnectExisting(subsystemNQN string) {
 	}
 }
 
-// connectNVMeoF connects to the NVMe-oF target
-func connectNVMeoF(gatewayIP, gatewayPort, subsystemNQN string) error {
-	printStatus("Connecting to NVMe-oF target...")
-	printStatus(fmt.Sprintf("  Gateway: %s:%s", gatewayIP, gatewayPort))
-	printStatus(fmt.Sprintf("  Subsystem: %s", subsystemNQN))
-
-	_, err := runCommand("nvme", "connect", "-t", "tcp", "-a", gatewayIP, "-s", gatewayPort, "-n", subsystemNQN)
-	if err != nil {
-		return fmt.Errorf(`connection failed. Please check:
-  1. Gateway is accessible from this server
-  2. Client NQN is authorized on the gateway
-  3. Volume storage is properly configured`)
-	}
-
-	printStatus("Successfully connected!")
-	return nil
-}
-
 // verifyConnection verifies the connection and shows available devices
 func verifyConnection(subsystemNQN string) error {
 	printStatus("Verifying connection...")
@@ -449,7 +402,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 
 	if !hostSetupApplied() {
 		printWarning("Host is not production-configured (missing module persistence and/or multipath udev rule).")
-		printWarning("Run 'sudo lsh volume setup --gateway-ip <ip>' for reboot-resilient mounts and round-robin multipath I/O.")
+		printWarning("Run 'sudo lsh volume setup' for reboot-resilient mounts and round-robin multipath I/O.")
 		printWarning("Continuing with one-shot mount...")
 	}
 
@@ -502,159 +455,69 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API key not found. Please run 'lsh login <API_KEY>' first")
 	}
 
-	// Initialize the new SDK client
-	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
-
-	// Step 1: Fetch volume storage details to get connector_id (subsystem NQN)
-	subsystemNQN, _ := cmd.Flags().GetString("subsystem-nqn")
-
-	if subsystemNQN == "" {
-		// Auto-fetch connector_id from API
-		fmt.Fprintf(os.Stdout, "\n📋 Fetching volume details...\n")
-		printStatus(fmt.Sprintf("Volume ID: %s", volumeID))
-
-		if lsh.Debug {
-			fmt.Fprintf(os.Stdout, "[DEBUG] Fetching volume storage details to get connector_id\n")
-		}
-
-		volumesResponse, err := client.Storage.GetStorageVolumes(ctx, nil)
-		if err != nil {
-			printError(fmt.Sprintf("Failed to fetch volume storage details: %v", err))
-			utils.PrintError(err)
-			return err
-		}
-
-		// Parse response body manually to get volume data
-		if volumesResponse != nil && volumesResponse.HTTPMeta.Response != nil {
-			bodyBytes, err := io.ReadAll(volumesResponse.HTTPMeta.Response.Body)
-			if err != nil {
-				printError(fmt.Sprintf("Failed to read response body: %v", err))
-				return err
-			}
-
-			// Parse JSON response
-			var responseData struct {
-				Data []struct {
-					ID         string `json:"id"`
-					Type       string `json:"type"`
-					Attributes struct {
-						ConnectorID *string `json:"connector_id"`
-					} `json:"attributes"`
-				} `json:"data"`
-			}
-
-			if err := json.Unmarshal(bodyBytes, &responseData); err != nil {
-				printError(fmt.Sprintf("Failed to parse response: %v", err))
-				return err
-			}
-
-			// Find the volume by ID
-			var found bool
-			for _, volume := range responseData.Data {
-				if volume.ID == volumeID {
-					if volume.Attributes.ConnectorID != nil && *volume.Attributes.ConnectorID != "" {
-						subsystemNQN = *volume.Attributes.ConnectorID
-						printStatus(fmt.Sprintf("✓ Retrieved connector_id (subsystem NQN): %s", subsystemNQN))
-						found = true
-						break
-					} else {
-						printError("Volume storage does not have a connector_id configured")
-						printError("The volume storage must have a connector_id before mounting")
-						return fmt.Errorf("connector_id not found for volume storage %s", volumeID)
-					}
-				}
-			}
-
-			if !found {
-				printError(fmt.Sprintf("Volume storage not found: %s", volumeID))
-				return fmt.Errorf("volume storage %s not found", volumeID)
-			}
-		} else {
-			printError("No response from API")
-			return fmt.Errorf("failed to get response from API")
-		}
-	} else {
-		printStatus(fmt.Sprintf("Using provided subsystem NQN: %s", subsystemNQN))
-	}
-
 	fmt.Fprintf(os.Stdout, "\n📦 Authorizing client and mounting volume...\n")
 	printStatus(fmt.Sprintf("Volume ID: %s", volumeID))
 	printStatus(fmt.Sprintf("Client NQN (for authorization): %s", nqn))
 
 	if lsh.Debug {
-		fmt.Fprintf(os.Stdout, "[DEBUG] API Request: POST /storage/volumes/%s/mount\n", volumeID)
-		fmt.Fprintf(os.Stdout, "[DEBUG] Request Body: {\"data\":{\"type\":\"volumes\",\"attributes\":{\"nqn\":\"%s\"}}}\n", nqn)
+		fmt.Fprintf(os.Stdout, "[DEBUG] POST /storage/volumes/%s/mount (Api-Version: %s)\n", volumeID, v4APIVersion)
+		fmt.Fprintf(os.Stdout, "[DEBUG] Request body NQN: %s\n", nqn)
 	}
 
-	// Call the API to authorize the client NQN and mount
-	// The NQN authorizes this client to access the storage
-	// The subsystem-nqn (connector_id) defines which storage subsystem to connect to
-	response, err := client.Storage.PostStorageVolumesMount(ctx, volumeID, operations.PostStorageVolumesMountRequestBody{
-		Data: operations.PostStorageVolumesMountData{
-			Type: operations.PostStorageVolumesMountTypeVolumes,
-			Attributes: operations.PostStorageVolumesMountAttributes{
-				Nqn: nqn, // Send client NQN to authorize
-			},
-		},
-	})
+	apiClient := newV4Client(apiKey)
+	volume, err := apiClient.MountVolume(volumeID, nqn)
 	if err != nil {
 		printError(fmt.Sprintf("API call failed: %v", err))
-		utils.PrintError(err)
 		return err
 	}
 
-	if lsh.Debug {
-		fmt.Fprintf(os.Stdout, "[DEBUG] API Response Status: %d\n", response.HTTPMeta.Response.StatusCode)
+	subsystemNQN := volume.Attributes.SubsystemNQN
+	if subsystemNQN == "" {
+		return fmt.Errorf("API response missing subsystem_nqn — the volume may not be on a current-generation backend")
+	}
+	if len(volume.Attributes.GatewayVIPs) == 0 {
+		return fmt.Errorf("API response missing gateway_vips — the volume may not be on a current-generation backend")
 	}
 
-	if response != nil && response.HTTPMeta.Response != nil {
-		if response.HTTPMeta.Response.StatusCode == 204 || response.HTTPMeta.Response.StatusCode == 200 {
-			printStatus("✓ Successfully authorized client and mounted volume!")
-		} else {
-			printWarning(fmt.Sprintf("Unexpected status code: %d", response.HTTPMeta.Response.StatusCode))
-		}
-	} else {
-		printWarning("No response from API")
-	}
-
-	// Get override values or use defaults
-	gatewayIP, _ := cmd.Flags().GetString("gateway-ip")
-	gatewayPort, _ := cmd.Flags().GetString("gateway-port")
-
-	// Hardcoded gateway for now
-	if gatewayIP == "" {
-		gatewayIP = "67.213.118.147" // Hardcoded gateway IP
-		printStatus(fmt.Sprintf("Using default gateway IP: %s", gatewayIP))
-	}
-
-	if gatewayPort == "" {
-		gatewayPort = "4420" // Default NVMe-oF port
+	printStatus(fmt.Sprintf("✓ Subsystem NQN: %s", subsystemNQN))
+	printStatus(fmt.Sprintf("✓ Gateway VIPs:  %s", strings.Join(volume.Attributes.GatewayVIPs, ", ")))
+	if volume.Attributes.NamespaceID != nil {
+		printStatus(fmt.Sprintf("✓ Namespace ID:  %d", *volume.Attributes.NamespaceID))
 	}
 
 	fmt.Fprintf(os.Stdout, "\n📡 Connecting to NVMe-oF storage...\n\n")
-	printStatus(fmt.Sprintf("Gateway: %s:%s", gatewayIP, gatewayPort))
-	printStatus(fmt.Sprintf("Subsystem NQN: %s", subsystemNQN))
 
-	// Execute mount steps (prerequisites already checked)
 	if err := ensureHostNQN(nqn); err != nil {
 		printError(fmt.Sprintf("Failed to ensure host NQN: %v", err))
 		return err
 	}
 
-	if err := testConnectivity(gatewayIP, gatewayPort); err != nil {
+	// Seed /etc/nvme/discovery.conf with every VIP the API returned. The
+	// helper is idempotent: if a line already exists (e.g. from a previous
+	// mount of another volume in the same pool, or from `lsh volume setup`),
+	// it is left in place. This also ensures nvmf-autoconnect.service has
+	// a complete discovery seed for reboot reconnection.
+	for _, vip := range volume.Attributes.GatewayVIPs {
+		if err := writeDiscoveryConf(vip, "4420"); err != nil {
+			printError(fmt.Sprintf("Failed to update %s: %v", discoveryConfPath, err))
+			return err
+		}
+	}
+
+	// Fast-fail check against the first VIP before attempting connect-all.
+	if err := testConnectivity(volume.Attributes.GatewayVIPs[0], "4420"); err != nil {
 		printError(fmt.Sprintf("Connectivity test failed: %v", err))
 		return err
 	}
 
 	disconnectExisting(subsystemNQN)
 
-	if err := connectNVMeoF(gatewayIP, gatewayPort, subsystemNQN); err != nil {
-		printError(fmt.Sprintf("NVMe-oF connection failed: %v", err))
-		return err
+	printStatus("Running `nvme connect-all` (multipath fan-out reads /etc/nvme/discovery.conf)...")
+	if _, err := runCommand("nvme", "connect-all"); err != nil {
+		printError(fmt.Sprintf("nvme connect-all failed: %v", err))
+		return fmt.Errorf("nvme connect-all failed: %w", err)
 	}
+	printStatus("✓ Connected")
 
 	if err := verifyConnection(subsystemNQN); err != nil {
 		printError(fmt.Sprintf("Connection verification failed: %v", err))
@@ -663,8 +526,9 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintf(os.Stdout, "\n✅ Volume mount complete!\n")
 	fmt.Fprintf(os.Stdout, "\nConnection Summary:\n")
-	fmt.Fprintf(os.Stdout, "  Client NQN: %s\n", nqn)
+	fmt.Fprintf(os.Stdout, "  Client NQN:    %s\n", nqn)
 	fmt.Fprintf(os.Stdout, "  Subsystem NQN: %s\n", subsystemNQN)
+	fmt.Fprintf(os.Stdout, "  Gateway VIPs:  %s\n", strings.Join(volume.Attributes.GatewayVIPs, ", "))
 
 	return nil
 }
