@@ -19,7 +19,10 @@ const (
 	modprobePath    = "/etc/modprobe.d/nvme-core.conf"
 	modprobeContent = "options nvme_core max_retries=5\n"
 
-	udevRulePath    = "/etc/udev/rules.d/71-nvmf-vastdata.rules"
+	udevRulePath = "/etc/udev/rules.d/71-latitude-block-multipath.rules"
+	// The ATTR{model} match is the literal hardware vendor identifier as
+	// reported by the kernel; do not change it — udev matches against the
+	// hardware-reported string, not user-supplied text.
 	udevRuleContent = "ACTION==\"add|change\", SUBSYSTEM==\"nvme-subsystem\", ATTR{model}==\"VASTData\", ATTR{subsystype}==\"nvm\", ATTR{iopolicy}=\"round-robin\"\n"
 
 	discoveryConfPath  = "/etc/nvme/discovery.conf"
@@ -41,18 +44,18 @@ func (o *VolumeSetupOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Configure the host for NVMe-oF/TCP volume mounting",
-		Long: `One-time, idempotent host configuration for VAST block storage.
+		Long: `One-time, idempotent host configuration for NVMe-oF/TCP block storage.
 
 This command:
   - Persists NVMe kernel modules across reboots (/etc/modules-load.d/nvme-tcp.conf)
   - Tunes nvme_core max_retries (/etc/modprobe.d/nvme-core.conf)
-  - Installs the VAST multipath I/O udev rule (/etc/udev/rules.d/71-nvmf-vastdata.rules)
+  - Installs the round-robin multipath I/O udev rule
   - Seeds /etc/nvme/discovery.conf with the gateway IP
   - Rebuilds initramfs (Ubuntu: update-initramfs / RHEL: dracut)
   - Enables the nvmf-autoconnect service for reboot-resilient mounts
 
 Run once per server. After this, "lsh volume mount --id <vol>" will reconnect
-automatically after reboot and use VAST round-robin multipath I/O.
+automatically after reboot with round-robin multipath I/O.
 
 This command must be run with sudo/root privileges.
 
@@ -72,7 +75,7 @@ func (o *VolumeSetupOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "gateway-ip",
 			Label:       "Gateway IP",
-			Description: "The VAST gateway IP (VIP) to seed into /etc/nvme/discovery.conf",
+			Description: "The block storage gateway IP to seed into /etc/nvme/discovery.conf",
 			Required:    true,
 		},
 		&cmdflag.String{

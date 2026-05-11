@@ -318,9 +318,10 @@ Please install manually:
 }
 
 // testConnectivity validates the NVMe-oF/TCP path to the gateway by running
-// `nvme discover`. VAST VIPs may not respond to ICMP, so a plain ping is an
-// unreliable signal; a successful discover both proves L4 reachability and
-// confirms the gateway is willing to expose subsystems to this host.
+// `nvme discover`. Block storage gateways may not respond to ICMP, so a plain
+// ping is an unreliable signal; a successful discover both proves L4
+// reachability and confirms the gateway is willing to expose subsystems to
+// this host.
 func testConnectivity(gatewayIP, gatewayPort string) error {
 	printStatus(fmt.Sprintf("Probing %s:%s with nvme discover...", gatewayIP, gatewayPort))
 
@@ -447,8 +448,8 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	if !hostSetupApplied() {
-		printWarning("Host is not production-configured (missing module persistence and/or VAST udev rule).")
-		printWarning("Run 'sudo lsh volume setup --gateway-ip <ip>' for reboot-resilient mounts and VAST multipath I/O.")
+		printWarning("Host is not production-configured (missing module persistence and/or multipath udev rule).")
+		printWarning("Run 'sudo lsh volume setup --gateway-ip <ip>' for reboot-resilient mounts and round-robin multipath I/O.")
 		printWarning("Continuing with one-shot mount...")
 	}
 
