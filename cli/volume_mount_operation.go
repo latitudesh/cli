@@ -299,10 +299,14 @@ Please install manually:
 		printStatus("✓ nvme-cli is installed")
 	}
 
-	// Load NVMe TCP module
-	printStatus("Loading NVMe-oF TCP module...")
-	if _, err := runCommand("modprobe", "nvme_tcp"); err != nil {
-		printWarning("nvme_tcp module may already be loaded")
+	// Load NVMe modules. nvme-tcp depends on nvme-fabrics and nvme-core, which
+	// the kernel will auto-pull; we modprobe nvme + nvme-tcp explicitly so a
+	// missing module surfaces as an error rather than silently failing later.
+	printStatus("Loading NVMe-oF TCP modules...")
+	for _, mod := range []string{"nvme", "nvme-tcp"} {
+		if _, err := runCommand("modprobe", mod); err != nil {
+			printWarning(fmt.Sprintf("modprobe %s may already be loaded", mod))
+		}
 	}
 
 	// Check multipath setting (informational)
@@ -313,13 +317,15 @@ Please install manually:
 	return nil
 }
 
-// testConnectivity tests network connectivity to the gateway
-func testConnectivity(gatewayIP string) error {
-	printStatus(fmt.Sprintf("Testing connectivity to %s...", gatewayIP))
+// testConnectivity validates the NVMe-oF/TCP path to the gateway by running
+// `nvme discover`. VAST VIPs may not respond to ICMP, so a plain ping is an
+// unreliable signal; a successful discover both proves L4 reachability and
+// confirms the gateway is willing to expose subsystems to this host.
+func testConnectivity(gatewayIP, gatewayPort string) error {
+	printStatus(fmt.Sprintf("Probing %s:%s with nvme discover...", gatewayIP, gatewayPort))
 
-	cmd := exec.Command("ping", "-c", "2", "-W", "2", gatewayIP)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("cannot reach gateway at %s", gatewayIP)
+	if _, err := runCommand("nvme", "discover", "-t", "tcp", "-a", gatewayIP, "-s", gatewayPort); err != nil {
+		return fmt.Errorf("nvme discover to %s:%s failed: %w", gatewayIP, gatewayPort, err)
 	}
 
 	printStatus("Gateway is reachable")
@@ -438,6 +444,12 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 	if err := checkRoot(); err != nil {
 		printError(err.Error())
 		return err
+	}
+
+	if !hostSetupApplied() {
+		printWarning("Host is not production-configured (missing module persistence and/or VAST udev rule).")
+		printWarning("Run 'sudo lsh volume setup --gateway-ip <ip>' for reboot-resilient mounts and VAST multipath I/O.")
+		printWarning("Continuing with one-shot mount...")
 	}
 
 	// Get the volume ID from flags
@@ -631,7 +643,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := testConnectivity(gatewayIP); err != nil {
+	if err := testConnectivity(gatewayIP, gatewayPort); err != nil {
 		printError(fmt.Sprintf("Connectivity test failed: %v", err))
 		return err
 	}

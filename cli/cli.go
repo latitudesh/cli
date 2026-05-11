@@ -454,5 +454,11 @@ func makeOperationGroupVolumeCmd() (*cobra.Command, error) {
 	}
 	operationGroupVolumeCmd.AddCommand(operationVolumeDeleteCmd)
 
+	operationVolumeSetupCmd, err := makeOperationVolumeSetupCmd()
+	if err != nil {
+		return nil, err
+	}
+	operationGroupVolumeCmd.AddCommand(operationVolumeSetupCmd)
+
 	return operationGroupVolumeCmd, nil
 }
