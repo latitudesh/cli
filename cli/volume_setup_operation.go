@@ -43,7 +43,7 @@ type VolumeSetupOperation struct {
 func (o *VolumeSetupOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "setup",
-		Short: "Configure the host for NVMe-oF/TCP volume mounting",
+		Short: "Configure the host for NVMe-oF/TCP volume attachment",
 		Long: `One-time, idempotent host configuration for NVMe-oF/TCP block storage.
 
 This command:
@@ -52,9 +52,9 @@ This command:
   - Installs the round-robin multipath I/O udev rule
   - Optionally seeds /etc/nvme/discovery.conf with a gateway IP
   - Rebuilds initramfs (Ubuntu: update-initramfs / RHEL: dracut)
-  - Enables the nvmf-autoconnect service for reboot-resilient mounts
+  - Enables the nvmf-autoconnect service for reboot-resilient attachments
 
-Run once per server. After this, "lsh volume mount --id <vol>" populates
+Run once per server. After this, "lsh volume attach --id <vol>" populates
 /etc/nvme/discovery.conf with the gateway VIPs returned by the API and
 the volume reconnects automatically after reboot with round-robin
 multipath I/O.
@@ -78,7 +78,7 @@ func (o *VolumeSetupOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "gateway-ip",
 			Label:       "Gateway IP",
-			Description: "Optionally pre-seed /etc/nvme/discovery.conf with this gateway IP; otherwise `lsh volume mount` populates it from the API response on first mount",
+			Description: "Optionally pre-seed /etc/nvme/discovery.conf with this gateway IP; otherwise `lsh volume attach` populates it from the API response on first attach",
 			Required:    false,
 		},
 		&cmdflag.String{
@@ -113,7 +113,7 @@ func (o *VolumeSetupOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Fprintf(os.Stdout, "\n🔧 Configuring host for NVMe-oF/TCP volume mounting...\n\n")
+	fmt.Fprintf(os.Stdout, "\n🔧 Configuring host for NVMe-oF/TCP volume attachment...\n\n")
 
 	if err := checkPrerequisites(); err != nil {
 		printError(err.Error())
@@ -127,7 +127,7 @@ func (o *VolumeSetupOperation) run(cmd *cobra.Command, args []string) error {
 		reloadUdev,
 	}
 	// Pre-seed discovery.conf only if the operator passed --gateway-ip;
-	// otherwise `lsh volume mount` populates it from the API response.
+	// otherwise `lsh volume attach` populates it from the API response.
 	if gatewayIP != "" {
 		steps = append(steps, func() error { return writeDiscoveryConf(gatewayIP, gatewayPort) })
 	}
@@ -143,7 +143,7 @@ func (o *VolumeSetupOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintf(os.Stdout, "\n✅ Host setup complete.\n")
-	fmt.Fprintf(os.Stdout, "\nNext step: sudo lsh volume mount --id <volume_id>\n")
+	fmt.Fprintf(os.Stdout, "\nNext step: sudo lsh volume attach --id <volume_id>\n")
 	return nil
 }
 

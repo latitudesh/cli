@@ -19,7 +19,7 @@ const (
 	v4Timeout        = 30 * time.Second
 )
 
-// V4VolumeAttributes is the v4 mount/show response shape. Fields are pointers
+// V4VolumeAttributes is the v4 attach/show response shape. Fields are pointers
 // where they are absent on the v3 backend; the CLI requires the connection
 // fields to be populated and errors out otherwise.
 type V4VolumeAttributes struct {
@@ -110,10 +110,10 @@ func (c *v4Client) GetVolume(id string) (*V4Volume, error) {
 	return c.decodeVolume(data)
 }
 
-// MountVolume authorizes the client's NQN on the storage subsystem and
+// AttachVolume authorizes the client's NQN on the storage subsystem and
 // returns the connection info (subsystem NQN, namespace ID, gateway VIPs)
 // that the host needs to establish the NVMe-oF/TCP path.
-func (c *v4Client) MountVolume(id, clientNQN string) (*V4Volume, error) {
+func (c *v4Client) AttachVolume(id, clientNQN string) (*V4Volume, error) {
 	body, err := json.Marshal(map[string]any{
 		"data": map[string]any{
 			"type": "volumes",
@@ -123,15 +123,15 @@ func (c *v4Client) MountVolume(id, clientNQN string) (*V4Volume, error) {
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("encode mount request: %w", err)
+		return nil, fmt.Errorf("encode attach request: %w", err)
 	}
 
-	data, status, err := c.do("POST", "/storage/volumes/"+id+"/mount", body)
+	data, status, err := c.do("POST", "/storage/volumes/"+id+"/attach", body)
 	if err != nil {
 		return nil, err
 	}
 	if status >= 400 {
-		return nil, fmt.Errorf("POST /storage/volumes/%s/mount returned %d: %s", id, status, string(data))
+		return nil, fmt.Errorf("POST /storage/volumes/%s/attach returned %d: %s", id, status, string(data))
 	}
 	return c.decodeVolume(data)
 }

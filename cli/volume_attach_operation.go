@@ -20,8 +20,8 @@ const (
 	colorReset  = "\033[0m"
 )
 
-func makeOperationVolumeMountCmd() (*cobra.Command, error) {
-	operation := VolumeMountOperation{}
+func makeOperationVolumeAttachCmd() (*cobra.Command, error) {
+	operation := VolumeAttachOperation{}
 
 	cmd, err := operation.Register()
 	if err != nil {
@@ -31,27 +31,32 @@ func makeOperationVolumeMountCmd() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-type VolumeMountOperation struct {
+type VolumeAttachOperation struct {
 	PathParamFlags cmdflag.Flags
 	OptionsFlags   cmdflag.Flags
 }
 
-func (o *VolumeMountOperation) Register() (*cobra.Command, error) {
+func (o *VolumeAttachOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:   "mount",
-		Short: "Mount a volume storage to a server",
-		Long: `Mount a block storage volume to a server. This command will:
+		Use:   "attach",
+		Short: "Attach a block storage volume to a server",
+		Long: `Attach a block storage volume to a server as an NVMe block device.
+This command will:
   1. Auto-detect the server's NQN from /etc/nvme/hostnqn
      (or generate a new one if the file doesn't exist)
   2. Send the client NQN to the API to authorize access
   3. Receive the subsystem NQN, namespace ID, and gateway VIPs back from the API
   4. Seed /etc/nvme/discovery.conf with the gateway VIPs
-  5. Run "nvme connect-all" to attach the volume
+  5. Run "nvme connect-all" to bring the device online
+
+After this command succeeds, the volume appears as /dev/nvme*n1 on the host.
+Formatting it (mkfs) and mounting a filesystem are separate, customer-driven
+steps — this command only attaches the raw block device.
 
 This command must be run with sudo/root privileges on the target server.
 
 Example:
-  sudo lsh volume mount --id vol_abc123`,
+  sudo lsh volume attach --id vol_abc123`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -61,7 +66,7 @@ Example:
 	return cmd, nil
 }
 
-func (o *VolumeMountOperation) registerFlags(cmd *cobra.Command) {
+func (o *VolumeAttachOperation) registerFlags(cmd *cobra.Command) {
 	o.PathParamFlags = cmdflag.Flags{FlagSet: cmd.Flags()}
 	o.OptionsFlags = cmdflag.Flags{FlagSet: cmd.Flags()}
 
@@ -69,7 +74,7 @@ func (o *VolumeMountOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "id",
 			Label:       "Volume Storage ID",
-			Description: "The ID of the volume storage to mount",
+			Description: "The ID of the block storage volume to attach",
 			Required:    true,
 		},
 	}
@@ -87,7 +92,7 @@ func (o *VolumeMountOperation) registerFlags(cmd *cobra.Command) {
 	o.OptionsFlags.Register(optionsSchema)
 }
 
-func (o *VolumeMountOperation) preRun(cmd *cobra.Command, args []string) {
+func (o *VolumeAttachOperation) preRun(cmd *cobra.Command, args []string) {
 	o.PathParamFlags.PreRun(cmd, args)
 	o.OptionsFlags.PreRun(cmd, args)
 }
@@ -116,7 +121,7 @@ This command requires root privileges to:
 - Connect to NVMe-oF targets
 
 Usage:
-  sudo lsh volume mount --id <VOLUME_ID>
+  sudo lsh volume attach --id <VOLUME_ID>
 
 Note: Your API key will be automatically detected from your user config,
       so make sure you've logged in first:
@@ -393,7 +398,7 @@ func verifyConnection(subsystemNQN string) error {
 	return nil
 }
 
-func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
+func (o *VolumeAttachOperation) run(cmd *cobra.Command, args []string) error {
 	// Check if running as root
 	if err := checkRoot(); err != nil {
 		printError(err.Error())
@@ -402,8 +407,8 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 
 	if !hostSetupApplied() {
 		printWarning("Host is not production-configured (missing module persistence and/or multipath udev rule).")
-		printWarning("Run 'sudo lsh volume setup' for reboot-resilient mounts and round-robin multipath I/O.")
-		printWarning("Continuing with one-shot mount...")
+		printWarning("Run 'sudo lsh volume setup' for reboot-resilient attachments and round-robin multipath I/O.")
+		printWarning("Continuing with one-shot attach...")
 	}
 
 	// Get the volume ID from flags
@@ -412,7 +417,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error getting volume ID: %w", err)
 	}
 
-	fmt.Fprintf(os.Stdout, "\n🔧 Preparing server for volume mount...\n\n")
+	fmt.Fprintf(os.Stdout, "\n🔧 Preparing server for volume attach...\n\n")
 
 	// STEP 1: Install prerequisites (nvme-cli) BEFORE getting NQN
 	if err := checkPrerequisites(); err != nil {
@@ -434,7 +439,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			printError(fmt.Sprintf("Could not get or generate NQN: %v", err))
 			printError("\nOr provide NQN manually:")
-			printError(fmt.Sprintf("  sudo lsh volume mount --id %s --nqn nqn.2014-08.org.nvmexpress:uuid:YOUR-UUID", volumeID))
+			printError(fmt.Sprintf("  sudo lsh volume attach --id %s --nqn nqn.2014-08.org.nvmexpress:uuid:YOUR-UUID", volumeID))
 			return fmt.Errorf("NQN is required but could not be obtained")
 		}
 		nqn = detectedNQN
@@ -455,17 +460,17 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API key not found. Please run 'lsh login <API_KEY>' first")
 	}
 
-	fmt.Fprintf(os.Stdout, "\n📦 Authorizing client and mounting volume...\n")
+	fmt.Fprintf(os.Stdout, "\n📦 Authorizing client and attaching volume...\n")
 	printStatus(fmt.Sprintf("Volume ID: %s", volumeID))
 	printStatus(fmt.Sprintf("Client NQN (for authorization): %s", nqn))
 
 	if lsh.Debug {
-		fmt.Fprintf(os.Stdout, "[DEBUG] POST /storage/volumes/%s/mount (Api-Version: %s)\n", volumeID, v4APIVersion)
+		fmt.Fprintf(os.Stdout, "[DEBUG] POST /storage/volumes/%s/attach (Api-Version: %s)\n", volumeID, v4APIVersion)
 		fmt.Fprintf(os.Stdout, "[DEBUG] Request body NQN: %s\n", nqn)
 	}
 
 	apiClient := newV4Client(apiKey)
-	volume, err := apiClient.MountVolume(volumeID, nqn)
+	volume, err := apiClient.AttachVolume(volumeID, nqn)
 	if err != nil {
 		printError(fmt.Sprintf("API call failed: %v", err))
 		return err
@@ -494,7 +499,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 
 	// Seed /etc/nvme/discovery.conf with every VIP the API returned. The
 	// helper is idempotent: if a line already exists (e.g. from a previous
-	// mount of another volume in the same pool, or from `lsh volume setup`),
+	// attach of another volume in the same pool, or from `lsh volume setup`),
 	// it is left in place. This also ensures nvmf-autoconnect.service has
 	// a complete discovery seed for reboot reconnection.
 	for _, vip := range volume.Attributes.GatewayVIPs {
@@ -524,7 +529,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(os.Stdout, "\n✅ Volume mount complete!\n")
+	fmt.Fprintf(os.Stdout, "\n✅ Volume attached!\n")
 	fmt.Fprintf(os.Stdout, "\nConnection Summary:\n")
 	fmt.Fprintf(os.Stdout, "  Client NQN:    %s\n", nqn)
 	fmt.Fprintf(os.Stdout, "  Subsystem NQN: %s\n", subsystemNQN)

@@ -421,7 +421,7 @@ func makeOperationGroupVolumeCmd() (*cobra.Command, error) {
 	operationGroupVolumeCmd := &cobra.Command{
 		Use:   "volume",
 		Short: "Manage volumes",
-		Long:  `Commands to manage volume operations such as listing, mounting, creating, and deleting volumes`,
+		Long:  `Commands to manage volume operations such as listing, attaching, creating, and deleting volumes`,
 	}
 
 	operationVolumeListCmd, err := makeOperationVolumeListCmd()
@@ -436,11 +436,11 @@ func makeOperationGroupVolumeCmd() (*cobra.Command, error) {
 	}
 	operationGroupVolumeCmd.AddCommand(operationVolumeGetCmd)
 
-	operationVolumeMountCmd, err := makeOperationVolumeMountCmd()
+	operationVolumeAttachCmd, err := makeOperationVolumeAttachCmd()
 	if err != nil {
 		return nil, err
 	}
-	operationGroupVolumeCmd.AddCommand(operationVolumeMountCmd)
+	operationGroupVolumeCmd.AddCommand(operationVolumeAttachCmd)
 
 	operationVolumeCreateCmd, err := makeOperationVolumeCreateCmd()
 	if err != nil {
