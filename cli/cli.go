@@ -114,12 +114,14 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	}
 	rootCmd.AddCommand(operationAuthCmd)
 
-	// `team` group (use, list) — manages which stored profile is active
-	operationTeamCmd, err := makeOperationTeamCmd()
+	// `profile` group (use, list) — manages which stored profile is active.
+	// Singular form ("profile") to keep the namespace clear vs. `lsh teams`
+	// (plural) which manages team resources via the API.
+	operationProfileCmd, err := makeOperationProfileCmd()
 	if err != nil {
 		return nil, err
 	}
-	rootCmd.AddCommand(operationTeamCmd)
+	rootCmd.AddCommand(operationProfileCmd)
 
 	operationUpdateCmd, err := makeOperationUpdateCmd()
 	if err != nil {
