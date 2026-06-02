@@ -3,6 +3,7 @@ package lsh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"path"
 
 	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
+	"github.com/latitudesh/lsh/internal/config"
 	"github.com/latitudesh/lsh/internal/version"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -81,7 +83,50 @@ func InitViperConfigs() {
 		if sudoUser != "" {
 			LogDebugf("[CONFIG] Also searched sudo user paths\n")
 		}
+	} else {
+		LogDebugf("[CONFIG] ✓ Using config file: %v\n", viper.ConfigFileUsed())
+	}
+
+	// Hydrate the legacy top-level `Authorization` / `api-version` viper
+	// keys (which the generated commands read) from the active profile.
+	// This keeps every existing operation working unchanged while the
+	// new login flow stores credentials per profile.
+	HydrateFromActiveProfile("")
+}
+
+// HydrateFromActiveProfile resolves the active profile (honoring
+// LATITUDESH_TOKEN, the explicit override, LSH_PROFILE and the stored
+// default_profile, in that order) and sets the per-request viper keys
+// used by the generated SDK calls. It is safe to call multiple times —
+// useful when a `--profile` flag is parsed after the initial load.
+func HydrateFromActiveProfile(override string) {
+	if token := os.Getenv("LATITUDESH_TOKEN"); token != "" {
+		viper.Set("Authorization", token)
+		if viper.GetString("api-version") == "" {
+			viper.Set("api-version", "2023-06-01")
+		}
+		LogDebugf("[AUTH] Using LATITUDESH_TOKEN from environment")
 		return
 	}
-	LogDebugf("[CONFIG] ✓ Using config file: %v\n", viper.ConfigFileUsed())
+
+	f, err := config.Load()
+	if err != nil {
+		LogDebugf("[CONFIG] Could not load profile config: %v", err)
+		return
+	}
+
+	_, profile, err := f.Resolve(override)
+	if err != nil {
+		if !errors.Is(err, config.ErrProfileNotFound) {
+			LogDebugf("[CONFIG] Could not resolve profile: %v", err)
+		}
+		return
+	}
+
+	if profile.Authorization != "" {
+		viper.Set("Authorization", profile.Authorization)
+	}
+	if profile.APIVersion != "" {
+		viper.Set("api-version", profile.APIVersion)
+	}
 }

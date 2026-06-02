@@ -56,6 +56,18 @@ func makeClient(cmd *cobra.Command, _ []string) (*client.LatitudeShAPI, error) {
 func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	lsh.InitViperConfigs()
 
+	// Re-resolve the active profile once flags have been parsed so that
+	// `--profile <name>` overrides LSH_PROFILE / default_profile for the
+	// duration of the command. Then resolve the --project flag (env >
+	// --all-projects > interactive prompt) for commands that need it.
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		profile, _ := cmd.Flags().GetString("profile")
+		if profile != "" {
+			lsh.HydrateFromActiveProfile(profile)
+		}
+		return resolveProjectFlag(cmd)
+	}
+
 	// Edit commands template
 	rootCmd.SetVersionTemplate(fmt.Sprintf("lsh %s\n", rootCmd.Version))
 
@@ -78,6 +90,8 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	var noInput bool
 	rootCmd.PersistentFlags().BoolVar(&noInput, "no-input", false, "skip interactive mode")
 
+	rootCmd.PersistentFlags().String("profile", "", "use the named profile from the lsh config (overrides LSH_PROFILE and default_profile)")
+
 	// configure config location
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file path")
 
@@ -86,12 +100,26 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	// add login with api -oken
+	// add login (browser-assisted by default, with --with-token escape hatch)
 	operationLoginCmd, err := makeOperationLoginCmd()
 	if err != nil {
 		return nil, err
 	}
 	rootCmd.AddCommand(operationLoginCmd)
+
+	// `auth` group (status, logout)
+	operationAuthCmd, err := makeOperationAuthCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationAuthCmd)
+
+	// `team` group (use, list) — manages which stored profile is active
+	operationTeamCmd, err := makeOperationTeamCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationTeamCmd)
 
 	operationUpdateCmd, err := makeOperationUpdateCmd()
 	if err != nil {

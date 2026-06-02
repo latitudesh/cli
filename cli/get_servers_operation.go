@@ -26,6 +26,10 @@ func makeOperationServersGetServersCmd() (*cobra.Command, error) {
 		return nil, err
 	}
 
+	// MANUAL — keep when regenerating. Lets the user skip the interactive
+	// project prompt and list servers from every project.
+	cmd.Flags().Bool("all-projects", false, "list servers across all projects in the active team")
+
 	return cmd, nil
 }
 
