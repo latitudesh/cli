@@ -73,8 +73,11 @@ func newAuthClient() *authclient.Client {
 	return authclient.New(scheme+"://"+hostname, ua)
 }
 
-// saveProfile resolves the profile name (override > team slug > "default"),
-// upserts it in the config file, and sets it as the default profile.
+// saveProfile resolves the profile name (override > team slug > "default")
+// and upserts it in the config file. SetProfile promotes it to the default
+// only when no default exists yet, so logging in to add a second profile
+// (e.g. another team) does not silently change the active context — use
+// `lsh profile use` to switch explicitly.
 func saveProfile(override string, p config.Profile) (string, error) {
 	f, err := config.Load()
 	if err != nil {
@@ -88,7 +91,6 @@ func saveProfile(override string, p config.Profile) (string, error) {
 		name = "default"
 	}
 	f.SetProfile(name, p)
-	f.DefaultProfile = name
 	if err := config.Save(f); err != nil {
 		return "", err
 	}

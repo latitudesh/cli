@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/latitudesh/lsh/internal/config"
 	"github.com/spf13/cobra"
@@ -24,6 +25,18 @@ LSH_PROFILE / LATITUDESH_TOKEN environment variables.`,
 
 func runAuthStatus(cmd *cobra.Command, _ []string) error {
 	override, _ := cmd.Flags().GetString("profile")
+
+	// Mirror HydrateFromActiveProfile: LATITUDESH_TOKEN takes precedence
+	// over stored profiles, so report it here too instead of falling
+	// through to "Not logged in".
+	if os.Getenv("LATITUDESH_TOKEN") != "" {
+		fmt.Println("Profile:    - (using LATITUDESH_TOKEN)")
+		fmt.Println("Email:      -")
+		fmt.Println("Team:       -")
+		fmt.Println("API key:    -")
+		fmt.Println("Source:     environment (LATITUDESH_TOKEN)")
+		return nil
+	}
 
 	f, err := config.Load()
 	if err != nil {

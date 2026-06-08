@@ -15,18 +15,20 @@ type legacyTopLevel struct {
 
 // migrateLegacyInto inspects raw bytes for the old top-level token and,
 // if found and no profiles exist yet, materializes a "default" profile
-// from it. Idempotent: a second load on a migrated file is a no-op.
-func migrateLegacyInto(f *File, raw []byte) {
+// from it. Returns true when a migration was applied so the caller can
+// persist the new format. Idempotent: a second load on a migrated file
+// is a no-op and returns false.
+func migrateLegacyInto(f *File, raw []byte) bool {
 	if len(f.Profiles) > 0 {
-		return
+		return false
 	}
 	var legacy legacyTopLevel
 	if err := json.Unmarshal(raw, &legacy); err != nil {
-		return
+		return false
 	}
 	token := firstNonEmpty(legacy.AuthorizationA, legacy.AuthorizationB)
 	if token == "" {
-		return
+		return false
 	}
 	apiVersion := firstNonEmpty(legacy.APIVersionA, legacy.APIVersionB)
 	if f.Profiles == nil {
@@ -40,6 +42,7 @@ func migrateLegacyInto(f *File, raw []byte) {
 	if f.DefaultProfile == "" {
 		f.DefaultProfile = "default"
 	}
+	return true
 }
 
 func firstNonEmpty(values ...string) string {

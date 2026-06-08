@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/latitudesh/lsh/internal/authclient"
 	"github.com/latitudesh/lsh/internal/config"
@@ -85,6 +86,6 @@ func revokeIfBrowserSourced(ctx context.Context, client *authclient.Client, prof
 		return
 	}
 	if err := client.RevokeAPIKey(ctx, profile.Authorization, profile.KeyID); err != nil {
-		fmt.Printf("warning: could not revoke API key for profile %q: %v\n", name, err)
+		fmt.Fprintf(os.Stderr, "warning: could not revoke API key for profile %q: %v\n", name, err)
 	}
 }

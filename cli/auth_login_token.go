@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/latitudesh/lsh/internal/authclient"
 	"github.com/latitudesh/lsh/internal/config"
@@ -33,11 +34,15 @@ func loginWithToken(ctx context.Context, client *authclient.Client, token, profi
 		return fmt.Errorf("could not fetch team for this token: %w", err)
 	}
 
+	apiVersion := os.Getenv("LATITUDE_API_VERSION")
+	if apiVersion == "" {
+		apiVersion = "2023-06-01"
+	}
 	profile := config.Profile{
 		Authorization: token,
 		Email:         profileResp.Email,
 		Source:        config.SourceWithToken,
-		APIVersion:    "2023-06-01",
+		APIVersion:    apiVersion,
 	}
 	if team != nil {
 		profile.TeamID = team.ID

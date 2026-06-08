@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 
 	homedir "github.com/mitchellh/go-homedir"
@@ -74,7 +73,13 @@ func Load() (*File, error) {
 	if err := json.Unmarshal(data, f); err != nil {
 		return nil, fmt.Errorf("config: parse %s: %w", p, err)
 	}
-	migrateLegacyInto(f, data)
+	if migrateLegacyInto(f, data) {
+		// Persist the migrated format so the on-disk file stops being
+		// legacy. Best-effort: a read-only environment shouldn't turn a
+		// successful load into an error — the in-memory result is correct
+		// regardless.
+		_ = Save(f)
+	}
 	if f.Profiles == nil {
 		f.Profiles = map[string]Profile{}
 	}
@@ -87,7 +92,7 @@ func Save(f *File) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(path.Dir(p), dirPerm); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), dirPerm); err != nil {
 		return fmt.Errorf("config: mkdir: %w", err)
 	}
 	data, err := json.MarshalIndent(f, "", "  ")

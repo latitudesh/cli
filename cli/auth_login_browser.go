@@ -111,8 +111,18 @@ func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secre
 		}
 		session, err := client.PollSession(ctx, id, secret)
 		if err == nil {
-			if session.Status == "approved" && session.APIKey != nil {
-				return session, nil
+			// A successful response means the server is healthy; reset the
+			// interval so a previous transient error doesn't keep us polling
+			// at the backed-off rate for the rest of the session.
+			interval = pollInterval
+			if session.Status == "approved" {
+				if session.APIKey != nil {
+					return session, nil
+				}
+				// Approval and key are written together server-side, so an
+				// approved session with no key is anomalous — fail fast
+				// instead of polling silently until the deadline.
+				return nil, errors.New("login was approved but no API key was returned; please run `lsh login` again")
 			}
 			// status=pending → keep polling
 		} else {
