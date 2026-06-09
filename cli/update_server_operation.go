@@ -31,11 +31,13 @@ type UpdateServerOperation struct {
 
 func (o *UpdateServerOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "update",
-		Short:  "Update a server",
-		Long:   "Update server information.",
-		RunE:   o.run,
-		PreRun: o.preRun,
+		Use:   "update",
+		Short: "Update a server",
+		// MANUAL — keep when regenerating
+		Example: `  lsh servers update --id sv_xxxxxxxx --hostname=web-02`,
+		Long:    "Update server information.",
+		RunE:    o.run,
+		PreRun:  o.preRun,
 	}
 
 	o.registerFlags(cmd)

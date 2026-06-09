@@ -33,8 +33,17 @@ Pass --with-token <T> to skip the browser flow and use an existing token.
 
 A positional <api-token> argument is still accepted for backward
 compatibility but is deprecated and will be removed in a future release.`,
-		Args: cobra.MaximumNArgs(1),
-		RunE: runOperationLogin,
+		Example: `  # Browser-assisted login (default)
+  lsh login
+
+  # Use an existing token (CI / scripts)
+  lsh login --with-token ak_xxxxxxxxxxxxxxxx
+
+  # Save credentials under a specific profile name
+  lsh login --profile staging`,
+		Args:         cobra.MaximumNArgs(1),
+		RunE:         runOperationLogin,
+		SilenceUsage: true,
 	}
 	cmd.Flags().String("with-token", "", "use an existing API token instead of the browser flow")
 	cmd.Flags().String("profile", "", "save credentials under this profile name (default: team slug)")

@@ -26,10 +26,12 @@ type DeleteVirtualNetworkAssignmentOperation struct {
 
 func (o *DeleteVirtualNetworkAssignmentOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "destroy",
-		Short:  "Unassign a server from a virtual network",
-		RunE:   o.run,
-		PreRun: o.preRun,
+		Use:   "destroy",
+		Short: "Unassign a server from a virtual network",
+		// MANUAL — keep when regenerating
+		Example: `  lsh virtual_networks assignments destroy --id vnet_assignment_xxxxxxxx`,
+		RunE:    o.run,
+		PreRun:  o.preRun,
 	}
 
 	o.registerFlags(cmd)

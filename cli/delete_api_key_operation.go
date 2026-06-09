@@ -26,11 +26,13 @@ type DeleteAPIKeyOperation struct {
 
 func (o *DeleteAPIKeyOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "destroy",
-		Short:  "Delete an API Key",
-		Long:   `Delete an existing API Key. Once deleted, the API Key can no longer be used to access the API.`,
-		RunE:   o.run,
-		PreRun: o.preRun,
+		Use:   "destroy",
+		Short: "Delete an API Key",
+		// MANUAL — keep when regenerating
+		Example: `  lsh api_keys destroy --id ak_xxxxxxxx`,
+		Long:    `Delete an existing API Key. Once deleted, the API Key can no longer be used to access the API.`,
+		RunE:    o.run,
+		PreRun:  o.preRun,
 	}
 
 	o.registerFlags(cmd)

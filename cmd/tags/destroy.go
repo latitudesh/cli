@@ -14,11 +14,12 @@ import (
 func NewDestroyCmd() *cobra.Command {
 	op := DestroyTagOperation{}
 	cmd := &cobra.Command{
-		Long:   "Delete a Tag in the team.\n",
-		RunE:   op.run,
-		PreRun: op.preRun,
-		Short:  "Delete Tag",
-		Use:    "destroy",
+		Long:    "Delete a Tag in the team.\n",
+		RunE:    op.run,
+		PreRun:  op.preRun,
+		Short:   "Delete a tag",
+		Example: `  lsh tags destroy --id tag_xxxxxxxx`,
+		Use:     "destroy",
 	}
 	op.registerFlags(cmd)
 

@@ -26,10 +26,12 @@ func makeOperationVirtualNetworksDestroyVirtualNetworkCmd() (*cobra.Command, err
 
 func (o *DeleteVirtualNetworkOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "destroy",
-		Short:  "Delete a virtual network",
-		RunE:   o.run,
-		PreRun: o.preRun,
+		Use:   "destroy",
+		Short: "Delete a virtual network",
+		// MANUAL — keep when regenerating
+		Example: `  lsh virtual_networks destroy --id vnet_xxxxxxxx`,
+		RunE:    o.run,
+		PreRun:  o.preRun,
 	}
 
 	o.registerFlags(cmd)

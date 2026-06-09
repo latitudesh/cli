@@ -24,8 +24,14 @@ environment variables.
 
 With --check, each stored profile's token is validated against the API
 and shown as valid / invalid.`,
-		Args: cobra.NoArgs,
-		RunE: runAuthStatus,
+		Example: `  # Show the active profile
+  lsh auth status
+
+  # Show a specific profile without changing the default
+  lsh auth status --profile staging`,
+		Args:         cobra.NoArgs,
+		RunE:         runAuthStatus,
+		SilenceUsage: true,
 	}
 	cmd.Flags().String("profile", "", "show status for this profile (overrides default)")
 	cmd.Flags().Bool("check", false, "validate each stored profile's token against the API")

@@ -14,4 +14,4 @@ func init() {
 	rootCmd.AddCommand(tagsCmd)
 }
 
-var tagsCmd = &cobra.Command{Use: "tags"}
+var tagsCmd = &cobra.Command{Use: "tags", Short: "Manage tags"}

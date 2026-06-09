@@ -27,8 +27,14 @@ type CreateProjectOperation struct {
 
 func (o *CreateProjectOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "create",
-		Short:  "Create a project",
+		Use:   "create",
+		Short: "Create a project",
+		// MANUAL — keep when regenerating
+		Example: `  # On-demand project
+  lsh projects create --name "My Project" --provisioning_type on_demand
+
+  # Reserved project
+  lsh projects create --name "Reserved Pool" --provisioning_type reserved`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
@@ -52,7 +58,7 @@ func (o *CreateProjectOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "provisioning_type",
 			Label:       "Provisioning Type",
-			Description: `Enum: ["reserved","on_demand"]. The provisioning type of the project. Default: on_demand`,
+			Description: "The provisioning type of the project (e.g. on_demand, reserved). Default: on_demand.",
 			Required:    true,
 			Options:     project.SupportedProvisioningTypes,
 		},
@@ -65,7 +71,7 @@ func (o *CreateProjectOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "environment",
 			Label:       "Environment",
-			Description: `Enum: ["Development","Staging","Production"].`,
+			Description: "The project environment label (e.g. development, staging, production).",
 			Required:    false,
 			Options:     project.SupportedEnvironments,
 		},

@@ -27,8 +27,13 @@ type CreateVirtualNetworkOperation struct {
 
 func (o *CreateVirtualNetworkOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "create",
-		Short:  "Creates a virtual network",
+		Use:   "create",
+		Short: "Creates a virtual network",
+		// MANUAL — keep when regenerating
+		Example: `  lsh virtual_networks create \
+    --project=my-project \
+    --site=NYC2 \
+    --description="Internal app network"`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
