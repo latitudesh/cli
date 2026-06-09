@@ -11,7 +11,7 @@ import (
 func newTestClient(t *testing.T, h http.HandlerFunc) (*Client, func()) {
 	t.Helper()
 	srv := httptest.NewServer(h)
-	return New(srv.URL, "lsh-test/0.0.0"), srv.Close
+	return New(srv.URL, "lsh-test/0.0.0", "2023-06-01"), srv.Close
 }
 
 func TestCreateSession(t *testing.T) {
@@ -105,7 +105,7 @@ func TestPollSessionGone(t *testing.T) {
 }
 
 func TestPollSessionRejectsEmptyArgs(t *testing.T) {
-	c := New("http://example.invalid", "lsh-test/0.0.0")
+	c := New("http://example.invalid", "lsh-test/0.0.0", "2023-06-01")
 	if _, err := c.PollSession(context.Background(), "", "shh"); err == nil {
 		t.Fatal("expected error on empty id")
 	}

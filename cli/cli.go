@@ -56,6 +56,12 @@ func makeClient(cmd *cobra.Command, _ []string) (*client.LatitudeShAPI, error) {
 func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	lsh.InitViperConfigs()
 
+	// Run ancestor PersistentPreRunE hooks even when a subcommand defines
+	// its own. Cobra otherwise runs only the nearest one, which would
+	// silently skip the root hook below (profile hydration + project
+	// resolution) if a generated command is ever regenerated with its own.
+	cobra.EnableTraverseRunHooks = true
+
 	// Re-resolve the active profile once flags have been parsed so that
 	// `--profile <name>` overrides LSH_PROFILE / default_profile for the
 	// duration of the command. Then resolve the --project flag (env >

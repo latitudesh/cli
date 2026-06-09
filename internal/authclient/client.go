@@ -23,15 +23,18 @@ const (
 type Client struct {
 	baseURL    string
 	userAgent  string
+	apiVersion string
 	httpClient *http.Client
 }
 
 // New builds a Client. baseURL should include scheme and host (e.g.
-// "https://api.latitude.sh").
-func New(baseURL, userAgent string) *Client {
+// "https://api.latitude.sh"). apiVersion is sent as the API-Version
+// header on every request, matching what the generated SDK does.
+func New(baseURL, userAgent, apiVersion string) *Client {
 	return &Client{
 		baseURL:    baseURL,
 		userAgent:  userAgent,
+		apiVersion: apiVersion,
 		httpClient: &http.Client{Timeout: defaultTimeout},
 	}
 }
@@ -223,6 +226,9 @@ func (c *Client) do(ctx context.Context, method, path string, headers map[string
 	}
 	if c.userAgent != "" {
 		req.Header.Set("User-Agent", c.userAgent)
+	}
+	if c.apiVersion != "" {
+		req.Header.Set("API-Version", c.apiVersion)
 	}
 	for k, v := range headers {
 		req.Header.Set(k, v)

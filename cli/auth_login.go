@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/latitudesh/lsh/internal/authclient"
 	"github.com/latitudesh/lsh/internal/config"
@@ -11,6 +12,15 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+// defaultAPIVersion resolves the API version sent to the API, honoring
+// LATITUDE_API_VERSION with a stable fallback.
+func defaultAPIVersion() string {
+	if v := os.Getenv("LATITUDE_API_VERSION"); v != "" {
+		return v
+	}
+	return "2023-06-01"
+}
 
 func makeOperationLoginCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
@@ -70,7 +80,7 @@ func newAuthClient() *authclient.Client {
 		scheme = "https"
 	}
 	ua := fmt.Sprintf("lsh/%s", version.Version)
-	return authclient.New(scheme+"://"+hostname, ua)
+	return authclient.New(scheme+"://"+hostname, ua, defaultAPIVersion())
 }
 
 // saveProfile resolves the profile name (override > team slug > "default")

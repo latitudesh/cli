@@ -56,11 +56,6 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 		return errors.New("login session approved but the credential payload was incomplete")
 	}
 
-	apiVersion := os.Getenv("LATITUDE_API_VERSION")
-	if apiVersion == "" {
-		apiVersion = "2023-06-01"
-	}
-
 	profile := config.Profile{
 		Authorization: approved.APIKey.Token,
 		KeyID:         approved.APIKey.ID,
@@ -70,7 +65,7 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 		TeamSlug:      approved.Team.Slug,
 		Email:         approved.User.Email,
 		Source:        config.SourceBrowser,
-		APIVersion:    apiVersion,
+		APIVersion:    defaultAPIVersion(),
 	}
 
 	name, err := saveProfile(profileOverride, profile)
