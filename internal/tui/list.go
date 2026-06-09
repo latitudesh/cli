@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,6 +16,40 @@ type item struct {
 func (i item) Title() string       { return i.title }
 func (i item) Description() string { return i.desc }
 func (i item) FilterValue() string { return i.title }
+
+// compactDelegate renders each item on a single line ("title  desc"),
+// with no blank line between items, so many more entries are visible than
+// with the default two-line delegate. The selected row is highlighted and
+// the description is dimmed.
+type compactDelegate struct{}
+
+func (compactDelegate) Height() int                         { return 1 }
+func (compactDelegate) Spacing() int                        { return 0 }
+func (compactDelegate) Update(tea.Msg, *list.Model) tea.Cmd { return nil }
+
+func (compactDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	it, ok := listItem.(item)
+	if !ok {
+		return
+	}
+
+	var line string
+	if index == m.Index() {
+		s := "❯ " + it.title
+		if it.desc != "" {
+			s += "  " + it.desc
+		}
+		line = FocusedStyle.Render(s)
+	} else {
+		line = "  " + it.title
+		if it.desc != "" {
+			line += "  " + lipgloss.NewStyle().Foreground(MutedColor).Render(it.desc)
+		}
+	}
+
+	// Keep every item exactly one line so the list height stays correct.
+	fmt.Fprint(w, lipgloss.NewStyle().MaxWidth(m.Width()).Render(line))
+}
 
 type ListModel struct {
 	list     list.Model
@@ -35,7 +70,7 @@ func NewList(title string, items []string, descriptions []string) ListModel {
 	const defaultWidth = 80
 	const listHeight = 14
 
-	l := list.New(listItems, list.NewDefaultDelegate(), defaultWidth, listHeight)
+	l := list.New(listItems, compactDelegate{}, defaultWidth, listHeight)
 	l.Title = title
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
@@ -56,6 +91,11 @@ func (m ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.list.SetWidth(msg.Width)
+		// Use the available terminal height (minus room for the title and
+		// help/pagination footer) so as many items as possible are visible.
+		if h := msg.Height - 6; h > 4 {
+			m.list.SetHeight(h)
+		}
 		return m, nil
 
 	case tea.KeyMsg:

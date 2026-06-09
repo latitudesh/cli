@@ -98,6 +98,13 @@ func saveProfile(override string, p config.Profile) (string, error) {
 		name = p.TeamSlug
 	}
 	if name == "" {
+		// No override and no team slug (e.g. a token whose team lookup
+		// returned empty). Saving as "default" would silently overwrite an
+		// existing "default" profile's credential, so require an explicit
+		// name in that case.
+		if _, exists := f.Profiles["default"]; exists {
+			return "", errors.New("could not determine a profile name for this token (no team was returned); pass --profile <name> so an existing profile isn't overwritten")
+		}
 		name = "default"
 	}
 	f.SetProfile(name, p)

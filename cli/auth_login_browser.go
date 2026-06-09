@@ -163,4 +163,3 @@ func nextBackoff(current time.Duration) time.Duration {
 	}
 	return doubled
 }
-

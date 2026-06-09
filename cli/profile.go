@@ -3,9 +3,10 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"io"
 
 	"github.com/latitudesh/lsh/internal/config"
+	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -52,7 +53,7 @@ func makeOperationProfileListCmd() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func runProfileUse(_ *cobra.Command, args []string) error {
+func runProfileUse(cmd *cobra.Command, args []string) error {
 	f, err := config.Load()
 	if err != nil {
 		return err
@@ -62,8 +63,9 @@ func runProfileUse(_ *cobra.Command, args []string) error {
 	}
 
 	if len(args) == 0 {
-		printProfileList(f)
-		fmt.Println()
+		out := cmd.OutOrStdout()
+		printProfileList(out, f)
+		fmt.Fprintln(out)
 		return errors.New("provide a profile name or team slug to switch to (see list above)")
 	}
 
@@ -75,7 +77,7 @@ func runProfileUse(_ *cobra.Command, args []string) error {
 		if err := config.Save(f); err != nil {
 			return err
 		}
-		fmt.Printf("Active profile is now %q (team: %s)\n", target, formatTeam(profile))
+		fmt.Fprintf(cmd.OutOrStdout(), "Active profile is now %q (team: %s)\n", target, formatTeam(profile))
 		return nil
 	}
 
@@ -86,43 +88,56 @@ func runProfileUse(_ *cobra.Command, args []string) error {
 			if err := config.Save(f); err != nil {
 				return err
 			}
-			fmt.Printf("Active profile is now %q (team: %s)\n", name, formatTeam(profile))
+			fmt.Fprintf(cmd.OutOrStdout(), "Active profile is now %q (team: %s)\n", name, formatTeam(profile))
 			return nil
 		}
 	}
 	return fmt.Errorf("no local profile matches %q — run `lsh login` to add it", target)
 }
 
-func runProfileList(_ *cobra.Command, _ []string) error {
+func runProfileList(cmd *cobra.Command, _ []string) error {
 	f, err := config.Load()
 	if err != nil {
 		return err
 	}
+	out := cmd.OutOrStdout()
 	if len(f.Profiles) == 0 {
-		fmt.Println("No profiles stored. Run `lsh login` to authenticate.")
+		fmt.Fprintln(out, "No profiles stored. Run `lsh login` to authenticate.")
 		return nil
 	}
-	printProfileList(f)
+	printProfileList(out, f)
 	return nil
 }
 
-func printProfileList(f *config.File) {
-	names := make([]string, 0, len(f.Profiles))
-	for name := range f.Profiles {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+func printProfileList(w io.Writer, f *config.File) {
+	names := f.SortedProfileNames()
 
-	fmt.Printf("%-20s %-30s %s\n", "PROFILE", "TEAM", "EMAIL")
+	// Size the columns to their content so long names/teams stay aligned.
+	nameW, teamW := len("PROFILE"), len("TEAM")
+	for _, name := range names {
+		if len(name) > nameW {
+			nameW = len(name)
+		}
+		if t := teamLabel(f.Profiles[name]); len(t) > teamW {
+			teamW = len(t)
+		}
+	}
+
+	fmt.Fprintf(w, "  %-*s  %-*s  %s\n", nameW, "PROFILE", teamW, "TEAM", "EMAIL")
 	for _, name := range names {
 		p := f.Profiles[name]
-		marker := ""
-		if name == f.DefaultProfile {
-			marker = " *"
+		active := name == f.DefaultProfile
+		marker := "  "
+		if active {
+			marker = "* "
 		}
-		fmt.Printf("%-20s %-30s %s\n", name+marker, formatTeam(p), emptyAsDash(p.Email))
+		line := fmt.Sprintf("%s%-*s  %-*s  %s", marker, nameW, name, teamW, teamLabel(p), emptyAsDash(p.Email))
+		if active {
+			line = tui.FocusedStyle.Render(line)
+		}
+		fmt.Fprintln(w, line)
 	}
 	if f.DefaultProfile != "" {
-		fmt.Println("\n* = active profile")
+		fmt.Fprintln(w, "\n* = active profile")
 	}
 }

@@ -41,8 +41,9 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	out := cmd.OutOrStdout()
 	if len(f.Profiles) == 0 {
-		fmt.Println("Nothing to do — no profiles are stored.")
+		fmt.Fprintln(out, "Nothing to do — no profiles are stored.")
 		return nil
 	}
 
@@ -53,12 +54,20 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 	client := newAuthClient()
 
 	if all {
-		for name, profile := range f.Profiles {
-			revokeIfBrowserSourced(ctx, client, profile, name)
+		removed := f.SortedProfileNames()
+		for _, name := range removed {
+			revokeIfBrowserSourced(ctx, client, f.Profiles[name], name)
 			f.RemoveProfile(name)
-			fmt.Printf("Removed profile %q\n", name)
 		}
-		return config.Save(f)
+		// Persist before confirming, so a failed write doesn't print
+		// "Removed" for profiles that are still on disk.
+		if err := config.Save(f); err != nil {
+			return err
+		}
+		for _, name := range removed {
+			fmt.Fprintf(out, "Removed profile %q\n", name)
+		}
+		return nil
 	}
 
 	name, profile, err := f.Resolve(override)
@@ -68,12 +77,25 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 		}
 		return err
 	}
+	wasDefault := f.DefaultProfile == name
 	revokeIfBrowserSourced(ctx, client, profile, name)
 	f.RemoveProfile(name)
+
+	// If we just removed the active profile, fall back to another stored
+	// one so the user keeps a usable context instead of landing on
+	// "Not logged in" despite other profiles existing.
+	var promoted string
+	if wasDefault {
+		promoted = f.EnsureDefault()
+	}
+
 	if err := config.Save(f); err != nil {
 		return err
 	}
-	fmt.Printf("Removed profile %q\n", name)
+	fmt.Fprintf(out, "Removed profile %q\n", name)
+	if promoted != "" {
+		fmt.Fprintf(out, "Active profile is now %q.\n", promoted)
+	}
 	return nil
 }
 

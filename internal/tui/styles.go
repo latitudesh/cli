@@ -32,6 +32,10 @@ var (
 			Foreground(SuccessColor).
 			Bold(true)
 
+	WarningStyle = lipgloss.NewStyle().
+			Foreground(WarningColor).
+			Bold(true)
+
 	// Border styles
 	BoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).

@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -158,26 +160,53 @@ type Project struct {
 	Slug string `json:"slug"`
 }
 
-// ListProjects returns the projects accessible to the token's team.
-// Used by the interactive project picker when a command needs a
-// project but the user did not pass --project.
+// ListProjects returns every project accessible to the token's team.
+// Used by the interactive project picker when a command needs a project
+// but the user did not pass --project. It pages through the API (which
+// defaults to 20 per page) so teams with many projects are fully listed.
 func (c *Client) ListProjects(ctx context.Context, token string) ([]Project, error) {
 	headers := map[string]string{"Authorization": token}
-	var resp struct {
-		Data []struct {
-			ID         string `json:"id"`
-			Attributes struct {
-				Name string `json:"name"`
-				Slug string `json:"slug"`
-			} `json:"attributes"`
-		} `json:"data"`
-	}
-	if err := c.do(ctx, http.MethodGet, "/projects", headers, nil, &resp); err != nil {
-		return nil, err
-	}
-	projects := make([]Project, 0, len(resp.Data))
-	for _, p := range resp.Data {
-		projects = append(projects, Project{ID: p.ID, Name: p.Attributes.Name, Slug: p.Attributes.Slug})
+	const pageSize = 100
+	const maxPages = 100 // safety cap (≤ 10k projects)
+
+	var projects []Project
+	total := -1
+	for page := 1; page <= maxPages; page++ {
+		q := url.Values{}
+		q.Set("page[size]", strconv.Itoa(pageSize))
+		q.Set("page[number]", strconv.Itoa(page))
+		q.Set("stats[total]", "count")
+
+		var resp struct {
+			Data []struct {
+				ID         string `json:"id"`
+				Attributes struct {
+					Name string `json:"name"`
+					Slug string `json:"slug"`
+				} `json:"attributes"`
+			} `json:"data"`
+			Meta struct {
+				Stats struct {
+					Total struct {
+						Count int `json:"count"`
+					} `json:"total"`
+				} `json:"stats"`
+			} `json:"meta"`
+		}
+		if err := c.do(ctx, http.MethodGet, "/projects?"+q.Encode(), headers, nil, &resp); err != nil {
+			return nil, err
+		}
+		for _, p := range resp.Data {
+			projects = append(projects, Project{ID: p.ID, Name: p.Attributes.Name, Slug: p.Attributes.Slug})
+		}
+		if total < 0 {
+			total = resp.Meta.Stats.Total.Count
+		}
+		// Stop when the page is empty or we've collected the reported total.
+		// The empty-page guard covers a missing/zero total.
+		if len(resp.Data) == 0 || (total >= 0 && len(projects) >= total) {
+			break
+		}
 	}
 	return projects, nil
 }

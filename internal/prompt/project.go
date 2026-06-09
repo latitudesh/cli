@@ -54,13 +54,16 @@ func SelectProject(ctx context.Context, client ProjectPicker, token string, allo
 	if err != nil {
 		return "", err
 	}
-	if choice == "All projects" {
-		return AllProjectsSentinel, nil
-	}
+	// Match a real project first, so a project that happens to be named
+	// "All projects" wins over the sentinel entry rather than being
+	// silently treated as "skip the filter".
 	for _, p := range projects {
 		if p.Slug == choice {
 			return p.ID, nil
 		}
+	}
+	if allowAll && choice == "All projects" {
+		return AllProjectsSentinel, nil
 	}
 	return "", fmt.Errorf("unexpected selection: %s", choice)
 }

@@ -190,3 +190,78 @@ func TestSetAndRemoveProfile(t *testing.T) {
 		t.Fatalf("expected default cleared after removing default, got %q", f.DefaultProfile)
 	}
 }
+
+func TestSortedProfileNames(t *testing.T) {
+	f := &File{Profiles: map[string]Profile{"zebra": {}, "alpha": {}, "mike": {}}}
+	got := f.SortedProfileNames()
+	want := []string{"alpha", "mike", "zebra"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected sorted %v, got %v", want, got)
+		}
+	}
+}
+
+func TestEnsureDefault(t *testing.T) {
+	// Promotes the alphabetically-first profile when none is set.
+	f := &File{Profiles: map[string]Profile{"teamB": {}, "teamA": {}}}
+	if got := f.EnsureDefault(); got != "teamA" {
+		t.Fatalf("expected promotion to teamA, got %q", got)
+	}
+	if f.DefaultProfile != "teamA" {
+		t.Fatalf("default not set, got %q", f.DefaultProfile)
+	}
+
+	// Keeps an existing default untouched.
+	f2 := &File{DefaultProfile: "teamB", Profiles: map[string]Profile{"teamA": {}, "teamB": {}}}
+	if got := f2.EnsureDefault(); got != "teamB" {
+		t.Fatalf("expected existing default kept, got %q", got)
+	}
+
+	// Returns "" when there are no profiles.
+	f3 := &File{}
+	if got := f3.EnsureDefault(); got != "" {
+		t.Fatalf("expected empty when no profiles, got %q", got)
+	}
+}
+
+func TestSaveIsAtomicAndPermissioned(t *testing.T) {
+	dir := withTempHome(t)
+	f := &File{DefaultProfile: "a", Profiles: map[string]Profile{"a": {Authorization: "tok"}}}
+	if err := Save(f); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	cfgDir := filepath.Join(dir, dirName, exeName)
+	entries, err := os.ReadDir(cfgDir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	// Only config.json should remain — no leftover temp files.
+	for _, e := range entries {
+		if e.Name() != "config.json" {
+			t.Fatalf("unexpected leftover file: %q", e.Name())
+		}
+	}
+
+	p, _ := Path()
+	info, err := os.Stat(p)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if info.Mode().Perm() != filePerm {
+		t.Fatalf("expected perms %o, got %o", filePerm, info.Mode().Perm())
+	}
+
+	// Re-load to confirm the write round-trips.
+	got, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.DefaultProfile != "a" || got.Profiles["a"].Authorization != "tok" {
+		t.Fatalf("round-trip mismatch: %+v", got)
+	}
+}

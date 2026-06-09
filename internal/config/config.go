@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	homedir "github.com/mitchellh/go-homedir"
 )
@@ -99,8 +100,31 @@ func Save(f *File) error {
 	if err != nil {
 		return fmt.Errorf("config: marshal: %w", err)
 	}
-	if err := os.WriteFile(p, data, filePerm); err != nil {
-		return fmt.Errorf("config: write %s: %w", p, err)
+	// Write to a temp file in the same directory, then atomically rename
+	// over the target. A crash mid-write can't truncate the existing
+	// credential store this way (os.WriteFile would).
+	tmp, err := os.CreateTemp(filepath.Dir(p), ".config-*.tmp")
+	if err != nil {
+		return fmt.Errorf("config: create temp: %w", err)
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return fmt.Errorf("config: write temp: %w", err)
+	}
+	if err := tmp.Chmod(filePerm); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return fmt.Errorf("config: chmod temp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		return fmt.Errorf("config: close temp: %w", err)
+	}
+	if err := os.Rename(tmpName, p); err != nil {
+		os.Remove(tmpName)
+		return fmt.Errorf("config: rename: %w", err)
 	}
 	return nil
 }
@@ -123,6 +147,31 @@ func (f *File) RemoveProfile(name string) {
 	if f.DefaultProfile == name {
 		f.DefaultProfile = ""
 	}
+}
+
+// SortedProfileNames returns the stored profile names in alphabetical order.
+func (f *File) SortedProfileNames() []string {
+	names := make([]string, 0, len(f.Profiles))
+	for name := range f.Profiles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// EnsureDefault promotes the alphabetically-first profile to default when
+// no default is set but profiles still exist (e.g. after the active
+// profile is logged out). Returns the chosen name, or "" if none remain.
+func (f *File) EnsureDefault() string {
+	if f.DefaultProfile != "" {
+		return f.DefaultProfile
+	}
+	names := f.SortedProfileNames()
+	if len(names) == 0 {
+		return ""
+	}
+	f.DefaultProfile = names[0]
+	return f.DefaultProfile
 }
 
 // Resolve returns the active profile name and its data based on the

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/latitudesh/lsh/internal/prompt"
@@ -9,6 +10,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+// isInteractive reports whether we can prompt the user. It's a package
+// var so tests can force the non-interactive path deterministically.
+var isInteractive = util.IsTTY
 
 // resolveProjectFlag ensures the active command has a project value
 // when it needs one. The resolution order is:
@@ -33,12 +38,21 @@ func resolveProjectFlag(cmd *cobra.Command) error {
 		return cmd.Flags().Set("project", env)
 	}
 
-	if all := cmd.Flags().Lookup("all-projects"); all != nil && all.Changed {
-		return nil
+	supportsAll := cmd.Flags().Lookup("all-projects") != nil
+	if supportsAll {
+		// Only skip the project requirement when --all-projects is actually
+		// true; an explicit --all-projects=false must not bypass it.
+		if allProjects, _ := cmd.Flags().GetBool("all-projects"); allProjects {
+			return nil
+		}
 	}
 
-	if !util.IsTTY() {
-		return errors.New("--project is required (pass --project=<id>, --all-projects, or set LSH_PROJECT)")
+	if !isInteractive() {
+		hint := "pass --project=<id> or set LSH_PROJECT"
+		if supportsAll {
+			hint = "pass --project=<id>, --all-projects, or set LSH_PROJECT"
+		}
+		return fmt.Errorf("--project is required (%s)", hint)
 	}
 
 	token := viper.GetString("Authorization")
@@ -46,7 +60,6 @@ func resolveProjectFlag(cmd *cobra.Command) error {
 		return errors.New("not logged in — run `lsh login` first")
 	}
 
-	supportsAll := cmd.Flags().Lookup("all-projects") != nil
 	client := newAuthClient()
 
 	selected, err := prompt.SelectProject(cmd.Context(), client, token, supportsAll)

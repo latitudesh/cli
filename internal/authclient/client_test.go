@@ -3,8 +3,11 @@ package authclient
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -157,5 +160,61 @@ func TestGetUserProfile(t *testing.T) {
 	}
 	if got.Email != "u@example.com" || got.Team.Slug != "acme" {
 		t.Fatalf("unexpected profile payload: %+v", got)
+	}
+}
+
+func TestSendsAPIVersionHeader(t *testing.T) {
+	var gotVersion string
+	c, stop := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotVersion = r.Header.Get("API-Version")
+		w.Write([]byte(`{"data":{"status":"pending"}}`))
+	})
+	defer stop()
+
+	if _, err := c.PollSession(context.Background(), "sid", "shh"); err != nil {
+		t.Fatalf("PollSession: %v", err)
+	}
+	if gotVersion != "2023-06-01" {
+		t.Fatalf("expected API-Version header, got %q", gotVersion)
+	}
+}
+
+func TestListProjectsPaginates(t *testing.T) {
+	all := []struct{ id, name, slug string }{
+		{"p1", "One", "one"}, {"p2", "Two", "two"}, {"p3", "Three", "three"},
+	}
+	const perPage = 2 // server caps below the client's requested page size
+
+	var requestedPages []string
+	c, stop := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/projects" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		requestedPages = append(requestedPages, r.URL.Query().Get("page[number]"))
+		page, _ := strconv.Atoi(r.URL.Query().Get("page[number]"))
+		if page < 1 {
+			page = 1
+		}
+		var items []string
+		for i := (page - 1) * perPage; i < page*perPage && i < len(all); i++ {
+			p := all[i]
+			items = append(items, fmt.Sprintf(`{"id":%q,"attributes":{"name":%q,"slug":%q}}`, p.id, p.name, p.slug))
+		}
+		fmt.Fprintf(w, `{"data":[%s],"meta":{"stats":{"total":{"count":%d}}}}`, strings.Join(items, ","), len(all))
+	})
+	defer stop()
+
+	got, err := c.ListProjects(context.Background(), "ak_xxx")
+	if err != nil {
+		t.Fatalf("ListProjects: %v", err)
+	}
+	if len(got) != len(all) {
+		t.Fatalf("expected %d projects across pages, got %d", len(all), len(got))
+	}
+	if got[2].Slug != "three" {
+		t.Fatalf("last paged project missing: %+v", got)
+	}
+	if len(requestedPages) < 2 {
+		t.Fatalf("expected the client to page through results, requested pages: %v", requestedPages)
 	}
 }

@@ -67,9 +67,15 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	// duration of the command. Then resolve the --project flag (env >
 	// --all-projects > interactive prompt) for commands that need it.
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		// Hydrate the active profile into viper for commands that authenticate
+		// against the API. Skip the login/auth/profile subtree: there --profile
+		// names a profile to create/inspect/remove (it may not exist yet), and
+		// those commands handle the flag themselves.
 		profile, _ := cmd.Flags().GetString("profile")
-		if profile != "" {
-			lsh.HydrateFromActiveProfile(profile)
+		if profile != "" && !managesProfiles(cmd) {
+			if err := lsh.HydrateFromActiveProfile(profile); err != nil {
+				return err
+			}
 		}
 		return resolveProjectFlag(cmd)
 	}
@@ -189,6 +195,24 @@ func registerAuthInoWriterFlags(cmd *cobra.Command) error {
 	cmd.PersistentFlags().String("Authorization", "", ``)
 	viper.BindPFlag("Authorization", cmd.PersistentFlags().Lookup("Authorization"))
 	return nil
+}
+
+// managesProfiles reports whether cmd belongs to the login/auth/profile
+// subtree. There, --profile names a profile to create, inspect, or remove
+// — so it may legitimately not exist yet, and the root hydration hook must
+// not require it. Every other command uses --profile to pick an existing
+// profile to authenticate with.
+func managesProfiles(cmd *cobra.Command) bool {
+	top := cmd
+	for top.Parent() != nil && top.Parent().HasParent() {
+		top = top.Parent()
+	}
+	switch top.Name() {
+	case "login", "auth", "profile":
+		return true
+	default:
+		return false
+	}
 }
 
 // makeAuthInfoWriter retrieves cmd flags and construct an auth info writer
