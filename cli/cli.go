@@ -56,6 +56,30 @@ func makeClient(cmd *cobra.Command, _ []string) (*client.LatitudeShAPI, error) {
 func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	lsh.InitViperConfigs()
 
+	// Run ancestor PersistentPreRunE hooks even when a subcommand defines
+	// its own. Cobra otherwise runs only the nearest one, which would
+	// silently skip the root hook below (profile hydration + project
+	// resolution) if a generated command is ever regenerated with its own.
+	cobra.EnableTraverseRunHooks = true
+
+	// Re-resolve the active profile once flags have been parsed so that
+	// `--profile <name>` overrides LSH_PROFILE / default_profile for the
+	// duration of the command. Then resolve the --project flag (env >
+	// --all-projects > interactive prompt) for commands that need it.
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		// Hydrate the active profile into viper for commands that authenticate
+		// against the API. Skip the login/auth/profile subtree: there --profile
+		// names a profile to create/inspect/remove (it may not exist yet), and
+		// those commands handle the flag themselves.
+		profile, _ := cmd.Flags().GetString("profile")
+		if profile != "" && !managesProfiles(cmd) {
+			if err := lsh.HydrateFromActiveProfile(profile); err != nil {
+				return err
+			}
+		}
+		return resolveProjectFlag(cmd)
+	}
+
 	// Edit commands template
 	rootCmd.SetVersionTemplate(fmt.Sprintf("lsh %s\n", rootCmd.Version))
 
@@ -78,6 +102,8 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	var noInput bool
 	rootCmd.PersistentFlags().BoolVar(&noInput, "no-input", false, "skip interactive mode")
 
+	rootCmd.PersistentFlags().String("profile", "", "use the named profile from the lsh config (overrides LSH_PROFILE and default_profile)")
+
 	// configure config location
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file path")
 
@@ -86,12 +112,28 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	// add login with api -oken
+	// add login (browser-assisted by default, with --with-token escape hatch)
 	operationLoginCmd, err := makeOperationLoginCmd()
 	if err != nil {
 		return nil, err
 	}
 	rootCmd.AddCommand(operationLoginCmd)
+
+	// `auth` group (status, logout)
+	operationAuthCmd, err := makeOperationAuthCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationAuthCmd)
+
+	// `profile` group (use, list) — manages which stored profile is active.
+	// Singular form ("profile") to keep the namespace clear vs. `lsh teams`
+	// (plural) which manages team resources via the API.
+	operationProfileCmd, err := makeOperationProfileCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationProfileCmd)
 
 	operationUpdateCmd, err := makeOperationUpdateCmd()
 	if err != nil {
@@ -153,6 +195,24 @@ func registerAuthInoWriterFlags(cmd *cobra.Command) error {
 	cmd.PersistentFlags().String("Authorization", "", ``)
 	viper.BindPFlag("Authorization", cmd.PersistentFlags().Lookup("Authorization"))
 	return nil
+}
+
+// managesProfiles reports whether cmd belongs to the login/auth/profile
+// subtree. There, --profile names a profile to create, inspect, or remove
+// — so it may legitimately not exist yet, and the root hydration hook must
+// not require it. Every other command uses --profile to pick an existing
+// profile to authenticate with.
+func managesProfiles(cmd *cobra.Command) bool {
+	top := cmd
+	for top.Parent() != nil && top.Parent().HasParent() {
+		top = top.Parent()
+	}
+	switch top.Name() {
+	case "login", "auth", "profile":
+		return true
+	default:
+		return false
+	}
 }
 
 // makeAuthInfoWriter retrieves cmd flags and construct an auth info writer
