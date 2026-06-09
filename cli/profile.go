@@ -37,18 +37,25 @@ func makeOperationProfileUseCmd() (*cobra.Command, error) {
 		Long: "Picks a locally stored profile and marks it as the default. The " +
 			"argument can be the profile name or the slug/id of the team it is " +
 			"bound to. Run `lsh profile list` to see what is stored locally.",
-		Args: cobra.MaximumNArgs(1),
-		RunE: runProfileUse,
+		Example: `  # Switch by profile name
+  lsh profile use prod
+
+  # Switch by team slug
+  lsh profile use acme`,
+		Args:         cobra.MaximumNArgs(1),
+		RunE:         runProfileUse,
+		SilenceUsage: true,
 	}
 	return cmd, nil
 }
 
 func makeOperationProfileListCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List the locally stored profiles (one per team)",
-		Args:  cobra.NoArgs,
-		RunE:  runProfileList,
+		Use:          "list",
+		Short:        "List the locally stored profiles (one per team)",
+		Args:         cobra.NoArgs,
+		RunE:         runProfileList,
+		SilenceUsage: true,
 	}
 	return cmd, nil
 }

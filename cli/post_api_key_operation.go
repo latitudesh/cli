@@ -26,11 +26,13 @@ type CreateAPIKeyOperation struct {
 
 func (o *CreateAPIKeyOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "create",
-		Short:  "Create an API Key",
-		Long:   `Create a new API Key that is tied to the current user account. The created API key is only listed ONCE upon creation. It can however be regenerated or deleted.`,
-		RunE:   o.run,
-		PreRun: o.preRun,
+		Use:   "create",
+		Short: "Create an API Key",
+		// MANUAL — keep when regenerating
+		Example: `  lsh api_keys create --name="ci-token"`,
+		Long:    `Create a new API Key that is tied to the current user account. The created API key is only listed ONCE upon creation. It can however be regenerated or deleted.`,
+		RunE:    o.run,
+		PreRun:  o.preRun,
 	}
 
 	o.registerFlags(cmd)

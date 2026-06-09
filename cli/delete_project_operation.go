@@ -26,11 +26,13 @@ func makeOperationProjectsDeleteProjectCmd() (*cobra.Command, error) {
 
 func (o *DeleteProjectOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "destroy",
-		Short:  "Delete a project",
-		Long:   `Deletes a project from the current team.`,
-		RunE:   o.run,
-		PreRun: o.preRun,
+		Use:   "destroy",
+		Short: "Delete a project",
+		Long:  `Deletes a project from the current team.`,
+		// MANUAL — keep when regenerating
+		Example: `  lsh projects destroy --id_or_slug=my-project`,
+		RunE:    o.run,
+		PreRun:  o.preRun,
 	}
 
 	o.registerFlags(cmd)

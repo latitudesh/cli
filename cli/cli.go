@@ -62,6 +62,16 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	// resolution) if a generated command is ever regenerated with its own.
 	cobra.EnableTraverseRunHooks = true
 
+	// "Did you mean ..." suggestions for typos in command names.
+	rootCmd.SuggestionsMinimumDistance = 2
+
+	// Dedicated group so help topics show up clearly in `lsh --help`.
+	rootCmd.AddGroup(&cobra.Group{ID: helpTopicsGroupID, Title: "Help topics:"})
+	rootCmd.AddCommand(makeHelpAuthenticationCmd())
+	rootCmd.AddCommand(makeHelpProfilesCmd())
+	rootCmd.AddCommand(makeHelpAutomationCmd())
+	rootCmd.AddCommand(makeHelpOutputFormatsCmd())
+
 	// Re-resolve the active profile once flags have been parsed so that
 	// `--profile <name>` overrides LSH_PROFILE / default_profile for the
 	// duration of the command. Then resolve the --project flag (env >
@@ -84,28 +94,28 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	rootCmd.SetVersionTemplate(fmt.Sprintf("lsh %s\n", rootCmd.Version))
 
 	// register basic flags
-	rootCmd.PersistentFlags().String("hostname", client.DefaultHost, "hostname of the service")
+	rootCmd.PersistentFlags().String("hostname", client.DefaultHost, "API hostname (override for dev/staging)")
 	viper.BindPFlag("hostname", rootCmd.PersistentFlags().Lookup("hostname"))
-	rootCmd.PersistentFlags().String("scheme", client.DefaultSchemes[0], fmt.Sprintf("Choose from: %v", client.DefaultSchemes))
+	rootCmd.PersistentFlags().String("scheme", client.DefaultSchemes[0], "API scheme (override for dev/staging)")
 	viper.BindPFlag("scheme", rootCmd.PersistentFlags().Lookup("scheme"))
-	rootCmd.PersistentFlags().String("base-path", client.DefaultBasePath, fmt.Sprintf("For example: %v", client.DefaultBasePath))
+	rootCmd.PersistentFlags().String("base-path", client.DefaultBasePath, "API base path (override for dev/staging)")
 	viper.BindPFlag("base_path", rootCmd.PersistentFlags().Lookup("base-path"))
 
 	var outputFlag string
-	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "table", fmt.Sprintf("For example: %v", "json"))
+	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "table", "output format: table | json")
 	viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
 
 	var formatAsJSON bool
-	rootCmd.PersistentFlags().BoolVar(&formatAsJSON, "json", false, "format output as JSON")
+	rootCmd.PersistentFlags().BoolVar(&formatAsJSON, "json", false, "shortcut for --output=json")
 	viper.BindPFlag("json", rootCmd.PersistentFlags().Lookup("json"))
 
 	var noInput bool
-	rootCmd.PersistentFlags().BoolVar(&noInput, "no-input", false, "skip interactive mode")
+	rootCmd.PersistentFlags().BoolVar(&noInput, "no-input", false, "disable interactive prompts; fail fast instead (see 'lsh help automation')")
 
-	rootCmd.PersistentFlags().String("profile", "", "use the named profile from the lsh config (overrides LSH_PROFILE and default_profile)")
+	rootCmd.PersistentFlags().String("profile", "", "use the named profile (overrides LSH_PROFILE and the stored default)")
 
 	// configure config location
-	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file path")
+	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "path to the lsh config file (default ~/.config/lsh/config.json)")
 
 	// register security flags
 	if err := registerAuthInoWriterFlags(rootCmd); err != nil {
@@ -189,10 +199,14 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	return rootCmd, nil
 }
 
-// registerAuthInoWriterFlags registers all flags needed to perform authentication
+// registerAuthInoWriterFlags registers all flags needed to perform authentication.
+// The --Authorization flag is a low-level escape hatch (it maps directly to the
+// HTTP Authorization header) preserved for backwards compatibility. The normal
+// path is `lsh login` (browser or --with-token) and the LATITUDESH_TOKEN env var,
+// so we keep this flag working but hide it from --help.
 func registerAuthInoWriterFlags(cmd *cobra.Command) error {
-	/*Authorization */
-	cmd.PersistentFlags().String("Authorization", "", ``)
+	cmd.PersistentFlags().String("Authorization", "", "raw value for the Authorization header (use `lsh login` or LATITUDESH_TOKEN instead)")
+	_ = cmd.PersistentFlags().MarkHidden("Authorization")
 	viper.BindPFlag("Authorization", cmd.PersistentFlags().Lookup("Authorization"))
 	return nil
 }

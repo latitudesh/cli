@@ -21,10 +21,12 @@ var isInteractive = util.IsTTY
 //  1. user passed --project explicitly         → use it
 //  2. $LSH_PROJECT is set                      → use it
 //  3. command supports --all-projects and it's set → skip (no filter)
-//  4. interactive TTY                          → prompt and pick one
-//  5. otherwise                                → fail with an actionable error
+//  4. --no-input was passed, or stdin is not a TTY → fail with an actionable error
+//  5. interactive TTY                          → prompt and pick one
 //
-// Commands without a "project" flag are left alone.
+// Commands without a "project" flag are left alone. The --no-input path
+// gives AI agents and other scripted callers a deterministic error to
+// recover from instead of a bubbletea prompt they cannot drive.
 func resolveProjectFlag(cmd *cobra.Command) error {
 	projectFlag := cmd.Flags().Lookup("project")
 	if projectFlag == nil {
@@ -47,7 +49,8 @@ func resolveProjectFlag(cmd *cobra.Command) error {
 		}
 	}
 
-	if !isInteractive() {
+	noInput, _ := cmd.Flags().GetBool("no-input")
+	if noInput || !isInteractive() {
 		hint := "pass --project=<id> or set LSH_PROJECT"
 		if supportsAll {
 			hint = "pass --project=<id>, --all-projects, or set LSH_PROJECT"

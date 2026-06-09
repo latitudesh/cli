@@ -13,11 +13,12 @@ import (
 func NewUpdateCmd() *cobra.Command {
 	o := UpdateTagOperation{}
 	cmd := &cobra.Command{
-		Long:   "Update a Tag in the team.\n",
-		RunE:   o.run,
-		PreRun: o.preRun,
-		Short:  "Update Tag",
-		Use:    "update",
+		Long:    "Update a Tag in the team.\n",
+		RunE:    o.run,
+		PreRun:  o.preRun,
+		Short:   "Update a tag",
+		Example: `  lsh tags update --id tag_xxxxxxxx --name="renamed"`,
+		Use:     "update",
 	}
 	o.registerFlags(cmd)
 
@@ -56,12 +57,6 @@ func (o *UpdateTagOperation) registerFlags(cmd *cobra.Command) {
 			Required:    false,
 		},
 		&cmdflag.String{
-			Name:        "slug",
-			Label:       "Slug",
-			Description: "Slug of the Tag",
-			Required:    false,
-		},
-		&cmdflag.String{
 			Name:        "color",
 			Label:       "Color",
 			Description: "Color of the Tag",
@@ -86,35 +81,37 @@ func (o *UpdateTagOperation) run(cmd *cobra.Command, args []string) error {
 	}{}
 	o.PathParamFlags.AssignValues(&pAttr)
 
-	var name, description, slug, color string
-	o.BodyAttributesFlags.AssignValues(&struct {
+	body := struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`
-		Slug        string `json:"slug"`
 		Color       string `json:"color"`
-	}{
-		Name:        name,
-		Description: description,
-		Slug:        slug,
-		Color:       color,
-	})
+	}{}
+	o.BodyAttributesFlags.AssignValues(&body)
 
 	if lsh.DryRun {
 		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
 	}
 
-	// Create request
+	// Create request. Only set the attributes the user actually provided so a
+	// partial update patches those fields instead of blanking the rest.
+	attributes := &operations.UpdateTagTagsAttributes{}
+	if body.Name != "" {
+		attributes.Name = &body.Name
+	}
+	if body.Description != "" {
+		attributes.Description = &body.Description
+	}
+	if body.Color != "" {
+		attributes.Color = &body.Color
+	}
+
 	updateTagType := operations.UpdateTagTagsTypeTags
 	request := operations.UpdateTagTagsRequestBody{
 		Data: &operations.UpdateTagTagsData{
-			ID:   &pAttr.ID,
-			Type: &updateTagType,
-			Attributes: &operations.UpdateTagTagsAttributes{
-				Name:        &name,
-				Description: &description,
-				Color:       &color,
-			},
+			ID:         &pAttr.ID,
+			Type:       &updateTagType,
+			Attributes: attributes,
 		},
 	}
 

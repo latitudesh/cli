@@ -27,10 +27,12 @@ type UpdateVirtualNetworkOperation struct {
 
 func (o *UpdateVirtualNetworkOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "update",
-		Short:  "Update a virtual network",
-		RunE:   o.run,
-		PreRun: o.preRun,
+		Use:   "update",
+		Short: "Update a virtual network",
+		// MANUAL — keep when regenerating
+		Example: `  lsh virtual_networks update --id vnet_xxxxxxxx --description="prod vlan"`,
+		RunE:    o.run,
+		PreRun:  o.preRun,
 	}
 
 	o.registerFlags(cmd)

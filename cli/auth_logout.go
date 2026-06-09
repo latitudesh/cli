@@ -21,8 +21,17 @@ revoke the API key so it cannot be reused.
 
 With --all, removes every stored profile (and revokes browser-created
 keys on a best-effort basis).`,
-		Args: cobra.NoArgs,
-		RunE: runAuthLogout,
+		Example: `  # Logout the active profile (browser logins also revoke the key remotely)
+  lsh auth logout
+
+  # Logout a specific profile
+  lsh auth logout --profile staging
+
+  # Logout every stored profile
+  lsh auth logout --all`,
+		Args:         cobra.NoArgs,
+		RunE:         runAuthLogout,
+		SilenceUsage: true,
 	}
 	cmd.Flags().String("profile", "", "logout the named profile (default: active profile)")
 	cmd.Flags().Bool("all", false, "logout every stored profile")

@@ -73,6 +73,21 @@ func TestResolveProjectFlag_AllProjectsFalse_DoesNotBypass(t *testing.T) {
 	}
 }
 
+func TestResolveProjectFlag_NoInputForcesErrorEvenOnTTY(t *testing.T) {
+	// Force interactive (TTY) so only --no-input can trigger the error path.
+	prev := isInteractive
+	isInteractive = func() bool { return true }
+	t.Cleanup(func() { isInteractive = prev })
+
+	cmd := newProjectCmd(true)
+	cmd.Flags().Bool("no-input", false, "")
+	_ = cmd.Flags().Set("no-input", "true")
+
+	if err := resolveProjectFlag(cmd); err == nil {
+		t.Fatal("--no-input must force the project-required error even on a TTY")
+	}
+}
+
 func TestResolveProjectFlag_NonInteractiveHintOmitsAllProjectsWhenUnsupported(t *testing.T) {
 	forceNonInteractive(t)
 	cmd := newProjectCmd(false) // no --all-projects flag

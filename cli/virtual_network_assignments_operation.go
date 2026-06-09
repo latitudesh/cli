@@ -7,8 +7,8 @@ import (
 func makeOperationGroupVirtualNetworkAssignmentCmd() (*cobra.Command, error) {
 	operationGroupVirtualNetworkAssignmentsCmd := &cobra.Command{
 		Use:   "assignments",
-		Short: `Virtual Network Assignments.`,
-		Long:  ``,
+		Short: "Manage virtual network assignments",
+		Long:  "Create, list, and delete assignments between virtual networks and servers.",
 	}
 
 	operationAssignServerVirtualNetworkCmd, err := makeOperationVirtualNetworkAssignmentsAssignServerVirtualNetworkCmd()

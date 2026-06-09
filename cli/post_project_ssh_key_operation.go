@@ -27,9 +27,14 @@ type CreateSSHKeyOperation struct {
 
 func (o *CreateSSHKeyOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "create",
-		Short:  "Create an SSH key",
-		Long:   `Allow you create SSH Keys in a project. These keys can be used to access servers after deploy and reinstall actions.`,
+		Use:   "create",
+		Short: "Create an SSH key",
+		Long:  `Allow you create SSH Keys in a project. These keys can be used to access servers after deploy and reinstall actions.`,
+		// MANUAL — keep when regenerating
+		Example: `  lsh ssh_keys create \
+    --project=my-project \
+    --name="Workstation" \
+    --public_key="ssh-ed25519 AAAAC3Nz... user@host"`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}

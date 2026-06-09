@@ -26,11 +26,13 @@ type ScheduleServerDeletionOperation struct {
 
 func (o *ScheduleServerDeletionOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "schedule-deletion",
-		Short:  "Schedule deletion",
-		Long:   "Schedules the server to be removed at the end of the billing cycle.",
-		RunE:   o.run,
-		PreRun: o.preRun,
+		Use:   "schedule-deletion",
+		Short: "Schedule a server for deletion",
+		// MANUAL — keep when regenerating
+		Example: `  lsh servers schedule-deletion --id sv_xxxxxxxx`,
+		Long:    "Schedules the server to be removed at the end of the billing cycle.",
+		RunE:    o.run,
+		PreRun:  o.preRun,
 	}
 
 	o.registerFlags(cmd)
