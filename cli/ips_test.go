@@ -43,8 +43,10 @@ func TestParseIPType(t *testing.T) {
 	}{
 		{in: "public", want: operations.FilterTypePublic},
 		{in: "private", want: operations.FilterTypePrivate},
-		{in: "Public", wantErr: true},
+		{in: "Public", want: operations.FilterTypePublic},
+		{in: "PRIVATE", want: operations.FilterTypePrivate},
 		{in: "elastic", wantErr: true},
+		{in: "", wantErr: true},
 	}
 	for _, tc := range cases {
 		got, err := parseIPType(tc.in)
@@ -70,7 +72,7 @@ func TestIPToRow(t *testing.T) {
 			"assignment": {"server_id": "sv_1", "hostname": "web-01"}
 		}
 	}`
-	ip := &components.IPAddress{}
+	ip := &components.IPAddressData{}
 	if err := json.Unmarshal([]byte(fixture), ip); err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +98,7 @@ func TestIPToRow_NilSafety(t *testing.T) {
 	}
 
 	id := "ip_456"
-	row := ipToRow(&components.IPAddress{ID: &id})
+	row := ipToRow(&components.IPAddressData{ID: &id})
 	if row != (ipRow{ID: "ip_456"}) {
 		t.Errorf("ipToRow without attributes = %+v, want only ID set", row)
 	}

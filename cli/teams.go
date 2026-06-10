@@ -1,17 +1,27 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"strings"
 
+	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
+	"github.com/latitudesh/lsh/internal/config"
 	"github.com/latitudesh/lsh/internal/output/table"
 	"github.com/latitudesh/lsh/internal/renderer"
+	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func makeOperationGroupTeamsCmd() (*cobra.Command, error) {
@@ -70,28 +80,29 @@ func makeOperationTeamsCreateCmd() (*cobra.Command, error) {
 		SilenceUsage: true,
 	}
 
-	cmd.Flags().String("name", "", "Team name (required)")
+	cmd.Flags().String("name", "", "Team name (prompted interactively when omitted)")
 	cmd.Flags().String("currency", "USD", "Billing currency: USD or BRL")
 	cmd.Flags().String("address", "", "Billing address")
 	cmd.Flags().String("referred-code", "", "Referral code (first team only)")
-	_ = cmd.MarkFlagRequired("name")
 
 	return cmd, nil
 }
 
 func makeOperationTeamsUpdateCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:   "update <team-id>",
+		Use:   "update [team-id]",
 		Short: "Update a team",
 		Example: `  lsh teams update tm_xxx --name="New Name"
-  lsh teams update tm_xxx --currency=BRL`,
-		Args:         cobra.ExactArgs(1),
+  lsh teams update tm_xxx --address="Rua X, 100"
+  lsh teams update   # pick the team and fields interactively`,
+		Args:         cobra.MaximumNArgs(1),
 		RunE:         runTeamsUpdate,
 		SilenceUsage: true,
 	}
 
+	// currency is intentionally absent: the API only allows writing it
+	// on team creation (resource marks it writable: :create_action?).
 	cmd.Flags().String("name", "", "New team name")
-	cmd.Flags().String("currency", "", "Billing currency: USD or BRL")
 	cmd.Flags().String("address", "", "Billing address")
 
 	return cmd, nil
@@ -124,10 +135,14 @@ func runTeamsList(_ *cobra.Command, _ []string) error {
 	client := lsh.NewClient()
 	ctx := context.Background()
 
+	stopSpinner := tui.StartFetchSpinner("Fetching teams…")
+	defer stopSpinner()
+
 	// Unlike the other list commands, /user/teams is not paginated:
 	// the SDK's ListTeams takes no page params and its response has no
 	// Next(), so a single call already returns every team.
 	resp, err := client.UserProfile.ListTeams(ctx)
+	stopSpinner()
 	if err != nil {
 		utils.PrintError(err)
 		return nil
@@ -151,6 +166,37 @@ func runTeamsCreate(cmd *cobra.Command, _ []string) error {
 	currency, _ := cmd.Flags().GetString("currency")
 	address, _ := cmd.Flags().GetString("address")
 	referredCode, _ := cmd.Flags().GetString("referred-code")
+
+	// No --name: fall back to an interactive form when possible.
+	if name == "" {
+		if !canPromptInteractively(cmd) {
+			utils.PrintError(requiredFlagError("name"))
+			return nil
+		}
+
+		var err error
+		name, err = tui.RunTextInput("Team name", "My Team")
+		if err != nil || name == "" {
+			utils.PrintError(requiredFlagError("name"))
+			return nil
+		}
+		if !cmd.Flags().Changed("currency") {
+			currency, err = tui.RunList("Billing currency",
+				[]string{"USD", "BRL"},
+				[]string{"US Dollar", "Brazilian Real"})
+			if err != nil {
+				utils.PrintError(err)
+				return nil
+			}
+		}
+		if address == "" {
+			address, err = tui.RunTextInput("Billing address (enter to skip)", "")
+			if err != nil {
+				utils.PrintError(err)
+				return nil
+			}
+		}
+	}
 
 	cur, err := parsePostTeamCurrency(currency)
 	if err != nil {
@@ -196,14 +242,57 @@ func runTeamsCreate(cmd *cobra.Command, _ []string) error {
 }
 
 func runTeamsUpdate(cmd *cobra.Command, args []string) error {
-	teamID := args[0]
 	name, _ := cmd.Flags().GetString("name")
-	currency, _ := cmd.Flags().GetString("currency")
 	address, _ := cmd.Flags().GetString("address")
 
-	if name == "" && currency == "" && address == "" {
-		utils.PrintError(errors.New("nothing to update: pass at least one of --name, --currency or --address"))
-		return nil
+	// The API only updates the team the token belongs to (auth tokens are
+	// team-scoped; other ids return 404), so the team is resolved from the
+	// active profile instead of prompting for a choice.
+	currentID, currentLabel := currentTeamFromProfile(cmd)
+
+	var teamID string
+	if len(args) > 0 {
+		teamID = args[0]
+		if currentID != "" && teamID != currentID {
+			utils.PrintError(teamMismatchError(currentID, teamID))
+			return nil
+		}
+	} else {
+		if currentID == "" {
+			utils.PrintError(errors.New("team id argument is required (lsh teams update <team-id>)"))
+			return nil
+		}
+		teamID = currentID
+		if currentLabel != "" {
+			fmt.Fprintf(os.Stdout, "Updating team %s (%s)\n", currentLabel, teamID)
+			fmt.Fprintln(os.Stdout, tui.HelpStyle.Render("to update a different team, switch with `lsh profile use <profile>` or run `lsh login`"))
+		}
+	}
+
+	// No flags: fall back to an interactive form when possible, where
+	// pressing enter on an empty field keeps the current value.
+	if name == "" && address == "" {
+		if !canPromptInteractively(cmd) {
+			utils.PrintError(errors.New("nothing to update: pass at least one of --name or --address"))
+			return nil
+		}
+
+		var err error
+		name, err = tui.RunTextInput("New name (enter to keep current)", "")
+		if err != nil {
+			utils.PrintError(err)
+			return nil
+		}
+		address, err = tui.RunTextInput("New billing address (enter to keep current)", "")
+		if err != nil {
+			utils.PrintError(err)
+			return nil
+		}
+
+		if name == "" && address == "" {
+			utils.PrintError(errors.New("nothing to update: every field was left unchanged"))
+			return nil
+		}
 	}
 
 	attrs := &operations.PatchCurrentTeamTeamsAttributes{}
@@ -212,14 +301,6 @@ func runTeamsUpdate(cmd *cobra.Command, args []string) error {
 	}
 	if address != "" {
 		attrs.Address = &address
-	}
-	if currency != "" {
-		cur, err := parsePatchTeamCurrency(currency)
-		if err != nil {
-			utils.PrintError(err)
-			return nil
-		}
-		attrs.Currency = &cur
 	}
 
 	body := operations.PatchCurrentTeamTeamsRequestBody{
@@ -235,7 +316,16 @@ func runTeamsUpdate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	client := lsh.NewClient()
+	// The SDK injects `"currency":"USD"` into every team PATCH because the
+	// published spec declares a default for it, but the API only allows
+	// writing currency on create — every update would 400 with
+	// "unwritable_attribute". Strip it from the wire until the spec drops
+	// currency from the PATCH body and the SDK is regenerated.
+	httpClient := &http.Client{Transport: stripTeamPatchCurrency{base: http.DefaultTransport}}
+	client := latitudeshgosdk.New(
+		latitudeshgosdk.WithSecurity(viper.GetString("Authorization")),
+		latitudeshgosdk.WithClient(httpClient),
+	)
 	ctx := context.Background()
 
 	resp, err := client.Teams.Update(ctx, teamID, body)
@@ -247,8 +337,117 @@ func runTeamsUpdate(cmd *cobra.Command, args []string) error {
 		renderer.Render(nil)
 		return nil
 	}
+	refreshProfileTeam(cmd, resp.Object.Data)
 	renderer.Render([]renderer.ResponseData{teamToRow(resp.Object.Data)})
 	return nil
+}
+
+// teamMismatchError explains why a team other than the session's cannot be
+// updated, with the shortest path to fix it: switch profiles when one
+// exists for the target team, log in when the team is real but has no
+// profile, or flag a likely typo when the id is not among the user's teams.
+func teamMismatchError(currentID, teamID string) error {
+	base := fmt.Sprintf("tokens are tied to a single team: this session can only update %s", currentID)
+
+	if profileName := profileNameForTeam(teamID); profileName != "" {
+		return fmt.Errorf("%s; to update %s, switch to it with `lsh profile use %s`", base, teamID, profileName)
+	}
+
+	// No profile for the target: check it is actually one of the user's
+	// teams before suggesting a login — an unknown id is most likely a typo.
+	known, checked := isUserTeam(teamID)
+	if checked && !known {
+		return fmt.Errorf("%s; %s is not one of your teams — check the id with `lsh teams list`", base, teamID)
+	}
+	return fmt.Errorf("%s; to update %s, run `lsh login` and pick that team first", base, teamID)
+}
+
+// isUserTeam reports whether the id belongs to one of the user's teams.
+// checked is false when the listing failed and nothing can be asserted.
+func isUserTeam(teamID string) (known, checked bool) {
+	client := lsh.NewClient()
+	resp, err := client.UserProfile.ListTeams(context.Background())
+	if err != nil || resp == nil || resp.UserTeams == nil {
+		return false, false
+	}
+	for i := range resp.UserTeams.Data {
+		if id := resp.UserTeams.Data[i].ID; id != nil && *id == teamID {
+			return true, true
+		}
+	}
+	return false, true
+}
+
+// profileNameForTeam returns the name of a stored profile bound to the
+// given team id, or "" when none exists. Used to suggest `lsh profile use`
+// instead of a fresh login when the user already has a session for the
+// team they are targeting.
+func profileNameForTeam(teamID string) string {
+	f, err := config.Load()
+	if err != nil {
+		return ""
+	}
+	for _, name := range f.SortedProfileNames() {
+		if f.Profiles[name].TeamID == teamID {
+			return name
+		}
+	}
+	return ""
+}
+
+// refreshProfileTeam syncs the stored profile's team metadata after a
+// successful update, so `profile list` and prompts show the new name
+// instead of the one captured at login time.
+func refreshProfileTeam(cmd *cobra.Command, t *components.Team) {
+	if t == nil || t.ID == nil {
+		return
+	}
+	f, err := config.Load()
+	if err != nil {
+		return
+	}
+	override, _ := cmd.Flags().GetString("profile")
+	name, p, err := f.Resolve(override)
+	if err != nil || p.TeamID != *t.ID || t.Attributes == nil {
+		return
+	}
+
+	changed := false
+	if t.Attributes.Name != nil && *t.Attributes.Name != p.TeamName {
+		p.TeamName = *t.Attributes.Name
+		changed = true
+	}
+	if t.Attributes.Slug != nil && *t.Attributes.Slug != p.TeamSlug {
+		p.TeamSlug = *t.Attributes.Slug
+		changed = true
+	}
+	if !changed {
+		return
+	}
+	f.SetProfile(name, p)
+	if err := config.Save(f); err != nil {
+		lsh.LogDebugf("could not refresh profile team metadata: %v", err)
+	}
+}
+
+// currentTeamFromProfile resolves the team tied to the active profile,
+// returning zero values when no profile/team is configured (e.g. raw
+// token auth without a stored profile).
+func currentTeamFromProfile(cmd *cobra.Command) (id, label string) {
+	f, err := config.Load()
+	if err != nil {
+		return "", ""
+	}
+	override, _ := cmd.Flags().GetString("profile")
+	_, p, err := f.Resolve(override)
+	if err != nil {
+		return "", ""
+	}
+	label = p.TeamName
+	if label == "" {
+		label = p.TeamSlug
+	}
+	return p.TeamID, label
 }
 
 func parsePostTeamCurrency(s string) (operations.PostTeamCurrency, error) {
@@ -262,15 +461,52 @@ func parsePostTeamCurrency(s string) (operations.PostTeamCurrency, error) {
 	}
 }
 
-func parsePatchTeamCurrency(s string) (operations.PatchCurrentTeamTeamsCurrency, error) {
-	switch strings.ToUpper(s) {
-	case "USD":
-		return operations.PatchCurrentTeamTeamsCurrencyUsd, nil
-	case "BRL":
-		return operations.PatchCurrentTeamTeamsCurrencyBrl, nil
-	default:
-		return "", &invalidEnumError{field: "currency", value: s, allowed: "USD, BRL"}
+// stripTeamPatchCurrency removes the unwritable currency attribute that the
+// SDK adds to team PATCH bodies via the spec's default value.
+type stripTeamPatchCurrency struct {
+	base http.RoundTripper
+}
+
+func (t stripTeamPatchCurrency) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method == http.MethodPatch && req.Body != nil {
+		raw, err := io.ReadAll(req.Body)
+		req.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		if stripped, ok := removeBodyAttribute(raw, "currency"); ok {
+			raw = stripped
+		}
+		req.Body = io.NopCloser(bytes.NewReader(raw))
+		req.ContentLength = int64(len(raw))
 	}
+	return t.base.RoundTrip(req)
+}
+
+// removeBodyAttribute deletes data.attributes.<name> from a JSON:API body,
+// reporting whether the body was rewritten.
+func removeBodyAttribute(raw []byte, name string) ([]byte, bool) {
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, false
+	}
+	data, ok := payload["data"].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	attrs, ok := data["attributes"].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	if _, present := attrs[name]; !present {
+		return nil, false
+	}
+	delete(attrs, name)
+	rewritten, err := json.Marshal(payload)
+	if err != nil {
+		return nil, false
+	}
+	return rewritten, true
 }
 
 type invalidEnumError struct {

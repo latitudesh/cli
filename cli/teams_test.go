@@ -7,6 +7,7 @@ import (
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
+	"github.com/spf13/cobra"
 )
 
 func TestParsePostTeamCurrency(t *testing.T) {
@@ -40,25 +41,77 @@ func TestParsePostTeamCurrency(t *testing.T) {
 	}
 }
 
-func TestParsePatchTeamCurrency(t *testing.T) {
-	cases := []struct {
-		in      string
-		want    operations.PatchCurrentTeamTeamsCurrency
-		wantErr bool
-	}{
-		{in: "USD", want: operations.PatchCurrentTeamTeamsCurrencyUsd},
-		{in: "brl", want: operations.PatchCurrentTeamTeamsCurrencyBrl},
-		{in: "GBP", wantErr: true},
+func TestRefreshProfileTeam(t *testing.T) {
+	home := withTempHome(t)
+	writeConfig(t, home, `{
+		"default_profile": "work",
+		"profiles": {
+			"work": {"authorization": "k", "team_id": "team_1", "team_name": "Old Name", "team_slug": "old-name"}
+		}
+	}`)
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("profile", "", "")
+
+	id := "team_1"
+	newName := "New Name"
+	newSlug := "new-name"
+	refreshProfileTeam(cmd, &components.Team{
+		ID:         &id,
+		Attributes: &components.TeamAttributes{Name: &newName, Slug: &newSlug},
+	})
+
+	got := readConfig(t, home)
+	if !strings.Contains(got, `"team_name": "New Name"`) && !strings.Contains(got, `"team_name":"New Name"`) {
+		t.Errorf("profile team_name not refreshed, config: %s", got)
 	}
-	for _, tc := range cases {
-		got, err := parsePatchTeamCurrency(tc.in)
-		if tc.wantErr != (err != nil) {
-			t.Errorf("parsePatchTeamCurrency(%q): err = %v, wantErr = %v", tc.in, err, tc.wantErr)
-			continue
-		}
-		if err == nil && got != tc.want {
-			t.Errorf("parsePatchTeamCurrency(%q) = %q, want %q", tc.in, got, tc.want)
-		}
+
+	// A different team id must not touch the stored profile.
+	otherID := "team_2"
+	otherName := "Other"
+	refreshProfileTeam(cmd, &components.Team{ID: &otherID, Attributes: &components.TeamAttributes{Name: &otherName}})
+	got = readConfig(t, home)
+	if strings.Contains(got, "Other") {
+		t.Errorf("profile refreshed for a team it does not belong to: %s", got)
+	}
+}
+
+func TestRemoveBodyAttribute(t *testing.T) {
+	// The SDK injects the spec's default currency into every team PATCH
+	// body; the transport must strip it without touching other fields.
+	name := "New Name"
+	body := operations.PatchCurrentTeamTeamsRequestBody{
+		Data: operations.PatchCurrentTeamTeamsData{
+			ID:         "tm_x",
+			Type:       operations.PatchCurrentTeamTeamsTypeTeams,
+			Attributes: &operations.PatchCurrentTeamTeamsAttributes{Name: &name},
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"currency"`) {
+		t.Fatalf("expected SDK to inject currency default, got %s", raw)
+	}
+
+	stripped, ok := removeBodyAttribute(raw, "currency")
+	if !ok {
+		t.Fatal("removeBodyAttribute: expected rewrite, got ok=false")
+	}
+	if strings.Contains(string(stripped), `"currency"`) {
+		t.Errorf("currency still present after strip: %s", stripped)
+	}
+	if !strings.Contains(string(stripped), `"name":"New Name"`) {
+		t.Errorf("name was lost during strip: %s", stripped)
+	}
+
+	// Bodies without the attribute are reported as untouched.
+	if _, ok := removeBodyAttribute(stripped, "currency"); ok {
+		t.Error("expected ok=false when attribute is absent")
+	}
+	if _, ok := removeBodyAttribute([]byte("not json"), "currency"); ok {
+		t.Error("expected ok=false for invalid JSON")
 	}
 }
 

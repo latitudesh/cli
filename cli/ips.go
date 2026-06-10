@@ -2,12 +2,14 @@ package cli
 
 import (
 	"context"
+	"strings"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/output/table"
 	"github.com/latitudesh/lsh/internal/renderer"
+	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -46,6 +48,9 @@ func makeOperationIPsListCmd() (*cobra.Command, error) {
 	}
 
 	cmd.Flags().String("project", "", "Project ID or slug to scope by")
+	// all-projects is consumed by the root resolveProjectFlag hook
+	// (project_flag.go): when set, the --project requirement is skipped and
+	// FilterProject stays empty, so the API returns IPs from every project.
 	cmd.Flags().Bool("all-projects", false, "List IPs across every project you have access to")
 	cmd.Flags().String("server", "", "Filter by server ID")
 	cmd.Flags().String("family", "", "Filter by family: IPv4 or IPv6")
@@ -96,7 +101,7 @@ func runIPsList(cmd *cobra.Command, _ []string) error {
 	typeStr, _ := cmd.Flags().GetString("type")
 	location, _ := cmd.Flags().GetString("location")
 
-	req := operations.GetIpsRequest{}
+	req := operations.GetIpsRequest{PageSize: &listPageSize}
 	if project != "" {
 		req.FilterProject = &project
 	}
@@ -131,12 +136,17 @@ func runIPsList(cmd *cobra.Command, _ []string) error {
 	client := lsh.NewClient()
 	ctx := context.Background()
 
+	stopSpinner := tui.StartFetchSpinner("Fetching IPs…")
+	defer stopSpinner()
+
 	resp, err := client.IPAddresses.List(ctx, req)
 	if err != nil {
+		stopSpinner()
 		utils.PrintError(err)
 		return nil
 	}
 	if resp == nil || resp.IPAddresses == nil {
+		stopSpinner()
 		renderer.Render(nil)
 		return nil
 	}
@@ -151,10 +161,12 @@ func runIPsList(cmd *cobra.Command, _ []string) error {
 		}
 		resp, err = resp.Next()
 		if err != nil {
+			stopSpinner()
 			utils.PrintError(err)
 			return nil
 		}
 	}
+	stopSpinner()
 	renderer.Render(rows)
 	return nil
 }
@@ -175,11 +187,11 @@ func runIPGet(_ *cobra.Command, args []string) error {
 		utils.PrintError(err)
 		return nil
 	}
-	if resp == nil || resp.IPAddress == nil {
+	if resp == nil || resp.IPAddress == nil || resp.IPAddress.Data == nil {
 		renderer.Render(nil)
 		return nil
 	}
-	renderer.Render([]renderer.ResponseData{ipToRow(resp.IPAddress)})
+	renderer.Render([]renderer.ResponseData{ipToRow(resp.IPAddress.Data)})
 	return nil
 }
 
@@ -195,7 +207,7 @@ func parseIPFamily(s string) (operations.FilterFamily, error) {
 }
 
 func parseIPType(s string) (operations.FilterType, error) {
-	switch s {
+	switch strings.ToLower(s) {
 	case "public":
 		return operations.FilterTypePublic, nil
 	case "private":
@@ -205,7 +217,7 @@ func parseIPType(s string) (operations.FilterType, error) {
 	}
 }
 
-func ipToRow(ip *components.IPAddress) ipRow {
+func ipToRow(ip *components.IPAddressData) ipRow {
 	row := ipRow{}
 	if ip == nil {
 		return row

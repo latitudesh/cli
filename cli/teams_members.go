@@ -2,15 +2,18 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/output/table"
 	"github.com/latitudesh/lsh/internal/renderer"
+	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -65,22 +68,21 @@ func makeOperationTeamMembersAddCmd() (*cobra.Command, error) {
 		SilenceUsage: true,
 	}
 
-	cmd.Flags().String("email", "", "User email (required)")
-	cmd.Flags().String("role", "", "Role: owner, administrator, collaborator or billing (required)")
+	cmd.Flags().String("email", "", "User email (prompted interactively when omitted)")
+	cmd.Flags().String("role", "", "Role: owner, administrator, collaborator or billing (prompted interactively when omitted)")
 	cmd.Flags().String("first-name", "", "User first name")
 	cmd.Flags().String("last-name", "", "User last name")
-	_ = cmd.MarkFlagRequired("email")
-	_ = cmd.MarkFlagRequired("role")
 
 	return cmd, nil
 }
 
 func makeOperationTeamMembersRemoveCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:          "remove <user-id>",
-		Short:        "Remove a user from the current team",
-		Example:      `  lsh teams members remove usr_xxx`,
-		Args:         cobra.ExactArgs(1),
+		Use:   "remove [user-id]",
+		Short: "Remove a user from the current team",
+		Example: `  lsh teams members remove usr_xxx
+  lsh teams members remove   # pick the member interactively`,
+		Args:         cobra.MaximumNArgs(1),
 		RunE:         runTeamMembersRemove,
 		SilenceUsage: true,
 	}
@@ -92,7 +94,7 @@ type teamMemberRow struct {
 	LastName   string `json:"last_name,omitempty"`
 	Email      string `json:"email,omitempty"`
 	Role       string `json:"role,omitempty"`
-	MfaEnabled bool   `json:"mfa_enabled,omitempty"`
+	MfaEnabled bool   `json:"mfa_enabled"`
 }
 
 func (m teamMemberRow) TableRow() table.Row {
@@ -118,12 +120,17 @@ func runTeamMembersList(_ *cobra.Command, _ []string) error {
 	client := lsh.NewClient()
 	ctx := context.Background()
 
-	resp, err := client.Teams.Members.GetTeamMembers(ctx, nil, nil)
+	stopSpinner := tui.StartFetchSpinner("Fetching team members…")
+	defer stopSpinner()
+
+	resp, err := client.Teams.Members.GetTeamMembers(ctx, &listPageSize, nil)
 	if err != nil {
+		stopSpinner()
 		utils.PrintError(err)
 		return nil
 	}
 	if resp == nil || resp.TeamMembers == nil {
+		stopSpinner()
 		renderer.Render(nil)
 		return nil
 	}
@@ -138,12 +145,23 @@ func runTeamMembersList(_ *cobra.Command, _ []string) error {
 		}
 		resp, err = resp.Next()
 		if err != nil {
+			stopSpinner()
 			utils.PrintError(err)
 			return nil
 		}
 	}
+	stopSpinner()
 	renderer.Render(rows)
 	return nil
+}
+
+var teamMemberRoleNames = []string{"owner", "administrator", "collaborator", "billing"}
+
+var teamMemberRoleDescriptions = []string{
+	"Full control, including billing and team deletion",
+	"Manage resources and members",
+	"Manage resources",
+	"Billing access only",
 }
 
 func runTeamMembersAdd(cmd *cobra.Command, _ []string) error {
@@ -151,6 +169,51 @@ func runTeamMembersAdd(cmd *cobra.Command, _ []string) error {
 	roleStr, _ := cmd.Flags().GetString("role")
 	firstName, _ := cmd.Flags().GetString("first-name")
 	lastName, _ := cmd.Flags().GetString("last-name")
+
+	// Missing required input: fall back to an interactive form when
+	// possible. A missing email opens the full form (role and optional
+	// names included); a missing role alone only prompts the role.
+	if email == "" || roleStr == "" {
+		if !canPromptInteractively(cmd) {
+			missing := "email"
+			if email != "" {
+				missing = "role"
+			}
+			utils.PrintError(requiredFlagError(missing))
+			return nil
+		}
+
+		var err error
+		fullForm := email == ""
+		if fullForm {
+			email, err = tui.RunTextInput("Email", "user@example.com")
+			if err != nil || email == "" {
+				utils.PrintError(requiredFlagError("email"))
+				return nil
+			}
+		}
+		if roleStr == "" {
+			roleStr, err = tui.RunList("Role", teamMemberRoleNames, teamMemberRoleDescriptions)
+			if err != nil {
+				utils.PrintError(err)
+				return nil
+			}
+		}
+		if fullForm && firstName == "" {
+			firstName, err = tui.RunTextInput("First name (enter to skip)", "")
+			if err != nil {
+				utils.PrintError(err)
+				return nil
+			}
+		}
+		if fullForm && lastName == "" {
+			lastName, err = tui.RunTextInput("Last name (enter to skip)", "")
+			if err != nil {
+				utils.PrintError(err)
+				return nil
+			}
+		}
+	}
 
 	role, err := parseTeamMemberRole(roleStr)
 	if err != nil {
@@ -197,9 +260,7 @@ func runTeamMembersAdd(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func runTeamMembersRemove(_ *cobra.Command, args []string) error {
-	userID := args[0]
-
+func runTeamMembersRemove(cmd *cobra.Command, args []string) error {
 	if lsh.DryRun {
 		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
 		return nil
@@ -208,6 +269,33 @@ func runTeamMembersRemove(_ *cobra.Command, args []string) error {
 	client := lsh.NewClient()
 	ctx := context.Background()
 
+	var userID string
+	if len(args) > 0 {
+		userID = args[0]
+	} else {
+		// No argument: pick the member interactively when possible.
+		if !canPromptInteractively(cmd) {
+			utils.PrintError(errors.New("user id argument is required (lsh teams members remove <user-id>, or run interactively without --no-input)"))
+			return nil
+		}
+
+		selected, err := selectTeamMember(ctx, client)
+		if err != nil {
+			utils.PrintError(err)
+			return nil
+		}
+		confirmed, err := tui.RunConfirm(fmt.Sprintf("Remove %s from the team?", selected.email))
+		if err != nil {
+			utils.PrintError(err)
+			return nil
+		}
+		if !confirmed {
+			fmt.Fprintln(os.Stdout, "Aborted.")
+			return nil
+		}
+		userID = selected.id
+	}
+
 	_, err := client.TeamMembers.Delete(ctx, userID)
 	if err != nil {
 		utils.PrintError(err)
@@ -215,6 +303,64 @@ func runTeamMembersRemove(_ *cobra.Command, args []string) error {
 	}
 	fmt.Fprintf(os.Stdout, "✅ Team member %s removed successfully\n", userID)
 	return nil
+}
+
+type teamMemberChoice struct {
+	id    string
+	email string
+}
+
+// selectTeamMember lists the current team's members and lets the user pick
+// one, returning its id. Emails identify the choice since the list selector
+// returns the selected label.
+func selectTeamMember(ctx context.Context, client *latitudeshgosdk.Latitudesh) (teamMemberChoice, error) {
+	stopSpinner := tui.StartFetchSpinner("Fetching team members…")
+	defer stopSpinner()
+
+	resp, err := client.Teams.Members.GetTeamMembers(ctx, &listPageSize, nil)
+	if err != nil {
+		return teamMemberChoice{}, err
+	}
+
+	byEmail := make(map[string]teamMemberChoice)
+	var emails, descriptions []string
+	for resp != nil && resp.TeamMembers != nil {
+		for i := range resp.TeamMembers.Data {
+			m := &resp.TeamMembers.Data[i]
+			if m.ID == nil || m.Attributes == nil || m.Attributes.Email == nil {
+				continue
+			}
+			email := *m.Attributes.Email
+			if _, dup := byEmail[email]; dup {
+				continue
+			}
+			byEmail[email] = teamMemberChoice{id: *m.ID, email: email}
+			emails = append(emails, email)
+			role := ""
+			if m.Attributes.Role != nil && m.Attributes.Role.Name != nil {
+				role = *m.Attributes.Role.Name
+			}
+			descriptions = append(descriptions, role)
+		}
+		if resp.Next == nil {
+			break
+		}
+		resp, err = resp.Next()
+		if err != nil {
+			return teamMemberChoice{}, err
+		}
+	}
+	stopSpinner()
+
+	if len(emails) == 0 {
+		return teamMemberChoice{}, errors.New("no team members found")
+	}
+
+	choice, err := tui.RunList("Select the member to remove", emails, descriptions)
+	if err != nil {
+		return teamMemberChoice{}, err
+	}
+	return byEmail[choice], nil
 }
 
 func parseTeamMemberRole(s string) (operations.PostTeamMembersRole, error) {

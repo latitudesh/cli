@@ -7,6 +7,7 @@ import (
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/output/table"
 	"github.com/latitudesh/lsh/internal/renderer"
+	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -68,12 +69,17 @@ func runOperatingSystemsList(_ *cobra.Command, _ []string) error {
 	client := lsh.NewClient()
 	ctx := context.Background()
 
-	resp, err := client.OperatingSystems.ListPlans(ctx, nil, nil)
+	stopSpinner := tui.StartFetchSpinner("Fetching operating systems…")
+	defer stopSpinner()
+
+	resp, err := client.OperatingSystems.ListPlans(ctx, &listPageSize, nil)
 	if err != nil {
+		stopSpinner()
 		utils.PrintError(err)
 		return nil
 	}
 	if resp == nil || resp.OperatingSystems == nil {
+		stopSpinner()
 		renderer.Render(nil)
 		return nil
 	}
@@ -88,10 +94,12 @@ func runOperatingSystemsList(_ *cobra.Command, _ []string) error {
 		}
 		resp, err = resp.Next()
 		if err != nil {
+			stopSpinner()
 			utils.PrintError(err)
 			return nil
 		}
 	}
+	stopSpinner()
 	renderer.Render(rows)
 	return nil
 }

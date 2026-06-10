@@ -7,9 +7,16 @@ import (
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/output/table"
 	"github.com/latitudesh/lsh/internal/renderer"
+	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
 )
+
+// listPageSize is the page[size] requested by paginated list commands.
+// The API defaults to 20, which turns large listings into long chains of
+// sequential requests; asking for bigger pages keeps the page count (and
+// wall-clock time) down. Next() reuses the size on follow-up pages.
+var listPageSize int64 = 100
 
 func makeOperationGroupRegionsCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
@@ -67,12 +74,17 @@ func runRegionsList(_ *cobra.Command, _ []string) error {
 	client := lsh.NewClient()
 	ctx := context.Background()
 
-	resp, err := client.Regions.Get(ctx, nil, nil)
+	stopSpinner := tui.StartFetchSpinner("Fetching regions…")
+	defer stopSpinner()
+
+	resp, err := client.Regions.Get(ctx, &listPageSize, nil)
 	if err != nil {
+		stopSpinner()
 		utils.PrintError(err)
 		return nil
 	}
 	if resp == nil || resp.Regions == nil {
+		stopSpinner()
 		renderer.Render(nil)
 		return nil
 	}
@@ -87,10 +99,12 @@ func runRegionsList(_ *cobra.Command, _ []string) error {
 		}
 		resp, err = resp.Next()
 		if err != nil {
+			stopSpinner()
 			utils.PrintError(err)
 			return nil
 		}
 	}
+	stopSpinner()
 	renderer.Render(rows)
 	return nil
 }
