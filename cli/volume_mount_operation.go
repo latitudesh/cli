@@ -507,7 +507,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stdout, "[DEBUG] Fetching volume storage details to get connector_id\n")
 		}
 
-		volumesResponse, err := client.Storage.GetStorageVolumes(ctx, nil)
+		volumesResponse, err := client.BlockStorage.GetStorageVolumes(ctx, nil)
 		if err != nil {
 			printError(fmt.Sprintf("Failed to fetch volume storage details: %v", err))
 			utils.PrintError(err)
@@ -579,7 +579,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 	// Call the API to authorize the client NQN and mount
 	// The NQN authorizes this client to access the storage
 	// The subsystem-nqn (connector_id) defines which storage subsystem to connect to
-	response, err := client.Storage.PostStorageVolumesMount(ctx, volumeID, operations.PostStorageVolumesMountRequestBody{
+	response, err := client.BlockStorage.PostStorageVolumesMount(ctx, volumeID, operations.PostStorageVolumesMountRequestBody{
 		Data: operations.PostStorageVolumesMountData{
 			Type: operations.PostStorageVolumesMountTypeVolumes,
 			Attributes: operations.PostStorageVolumesMountAttributes{

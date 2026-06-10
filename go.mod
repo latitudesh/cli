@@ -1,6 +1,6 @@
 module github.com/latitudesh/lsh
 
-go 1.24.0
+go 1.25.10
 
 require (
 	github.com/charmbracelet/bubbles v0.21.0
@@ -12,7 +12,7 @@ require (
 	github.com/go-openapi/strfmt v0.22.0
 	github.com/go-openapi/swag v0.22.7
 	github.com/go-openapi/validate v0.22.6
-	github.com/latitudesh/latitudesh-go-sdk v1.9.0
+	github.com/latitudesh/latitudesh-go-sdk v1.15.1
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/olekukonko/tablewriter v0.0.5

@@ -142,7 +142,9 @@ func RunServersTable(title string, columns []table.Column, rows []table.Row, ori
 			if model.ShouldShowDetails() && model.SelectedIndex() < len(originalServers) {
 				selectedServer := originalServers[model.SelectedIndex()]
 				serverTitle := fmt.Sprintf("Server Details: %s", selectedServer["Hostname"])
-				RunServerDetails(serverTitle, selectedServer)
+				if err := RunServerDetails(serverTitle, selectedServer); err != nil {
+					return err
+				}
 
 				continue
 			}

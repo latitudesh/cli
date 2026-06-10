@@ -157,6 +157,12 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	}
 	rootCmd.AddCommand(operationGroupAPIKeysCmd)
 
+	operationGroupRegionsCmd, err := makeOperationGroupRegionsCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationGroupRegionsCmd)
+
 	operationGroupPlansCmd, err := makeOperationGroupPlansCmd()
 	if err != nil {
 		return nil, err
@@ -192,6 +198,24 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 		return nil, err
 	}
 	rootCmd.AddCommand(operationGroupVolumeCmd)
+
+	operationGroupTeamsCmd, err := makeOperationGroupTeamsCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationGroupTeamsCmd)
+
+	operationGroupIPsCmd, err := makeOperationGroupIPsCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationGroupIPsCmd)
+
+	operationGroupOperatingSystemsCmd, err := makeOperationGroupOperatingSystemsCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationGroupOperatingSystemsCmd)
 
 	// add cobra completion
 	rootCmd.AddCommand(makeGenCompletionCmd())

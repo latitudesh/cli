@@ -88,7 +88,7 @@ func (o *VolumeListOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Call the API
-	response, err := client.Storage.GetStorageVolumes(ctx, filterProject)
+	response, err := client.BlockStorage.GetStorageVolumes(ctx, filterProject)
 	if err != nil {
 		utils.PrintError(err)
 		return nil
