@@ -59,6 +59,11 @@ func (r regionRow) TableRow() table.Row {
 }
 
 func runRegionsList(_ *cobra.Command, _ []string) error {
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
+		return nil
+	}
+
 	client := lsh.NewClient()
 	ctx := context.Background()
 
@@ -67,19 +72,24 @@ func runRegionsList(_ *cobra.Command, _ []string) error {
 		utils.PrintError(err)
 		return nil
 	}
-	if lsh.DryRun {
-		lsh.LogDebugf("dry-run flag specified. Skip rendering.")
-		return nil
-	}
-
 	if resp == nil || resp.Regions == nil {
 		renderer.Render(nil)
 		return nil
 	}
 
 	rows := make([]renderer.ResponseData, 0, len(resp.Regions.Data))
-	for i := range resp.Regions.Data {
-		rows = append(rows, regionsDataToRow(&resp.Regions.Data[i]))
+	for resp != nil && resp.Regions != nil {
+		for i := range resp.Regions.Data {
+			rows = append(rows, regionsDataToRow(&resp.Regions.Data[i]))
+		}
+		if resp.Next == nil {
+			break
+		}
+		resp, err = resp.Next()
+		if err != nil {
+			utils.PrintError(err)
+			return nil
+		}
 	}
 	renderer.Render(rows)
 	return nil

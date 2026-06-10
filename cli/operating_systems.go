@@ -60,6 +60,11 @@ func (o operatingSystemRow) TableRow() table.Row {
 }
 
 func runOperatingSystemsList(_ *cobra.Command, _ []string) error {
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
+		return nil
+	}
+
 	client := lsh.NewClient()
 	ctx := context.Background()
 
@@ -68,19 +73,24 @@ func runOperatingSystemsList(_ *cobra.Command, _ []string) error {
 		utils.PrintError(err)
 		return nil
 	}
-	if lsh.DryRun {
-		lsh.LogDebugf("dry-run flag specified. Skip rendering.")
-		return nil
-	}
-
 	if resp == nil || resp.OperatingSystems == nil {
 		renderer.Render(nil)
 		return nil
 	}
 
 	rows := make([]renderer.ResponseData, 0, len(resp.OperatingSystems.Data))
-	for i := range resp.OperatingSystems.Data {
-		rows = append(rows, operatingSystemToRow(&resp.OperatingSystems.Data[i]))
+	for resp != nil && resp.OperatingSystems != nil {
+		for i := range resp.OperatingSystems.Data {
+			rows = append(rows, operatingSystemToRow(&resp.OperatingSystems.Data[i]))
+		}
+		if resp.Next == nil {
+			break
+		}
+		resp, err = resp.Next()
+		if err != nil {
+			utils.PrintError(err)
+			return nil
+		}
 	}
 	renderer.Render(rows)
 	return nil

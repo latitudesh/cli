@@ -142,8 +142,18 @@ func runIPsList(cmd *cobra.Command, _ []string) error {
 	}
 
 	rows := make([]renderer.ResponseData, 0, len(resp.IPAddresses.Data))
-	for i := range resp.IPAddresses.Data {
-		rows = append(rows, ipToRow(&resp.IPAddresses.Data[i]))
+	for resp != nil && resp.IPAddresses != nil {
+		for i := range resp.IPAddresses.Data {
+			rows = append(rows, ipToRow(&resp.IPAddresses.Data[i]))
+		}
+		if resp.Next == nil {
+			break
+		}
+		resp, err = resp.Next()
+		if err != nil {
+			utils.PrintError(err)
+			return nil
+		}
 	}
 	renderer.Render(rows)
 	return nil

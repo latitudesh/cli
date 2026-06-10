@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
@@ -115,16 +116,17 @@ func (t teamRow) TableRow() table.Row {
 }
 
 func runTeamsList(_ *cobra.Command, _ []string) error {
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
+		return nil
+	}
+
 	client := lsh.NewClient()
 	ctx := context.Background()
 
 	resp, err := client.UserProfile.ListTeams(ctx)
 	if err != nil {
 		utils.PrintError(err)
-		return nil
-	}
-	if lsh.DryRun {
-		lsh.LogDebugf("dry-run flag specified. Skip rendering.")
 		return nil
 	}
 
@@ -195,6 +197,11 @@ func runTeamsUpdate(cmd *cobra.Command, args []string) error {
 	name, _ := cmd.Flags().GetString("name")
 	currency, _ := cmd.Flags().GetString("currency")
 	address, _ := cmd.Flags().GetString("address")
+
+	if name == "" && currency == "" && address == "" {
+		utils.PrintError(errors.New("nothing to update: pass at least one of --name, --currency or --address"))
+		return nil
+	}
 
 	attrs := &operations.PatchCurrentTeamTeamsAttributes{}
 	if name != "" {

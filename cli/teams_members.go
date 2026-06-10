@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
@@ -108,6 +110,11 @@ func (m teamMemberRow) TableRow() table.Row {
 }
 
 func runTeamMembersList(_ *cobra.Command, _ []string) error {
+	if lsh.DryRun {
+		lsh.LogDebugf("dry-run flag specified. Skip sending request.")
+		return nil
+	}
+
 	client := lsh.NewClient()
 	ctx := context.Background()
 
@@ -116,19 +123,24 @@ func runTeamMembersList(_ *cobra.Command, _ []string) error {
 		utils.PrintError(err)
 		return nil
 	}
-	if lsh.DryRun {
-		lsh.LogDebugf("dry-run flag specified. Skip rendering.")
-		return nil
-	}
-
 	if resp == nil || resp.TeamMembers == nil {
 		renderer.Render(nil)
 		return nil
 	}
 
 	rows := make([]renderer.ResponseData, 0, len(resp.TeamMembers.Data))
-	for i := range resp.TeamMembers.Data {
-		rows = append(rows, teamMemberToRow(&resp.TeamMembers.Data[i]))
+	for resp != nil && resp.TeamMembers != nil {
+		for i := range resp.TeamMembers.Data {
+			rows = append(rows, teamMemberToRow(&resp.TeamMembers.Data[i]))
+		}
+		if resp.Next == nil {
+			break
+		}
+		resp, err = resp.Next()
+		if err != nil {
+			utils.PrintError(err)
+			return nil
+		}
 	}
 	renderer.Render(rows)
 	return nil
@@ -201,6 +213,7 @@ func runTeamMembersRemove(_ *cobra.Command, args []string) error {
 		utils.PrintError(err)
 		return nil
 	}
+	fmt.Fprintf(os.Stdout, "✅ Team member %s removed successfully\n", userID)
 	return nil
 }
 
