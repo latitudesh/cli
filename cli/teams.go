@@ -124,6 +124,9 @@ func runTeamsList(_ *cobra.Command, _ []string) error {
 	client := lsh.NewClient()
 	ctx := context.Background()
 
+	// Unlike the other list commands, /user/teams is not paginated:
+	// the SDK's ListTeams takes no page params and its response has no
+	// Next(), so a single call already returns every team.
 	resp, err := client.UserProfile.ListTeams(ctx)
 	if err != nil {
 		utils.PrintError(err)
