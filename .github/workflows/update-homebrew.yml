@@ -1,8 +1,9 @@
 name: Update Homebrew Tap
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["release"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       version:
@@ -16,6 +17,13 @@ permissions:
 jobs:
   update-homebrew:
     runs-on: ubuntu-latest
+    # For workflow_run, only proceed when the release build succeeded and it ran for a tag (v*).
+    # This guarantees GoReleaser has already uploaded the assets, avoiding the race where a
+    # release published from the UI fires before the binaries/checksums exist.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
     steps:
       -
         name: Checkout
@@ -24,11 +32,12 @@ jobs:
         name: Get release info
         id: release_info
         run: |
-          # Use input version if running manually, otherwise use release event
+          # Use input version if running manually; otherwise derive it from the release
+          # workflow run. For tag-triggered runs, head_branch is the tag name (e.g. v1.6.1).
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION=${{ github.event.inputs.version }}
           else
-            VERSION=${{ github.event.release.tag_name }}
+            VERSION=${{ github.event.workflow_run.head_branch }}
           fi
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -47,8 +56,9 @@ jobs:
         run: |
           VERSION=${{ steps.release_info.outputs.version }}
 
-          # Download checksums file from release
-          wget -q "https://github.com/latitudesh/cli/releases/download/${VERSION}/checksums.txt"
+          # Download checksums file from release (retry to absorb asset propagation lag)
+          wget -q --tries=10 --waitretry=15 --retry-on-http-error=404,503 \
+            "https://github.com/latitudesh/cli/releases/download/${VERSION}/checksums.txt"
 
           # Extract SHA256 for each platform
           LINUX_AMD64_SHA=$(grep "lsh_Linux_x86_64.tar.gz" checksums.txt | cut -d' ' -f1)
