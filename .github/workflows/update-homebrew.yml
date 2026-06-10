@@ -35,9 +35,9 @@ jobs:
           # Use input version if running manually; otherwise derive it from the release
           # workflow run. For tag-triggered runs, head_branch is the tag name (e.g. v1.6.1).
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION=${{ github.event.inputs.version }}
+            VERSION="${{ github.event.inputs.version }}"
           else
-            VERSION=${{ github.event.workflow_run.head_branch }}
+            VERSION="${{ github.event.workflow_run.head_branch }}"
           fi
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
