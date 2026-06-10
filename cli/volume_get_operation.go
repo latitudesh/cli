@@ -86,7 +86,7 @@ func (o *VolumeGetOperation) run(cmd *cobra.Command, args []string) error {
 
 	// NOTE: The SDK doesn't seem to have a GetStorageVolume (singular) method yet
 	// For now, use list and filter by ID
-	response, err := client.Storage.GetStorageVolumes(ctx, nil)
+	response, err := client.BlockStorage.GetStorageVolumes(ctx, nil)
 	if err != nil {
 		utils.PrintError(err)
 		return nil

@@ -97,7 +97,7 @@ func (o *VolumeDeleteOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Call the API
-	response, err := client.Storage.DeleteStorageVolumes(ctx, volumeID)
+	response, err := client.BlockStorage.DeleteStorageVolumes(ctx, volumeID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error deleting volume storage: %v\n", err)
 		return err
