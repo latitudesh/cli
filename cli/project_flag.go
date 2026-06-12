@@ -11,6 +11,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+// ProjectOptionalAnnotation marks commands whose --project flag is an
+// optional filter rather than a required scope, opting them out of the
+// resolution flow below.
+const ProjectOptionalAnnotation = "lsh_project_optional"
+
 // isInteractive reports whether we can prompt the user. It's a package
 // var so tests can force the non-interactive path deterministically.
 var isInteractive = util.IsTTY
@@ -24,12 +29,17 @@ var isInteractive = util.IsTTY
 //  4. --no-input was passed, or stdin is not a TTY → fail with an actionable error
 //  5. interactive TTY                          → prompt and pick one
 //
-// Commands without a "project" flag are left alone. The --no-input path
+// Commands without a "project" flag are left alone, as are commands that
+// declare the ProjectOptionalAnnotation — there --project is an optional
+// filter (e.g. events/traffic), not a required scope. The --no-input path
 // gives AI agents and other scripted callers a deterministic error to
 // recover from instead of a bubbletea prompt they cannot drive.
 func resolveProjectFlag(cmd *cobra.Command) error {
 	projectFlag := cmd.Flags().Lookup("project")
 	if projectFlag == nil {
+		return nil
+	}
+	if cmd.Annotations[ProjectOptionalAnnotation] == "true" {
 		return nil
 	}
 	if projectFlag.Changed {

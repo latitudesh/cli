@@ -11,6 +11,7 @@ import (
 	"path"
 
 	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
+	"github.com/latitudesh/latitudesh-go-sdk/retry"
 	"github.com/latitudesh/lsh/internal/config"
 	"github.com/latitudesh/lsh/internal/version"
 	"github.com/mitchellh/go-homedir"
@@ -46,6 +47,23 @@ func NewClient() *latitudeshgosdk.Latitudesh {
 
 func NewContext() context.Context {
 	return context.Background()
+}
+
+// RetryConfig is the retry policy for read-only calls against endpoints
+// that fail transiently (the events endpoint intermittently 500s on
+// date-filtered queries). The SDK retries 429/500/502/503/504 with
+// exponential backoff; intervals are in milliseconds.
+func RetryConfig() retry.Config {
+	return retry.Config{
+		Strategy: "backoff",
+		Backoff: &retry.BackoffStrategy{
+			InitialInterval: 500,
+			MaxInterval:     4000,
+			Exponent:        1.5,
+			MaxElapsedTime:  15000,
+		},
+		RetryConnectionErrors: true,
+	}
 }
 
 func InitViperConfigs() {
