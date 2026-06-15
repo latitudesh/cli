@@ -77,23 +77,11 @@ func TestRefreshProfileTeam(t *testing.T) {
 }
 
 func TestRemoveBodyAttribute(t *testing.T) {
-	// The SDK injects the spec's default currency into every team PATCH
-	// body; the transport must strip it without touching other fields.
-	name := "New Name"
-	body := operations.PatchCurrentTeamTeamsRequestBody{
-		Data: operations.PatchCurrentTeamTeamsData{
-			ID:         "tm_x",
-			Type:       operations.PatchCurrentTeamTeamsTypeTeams,
-			Attributes: &operations.PatchCurrentTeamTeamsAttributes{Name: &name},
-		},
-	}
-	raw, err := json.Marshal(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(raw), `"currency"`) {
-		t.Fatalf("expected SDK to inject currency default, got %s", raw)
-	}
+	// Older SDKs injected the spec's default currency into every team PATCH
+	// body; the transport must strip it without touching other fields. The
+	// current SDK no longer injects it, so we feed a body that carries it to
+	// keep exercising the helper in isolation.
+	raw := []byte(`{"data":{"id":"tm_x","type":"teams","attributes":{"name":"New Name","currency":"USD"}}}`)
 
 	stripped, ok := removeBodyAttribute(raw, "currency")
 	if !ok {

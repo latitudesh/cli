@@ -99,3 +99,15 @@ func TestResolveProjectFlag_NonInteractiveHintOmitsAllProjectsWhenUnsupported(t 
 		t.Fatalf("hint must not mention --all-projects when the command lacks it, got %q", err.Error())
 	}
 }
+
+func TestResolveProjectFlag_ProjectOptionalAnnotation_NoOp(t *testing.T) {
+	forceNonInteractive(t)
+	cmd := newProjectCmd(false)
+	cmd.Annotations = map[string]string{ProjectOptionalAnnotation: "true"}
+	if err := resolveProjectFlag(cmd); err != nil {
+		t.Fatalf("expected no-op for project-optional command, got %v", err)
+	}
+	if got, _ := cmd.Flags().GetString("project"); got != "" {
+		t.Fatalf("expected --project to stay unset, got %q", got)
+	}
+}
