@@ -7,6 +7,8 @@ import (
 
 	"github.com/latitudesh/lsh/client"
 	"github.com/latitudesh/lsh/cmd/lsh"
+	"github.com/latitudesh/lsh/internal/pagination"
+	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/latitudesh/lsh/internal/version"
 
 	"github.com/go-openapi/runtime"
@@ -77,6 +79,11 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	// duration of the command. Then resolve the --project flag (env >
 	// --all-projects > interactive prompt) for commands that need it.
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		// Validate output/query selection up front so commands fail fast with
+		// an actionable message instead of silently falling back to a table.
+		if err := renderer.ValidateOutputSelection(); err != nil {
+			return err
+		}
 		// Hydrate the active profile into viper for commands that authenticate
 		// against the API. Skip the login/auth/profile subtree: there --profile
 		// names a profile to create/inspect/remove (it may not exist yet), and
@@ -102,12 +109,29 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	viper.BindPFlag("base_path", rootCmd.PersistentFlags().Lookup("base-path"))
 
 	var outputFlag string
-	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "table", "output format: table | json")
+	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "table", "output format: table | json | yaml | csv")
 	viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
+	// LSH_OUTPUT sets a per-user default format. viper precedence is
+	// flag > env > config > default, which is exactly what PD-6072 requires.
+	viper.BindEnv("output", "LSH_OUTPUT")
 
 	var formatAsJSON bool
 	rootCmd.PersistentFlags().BoolVar(&formatAsJSON, "json", false, "shortcut for --output=json")
 	viper.BindPFlag("json", rootCmd.PersistentFlags().Lookup("json"))
+
+	// Global automation controls. --query post-processes structured output with
+	// a JMESPath expression; the pagination flags govern every `list` command.
+	rootCmd.PersistentFlags().String("query", "", "filter json/yaml/csv output with a JMESPath expression (see 'lsh help output-formats')")
+	viper.BindPFlag("query", rootCmd.PersistentFlags().Lookup("query"))
+
+	rootCmd.PersistentFlags().Int64("page-size", pagination.DefaultPageSize, "items to request per API page")
+	viper.BindPFlag("page-size", rootCmd.PersistentFlags().Lookup("page-size"))
+
+	rootCmd.PersistentFlags().Int64("max-items", 0, "maximum number of items to return across pages (0 = no limit)")
+	viper.BindPFlag("max-items", rootCmd.PersistentFlags().Lookup("max-items"))
+
+	rootCmd.PersistentFlags().Bool("no-paginate", false, "fetch only the first page; print the next page to stderr if more exist")
+	viper.BindPFlag("no-paginate", rootCmd.PersistentFlags().Lookup("no-paginate"))
 
 	var noInput bool
 	rootCmd.PersistentFlags().BoolVar(&noInput, "no-input", false, "disable interactive prompts; fail fast instead (see 'lsh help automation')")

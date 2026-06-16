@@ -4,7 +4,6 @@ import (
 	"os"
 
 	outputTable "github.com/latitudesh/lsh/internal/output/table"
-	"github.com/spf13/viper"
 	"golang.org/x/term"
 )
 
@@ -16,24 +15,29 @@ type Renderer interface {
 	Render(data []ResponseData)
 }
 
-// GetRenderer returns the appropriate renderer
+// GetRenderer returns the renderer for the active output format.
+//
+// Structured formats (json/yaml/csv) are honored everywhere, including when
+// stdout is piped — that is the whole point of automation output. The table
+// format additionally chooses between the classic ASCII writer (for CI /
+// LSH_CLASSIC_OUTPUT / non-TTY pipes) and the interactive Bubble Tea view.
 func GetRenderer() Renderer {
-	// Check if should use classic output (for scripts/CI)
+	switch ResolveFormat() {
+	case FormatJSON:
+		return JSONRenderer{}
+	case FormatYAML:
+		return YAMLRenderer{}
+	case FormatCSV:
+		return CSVRenderer{}
+	}
+
+	// Human-facing table path.
 	if os.Getenv("LSH_CLASSIC_OUTPUT") == "true" {
 		return TableRenderer{} // Old ASCII
 	}
-
-	// Check if JSON was requested via --json flag or -o json
-	if viper.GetBool("json") || viper.GetString("output") == "json" {
-		return JSONRenderer{}
-	}
-
-	// If stdout is not a terminal (e.g., pipe), use table output
 	if !term.IsTerminal(int(os.Stdout.Fd())) {
-		return TableRenderer{}
+		return TableRenderer{} // Plain table for pipes / CI
 	}
-
-	// Default: use interactive Bubble Tea
 	return BubbleTeaRenderer{}
 }
 

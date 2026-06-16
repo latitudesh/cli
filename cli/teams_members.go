@@ -12,6 +12,7 @@ import (
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/output/table"
+	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -123,7 +124,11 @@ func runTeamMembersList(_ *cobra.Command, _ []string) error {
 	stopSpinner := tui.StartFetchSpinner("Fetching team members…")
 	defer stopSpinner()
 
-	resp, err := client.Teams.Members.GetTeamMembers(ctx, &listPageSize, nil)
+	page := pagination.Resolve()
+	pageSize := page.PageSize
+	pageNumber := int64(1)
+
+	resp, err := client.Teams.Members.GetTeamMembers(ctx, &pageSize, &pageNumber)
 	if err != nil {
 		stopSpinner()
 		utils.PrintError(err)
@@ -136,22 +141,35 @@ func runTeamMembersList(_ *cobra.Command, _ []string) error {
 	}
 
 	rows := make([]renderer.ResponseData, 0, len(resp.TeamMembers.Data))
-	for resp != nil && resp.TeamMembers != nil {
-		for i := range resp.TeamMembers.Data {
-			rows = append(rows, teamMemberToRow(&resp.TeamMembers.Data[i]))
-		}
-		if resp.Next == nil {
-			break
-		}
-		resp, err = resp.Next()
-		if err != nil {
-			stopSpinner()
-			utils.PrintError(err)
-			return nil
-		}
+	result, err := pagination.Walk(resp, page,
+		func(r *operations.GetTeamMembersResponse) func() (*operations.GetTeamMembersResponse, error) {
+			return r.Next
+		},
+		func(r *operations.GetTeamMembersResponse, limit int) int {
+			if r.TeamMembers == nil {
+				return 0
+			}
+			data := r.TeamMembers.Data
+			n := len(data)
+			if limit >= 0 && n > limit {
+				n = limit
+			}
+			for i := 0; i < n; i++ {
+				rows = append(rows, teamMemberToRow(&data[i]))
+			}
+			return n
+		},
+	)
+	if err != nil {
+		stopSpinner()
+		utils.PrintError(err)
+		return nil
 	}
 	stopSpinner()
 	renderer.Render(rows)
+	if page.NoPaginate && result.HasMore {
+		pagination.PrintNextCursor(result.NextPage)
+	}
 	return nil
 }
 
@@ -317,7 +335,11 @@ func selectTeamMember(ctx context.Context, client *latitudeshgosdk.Latitudesh) (
 	stopSpinner := tui.StartFetchSpinner("Fetching team members…")
 	defer stopSpinner()
 
-	resp, err := client.Teams.Members.GetTeamMembers(ctx, &listPageSize, nil)
+	// The member picker must always see every member, independent of the
+	// output-pagination flags (--max-items / --no-paginate), so it walks all
+	// pages itself using the default page size.
+	pageSize := pagination.DefaultPageSize
+	resp, err := client.Teams.Members.GetTeamMembers(ctx, &pageSize, nil)
 	if err != nil {
 		return teamMemberChoice{}, err
 	}
