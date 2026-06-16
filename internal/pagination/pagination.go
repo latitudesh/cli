@@ -30,6 +30,20 @@ type Options struct {
 	NoPaginate bool
 }
 
+// Validate rejects invalid pagination flag values up front (with a non-zero
+// exit) instead of silently clamping them, so automation callers get clear
+// feedback. The --page-size flag defaults to a positive value, so a
+// non-positive reading means the user set it explicitly.
+func Validate() error {
+	if viper.GetInt64("page-size") <= 0 {
+		return fmt.Errorf("--page-size must be a positive integer")
+	}
+	if viper.GetInt64("max-items") < 0 {
+		return fmt.Errorf("--max-items must be zero or a positive integer")
+	}
+	return nil
+}
+
 // Resolve reads the pagination flags from viper, applying sensible defaults.
 func Resolve() Options {
 	pageSize := viper.GetInt64("page-size")

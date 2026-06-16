@@ -79,9 +79,18 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	// duration of the command. Then resolve the --project flag (env >
 	// --all-projects > interactive prompt) for commands that need it.
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
-		// Validate output/query selection up front so commands fail fast with
-		// an actionable message instead of silently falling back to a table.
+		// Record whether --output was set explicitly so the renderer can let an
+		// explicit -o (including -o table) win over the --json shortcut.
+		if cmd.Flags().Changed("output") {
+			viper.Set("output_explicit", true)
+		}
+		// Validate output/query/pagination selection up front so commands fail
+		// fast with an actionable message (and a non-zero exit) instead of
+		// silently falling back or clamping.
 		if err := renderer.ValidateOutputSelection(); err != nil {
+			return err
+		}
+		if err := pagination.Validate(); err != nil {
 			return err
 		}
 		// Hydrate the active profile into viper for commands that authenticate

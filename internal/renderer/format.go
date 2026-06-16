@@ -45,20 +45,21 @@ func ParseFormat(s string) (Format, bool) {
 
 // ResolveFormat determines the active output format.
 //
-// Precedence is flag > env (LSH_OUTPUT) > config > default. The --output flag
-// is bound to viper with LSH_OUTPUT as its env source, so viper.GetString
-// already applies that chain. The --json shortcut only wins when --output was
-// left at its default, mirroring its documented role as "shortcut for
-// --output=json".
+// Precedence: an explicit --output flag > --json shortcut > env (LSH_OUTPUT) >
+// config > default. An explicit --output always wins — including -o table over
+// --json — which is why callers record whether the flag was set via the
+// "output_explicit" key (viper.GetString alone can't tell an explicit
+// `-o table` from the "table" default).
 func ResolveFormat() Format {
-	if f, ok := ParseFormat(viper.GetString("output")); ok && f != FormatTable {
-		return f
+	out, ok := ParseFormat(viper.GetString("output"))
+	if viper.GetBool("output_explicit") && ok {
+		return out
 	}
 	if viper.GetBool("json") {
 		return FormatJSON
 	}
-	if f, ok := ParseFormat(viper.GetString("output")); ok {
-		return f
+	if ok {
+		return out
 	}
 	return FormatTable
 }

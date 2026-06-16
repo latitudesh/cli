@@ -49,6 +49,7 @@ func captureStdout(t *testing.T, f func()) string {
 
 func resetOutputViper() {
 	viper.Set("output", "")
+	viper.Set("output_explicit", false)
 	viper.Set("json", false)
 	viper.Set("query", "")
 }
@@ -57,22 +58,28 @@ func TestResolveFormatPrecedence(t *testing.T) {
 	defer resetOutputViper()
 
 	cases := []struct {
-		name   string
-		output string
-		json   bool
-		want   Format
+		name     string
+		output   string
+		explicit bool
+		json     bool
+		want     Format
 	}{
-		{"default", "", false, FormatTable},
-		{"output json", "json", false, FormatJSON},
-		{"output yaml", "yaml", false, FormatYAML},
-		{"output csv", "csv", false, FormatCSV},
-		{"json shortcut", "", true, FormatJSON},
-		{"explicit output beats json flag", "yaml", true, FormatYAML},
+		{"default", "", false, false, FormatTable},
+		{"output json (explicit)", "json", true, false, FormatJSON},
+		{"output yaml (explicit)", "yaml", true, false, FormatYAML},
+		{"output csv (explicit)", "csv", true, false, FormatCSV},
+		{"json shortcut", "", false, true, FormatJSON},
+		{"explicit -o yaml beats --json", "yaml", true, true, FormatYAML},
+		// Regression for greptile P2: an explicit -o table must beat --json.
+		{"explicit -o table beats --json", "table", true, true, FormatTable},
+		// Without "explicit", a default "table" reading must NOT block --json.
+		{"default table + --json yields JSON", "table", false, true, FormatJSON},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetOutputViper()
 			viper.Set("output", tc.output)
+			viper.Set("output_explicit", tc.explicit)
 			viper.Set("json", tc.json)
 			if got := ResolveFormat(); got != tc.want {
 				t.Fatalf("ResolveFormat() = %q, want %q", got, tc.want)

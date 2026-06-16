@@ -1,6 +1,56 @@
 package pagination
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/spf13/viper"
+)
+
+func resetPaginationViper() {
+	viper.Set("page-size", int64(0))
+	viper.Set("max-items", int64(0))
+	viper.Set("no-paginate", false)
+}
+
+func TestValidateRejectsNonPositivePageSize(t *testing.T) {
+	defer resetPaginationViper()
+
+	resetPaginationViper()
+	viper.Set("page-size", int64(0))
+	if err := Validate(); err == nil {
+		t.Fatal("expected error for --page-size 0")
+	}
+
+	resetPaginationViper()
+	viper.Set("page-size", int64(-5))
+	if err := Validate(); err == nil {
+		t.Fatal("expected error for negative --page-size")
+	}
+
+	resetPaginationViper()
+	viper.Set("page-size", int64(100))
+	if err := Validate(); err != nil {
+		t.Fatalf("unexpected error for valid --page-size: %v", err)
+	}
+}
+
+func TestValidateRejectsNegativeMaxItems(t *testing.T) {
+	defer resetPaginationViper()
+
+	resetPaginationViper()
+	viper.Set("page-size", int64(100))
+	viper.Set("max-items", int64(-1))
+	if err := Validate(); err == nil {
+		t.Fatal("expected error for negative --max-items")
+	}
+
+	resetPaginationViper()
+	viper.Set("page-size", int64(100))
+	viper.Set("max-items", int64(0)) // 0 = unlimited, valid.
+	if err := Validate(); err != nil {
+		t.Fatalf("unexpected error for --max-items=0 (unlimited): %v", err)
+	}
+}
 
 // fakePage models an SDK list response: a slice of items plus a closure that
 // returns the next page (nil when exhausted).
