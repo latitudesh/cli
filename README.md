@@ -92,13 +92,13 @@ lsh plans stock --in_stock
 Filter by region, GPU, or hardware spec and export as CSV:
 
 ```bash
-lsh plans stock --region "United States" --in_stock --format csv > us_plans.csv
+lsh plans stock --region "United States" --in_stock -o csv > us_plans.csv
 ```
 
-Combine filters for scripting with `jq` (use `--format json` when piping — the default table requires a TTY):
+Combine filters for scripting with `jq` (use `-o json` when piping — the default table is meant for humans):
 
 ```bash
-lsh plans stock --gpu --ram_gte 64 --format json | jq '.[] | {plan: .plan_slug, loc: .location, stock: .stock_level}'
+lsh plans stock --gpu --ram_gte 64 -o json | jq '.[] | {plan: .plan_slug, loc: .location, stock: .stock_level}'
 ```
 
 List volumes:
@@ -131,6 +131,45 @@ sudo lsh volume mount --id vol_abc123
 - Login as a **normal user** (without sudo): `lsh login <API_KEY>`
 - The CLI automatically finds your credentials when you run commands with sudo
 - Volume mount needs sudo for nvme-cli installation and NVMe operations
+
+## Output formats & automation
+
+Every `list` command can render its results in different formats, so the output
+is easy to consume from scripts, CI pipelines and AI agents. See `lsh help
+output-formats` for the full guide.
+
+```bash
+lsh servers list -o table            # human-readable table (default)
+lsh servers list -o json             # JSON
+lsh servers list -o yaml             # YAML
+lsh servers list -o csv              # CSV (header + one row per item)
+lsh servers list --json              # shortcut for -o json
+```
+
+Filter the structured output with a [JMESPath](https://jmespath.org/) expression
+via `--query` (works with json/yaml/csv):
+
+```bash
+lsh servers list --query "[?status=='on'].id" -o json
+```
+
+Control pagination on large listings:
+
+```bash
+lsh servers list --page-size 50      # items per API page
+lsh servers list --max-items 100     # stop after N items (0 = no limit)
+lsh servers list --no-paginate       # first page only; next page printed to stderr
+```
+
+### Environment variables
+
+| Variable | Purpose |
+| --- | --- |
+| `LSH_OUTPUT` | Default output format (`table`/`json`/`yaml`/`csv`). Precedence: `--output` flag > `LSH_OUTPUT` > config file > default. |
+| `LSH_CLASSIC_OUTPUT` | Set to `true` to force the legacy plain-ASCII table. An explicit `-o json/yaml/csv` still wins over it. |
+| `LATITUDESH_TOKEN` | API token; bypasses any stored profile (see `lsh help authentication`). |
+| `LSH_PROFILE` | Use the named profile for the command. |
+| `LSH_PROJECT` | Pre-fill `--project` so list commands don't prompt. |
 
 ## Troubleshooting
 

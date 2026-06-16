@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
+	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/output/table"
+	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -72,7 +74,11 @@ func runOperatingSystemsList(_ *cobra.Command, _ []string) error {
 	stopSpinner := tui.StartFetchSpinner("Fetching operating systems…")
 	defer stopSpinner()
 
-	resp, err := client.OperatingSystems.ListPlans(ctx, &listPageSize, nil)
+	page := pagination.Resolve()
+	pageSize := page.PageSize
+	pageNumber := int64(1)
+
+	resp, err := client.OperatingSystems.ListPlans(ctx, &pageSize, &pageNumber)
 	if err != nil {
 		stopSpinner()
 		utils.PrintError(err)
@@ -85,22 +91,35 @@ func runOperatingSystemsList(_ *cobra.Command, _ []string) error {
 	}
 
 	rows := make([]renderer.ResponseData, 0, len(resp.OperatingSystems.Data))
-	for resp != nil && resp.OperatingSystems != nil {
-		for i := range resp.OperatingSystems.Data {
-			rows = append(rows, operatingSystemToRow(&resp.OperatingSystems.Data[i]))
-		}
-		if resp.Next == nil {
-			break
-		}
-		resp, err = resp.Next()
-		if err != nil {
-			stopSpinner()
-			utils.PrintError(err)
-			return nil
-		}
+	result, err := pagination.Walk(resp, page,
+		func(r *operations.GetPlansOperatingSystemResponse) func() (*operations.GetPlansOperatingSystemResponse, error) {
+			return r.Next
+		},
+		func(r *operations.GetPlansOperatingSystemResponse, limit int) int {
+			if r.OperatingSystems == nil {
+				return 0
+			}
+			data := r.OperatingSystems.Data
+			n := len(data)
+			if limit >= 0 && n > limit {
+				n = limit
+			}
+			for i := 0; i < n; i++ {
+				rows = append(rows, operatingSystemToRow(&data[i]))
+			}
+			return n
+		},
+	)
+	if err != nil {
+		stopSpinner()
+		utils.PrintError(err)
+		return nil
 	}
 	stopSpinner()
 	renderer.Render(rows)
+	if page.NoPaginate && result.HasMore {
+		pagination.PrintNextCursor(result.NextPage)
+	}
 	return nil
 }
 

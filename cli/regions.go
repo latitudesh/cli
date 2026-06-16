@@ -4,19 +4,15 @@ import (
 	"context"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
+	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/output/table"
+	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
 )
-
-// listPageSize is the page[size] requested by paginated list commands.
-// The API defaults to 20, which turns large listings into long chains of
-// sequential requests; asking for bigger pages keeps the page count (and
-// wall-clock time) down. Next() reuses the size on follow-up pages.
-var listPageSize int64 = 100
 
 func makeOperationGroupRegionsCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
@@ -77,7 +73,11 @@ func runRegionsList(_ *cobra.Command, _ []string) error {
 	stopSpinner := tui.StartFetchSpinner("Fetching regions…")
 	defer stopSpinner()
 
-	resp, err := client.Regions.Get(ctx, &listPageSize, nil)
+	page := pagination.Resolve()
+	pageSize := page.PageSize
+	pageNumber := int64(1)
+
+	resp, err := client.Regions.Get(ctx, &pageSize, &pageNumber)
 	if err != nil {
 		stopSpinner()
 		utils.PrintError(err)
@@ -90,22 +90,33 @@ func runRegionsList(_ *cobra.Command, _ []string) error {
 	}
 
 	rows := make([]renderer.ResponseData, 0, len(resp.Regions.Data))
-	for resp != nil && resp.Regions != nil {
-		for i := range resp.Regions.Data {
-			rows = append(rows, regionsDataToRow(&resp.Regions.Data[i]))
-		}
-		if resp.Next == nil {
-			break
-		}
-		resp, err = resp.Next()
-		if err != nil {
-			stopSpinner()
-			utils.PrintError(err)
-			return nil
-		}
+	result, err := pagination.Walk(resp, page,
+		func(r *operations.GetRegionsResponse) func() (*operations.GetRegionsResponse, error) { return r.Next },
+		func(r *operations.GetRegionsResponse, limit int) int {
+			if r.Regions == nil {
+				return 0
+			}
+			data := r.Regions.Data
+			n := len(data)
+			if limit >= 0 && n > limit {
+				n = limit
+			}
+			for i := 0; i < n; i++ {
+				rows = append(rows, regionsDataToRow(&data[i]))
+			}
+			return n
+		},
+	)
+	if err != nil {
+		stopSpinner()
+		utils.PrintError(err)
+		return nil
 	}
 	stopSpinner()
 	renderer.Render(rows)
+	if page.NoPaginate && result.HasMore {
+		pagination.PrintNextCursor(result.NextPage)
+	}
 	return nil
 }
 

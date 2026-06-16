@@ -8,6 +8,7 @@ import (
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/output/table"
+	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -101,7 +102,10 @@ func runIPsList(cmd *cobra.Command, _ []string) error {
 	typeStr, _ := cmd.Flags().GetString("type")
 	location, _ := cmd.Flags().GetString("location")
 
-	req := operations.GetIpsRequest{PageSize: &listPageSize}
+	page := pagination.Resolve()
+	pageSize := page.PageSize
+	pageNumber := int64(1)
+	req := operations.GetIpsRequest{PageSize: &pageSize, PageNumber: &pageNumber}
 	if project != "" {
 		req.FilterProject = &project
 	}
@@ -152,22 +156,33 @@ func runIPsList(cmd *cobra.Command, _ []string) error {
 	}
 
 	rows := make([]renderer.ResponseData, 0, len(resp.IPAddresses.Data))
-	for resp != nil && resp.IPAddresses != nil {
-		for i := range resp.IPAddresses.Data {
-			rows = append(rows, ipToRow(&resp.IPAddresses.Data[i]))
-		}
-		if resp.Next == nil {
-			break
-		}
-		resp, err = resp.Next()
-		if err != nil {
-			stopSpinner()
-			utils.PrintError(err)
-			return nil
-		}
+	result, err := pagination.Walk(resp, page,
+		func(r *operations.GetIpsResponse) func() (*operations.GetIpsResponse, error) { return r.Next },
+		func(r *operations.GetIpsResponse, limit int) int {
+			if r.IPAddresses == nil {
+				return 0
+			}
+			data := r.IPAddresses.Data
+			n := len(data)
+			if limit >= 0 && n > limit {
+				n = limit
+			}
+			for i := 0; i < n; i++ {
+				rows = append(rows, ipToRow(&data[i]))
+			}
+			return n
+		},
+	)
+	if err != nil {
+		stopSpinner()
+		utils.PrintError(err)
+		return nil
 	}
 	stopSpinner()
 	renderer.Render(rows)
+	if page.NoPaginate && result.HasMore {
+		pagination.PrintNextCursor(result.NextPage)
+	}
 	return nil
 }
 

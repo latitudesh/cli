@@ -131,17 +131,51 @@ projects first and retrying:
 func makeHelpOutputFormatsCmd() *cobra.Command {
 	return newHelpTopic(
 		"output-formats",
-		"Render results as table or JSON",
+		"Render results as table, JSON, YAML or CSV (with JMESPath queries)",
 		`lsh — Output formats
 
-By default, lsh prints a human-readable table:
+By default, lsh prints a human-readable table. Use --output (or -o) to switch
+to a machine-readable format for scripts, pipelines and AI agents:
 
-  lsh servers list --project=my-project
+  lsh servers list -o table          # default, human-readable
+  lsh servers list -o json           # raw JSON
+  lsh servers list -o yaml           # YAML
+  lsh servers list -o csv            # CSV (header + one row per item)
+  lsh servers list --json            # shortcut for -o json
 
-Use --output (or -o) to switch:
+  # Set a per-user default without passing -o every time.
+  # Precedence: --output flag > LSH_OUTPUT > config file > default (table)
+  export LSH_OUTPUT=json
+  lsh servers list                   # prints JSON
 
-  lsh servers list --project=my-project --output=json     # raw JSON
-  lsh servers list --project=my-project -o table          # default
+  # Force the legacy plain-ASCII table (e.g. CI that parses fixed columns).
+  # An explicit -o json/yaml/csv still wins over this.
+  LSH_CLASSIC_OUTPUT=true lsh servers list
+
+Filtering with --query (JMESPath)
+
+The --query flag post-processes structured output (json/yaml/csv) with a
+JMESPath expression — no jq or extra tooling required:
+
+  # Only the IDs of servers that are powered on
+  lsh servers list --query '[?status==`+"`on`"+`].id' -o json
+
+  # A projection of selected fields
+  lsh servers list --query '[].{id: id, host: hostname}' -o yaml
+
+--query requires a structured format; combine it with -o json, yaml or csv.
+
+Pagination
+
+List commands fetch every page by default. These flags give you control:
+
+  --page-size N     items requested per API page (default 100)
+  --max-items N     stop after N items across all pages (0 = no limit)
+  --no-paginate     fetch only the first page; if more exist, the next page
+                    number is printed to stderr so you can resume
+
+  lsh servers list --page-size 10 --max-items 50    # at most 50 items, 5 calls
+  lsh servers list --no-paginate -o json            # first page only
 `,
 	)
 }

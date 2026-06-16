@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 )
@@ -9,21 +8,22 @@ import (
 type JSONRenderer struct{}
 
 func (jr JSONRenderer) Render(data []ResponseData) {
-	if len(data) == 0 {
-		return
+	if err := renderJSON(data); err != nil {
+		reportRenderError(err)
 	}
+}
 
-	JSONString, err := json.Marshal(data)
+func renderJSON(data []ResponseData) error {
+	generic, err := structuredData(data)
 	if err != nil {
-		fmt.Println("Could not decode the result as JSON.")
-		return
+		return err
 	}
 
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, JSONString, "", "    "); err != nil {
-		fmt.Println("JSON format error")
-		return
+	b, err := json.MarshalIndent(generic, "", "    ")
+	if err != nil {
+		return fmt.Errorf("could not encode the result as JSON: %w", err)
 	}
 
-	fmt.Println(prettyJSON.String())
+	fmt.Println(string(b))
+	return nil
 }
