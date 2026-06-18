@@ -8,6 +8,7 @@ import (
 	"github.com/latitudesh/lsh/internal/api/resource"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
+	"github.com/latitudesh/lsh/internal/wait"
 
 	"github.com/go-openapi/swag"
 	"github.com/spf13/cobra"
@@ -41,6 +42,7 @@ func (o *CreateServerReinstallOperation) Register() (*cobra.Command, error) {
 	}
 
 	o.registerFlags(cmd)
+	wait.AddFlags(cmd)
 
 	return cmd, nil
 }
@@ -136,8 +138,12 @@ func (o *CreateServerReinstallOperation) run(cmd *cobra.Command, args []string) 
 		return nil
 	}
 
-	if !lsh.Debug {
+	waitEnabled := wait.OptionsFrom(cmd).Enabled
+	if !lsh.Debug && !waitEnabled {
 		response.Render()
 	}
-	return nil
+
+	serverID, _ := cmd.Flags().GetString("id")
+	want, fail := serverProvisionTargets()
+	return waitForServerState(cmd, serverID, want, fail)
 }
