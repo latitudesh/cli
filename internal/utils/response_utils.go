@@ -13,6 +13,12 @@ func Render(data []renderer.ResponseData) {
 	renderer.Render(data)
 }
 
+// RenderStatic renders without the interactive table — for flows like --wait
+// where a full-screen takeover would interrupt progress output.
+func RenderStatic(data []renderer.ResponseData) {
+	renderer.RenderStatic(data)
+}
+
 // PrintError prints a formatted error. Recognized API failures are
 // rewritten as actionable guidance for the user (e.g. 401 → "run lsh login").
 func PrintError(err error) {

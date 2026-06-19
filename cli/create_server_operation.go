@@ -9,6 +9,7 @@ import (
 	"github.com/latitudesh/lsh/internal/api/resource"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
+	"github.com/latitudesh/lsh/internal/wait"
 
 	"github.com/spf13/cobra"
 )
@@ -53,6 +54,7 @@ func (o *CreateServerOperation) Register() (*cobra.Command, error) {
 	}
 
 	o.registerFlags(cmd)
+	wait.AddFlags(cmd)
 
 	return cmd, nil
 }
@@ -160,11 +162,21 @@ func (o *CreateServerOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !lsh.Debug {
+	waitOpts := wait.OptionsFrom(cmd)
+
+	// When waiting, the create payload is an optimistic snapshot (it can report
+	// "on" while the server is still deploying); skip it and let the wait render
+	// the real final state instead.
+	if !lsh.Debug && !waitOpts.Enabled {
 		utils.Render(response.GetData())
 	}
 
-	return nil
+	var serverID string
+	if p := response.GetPayload(); p != nil && p.Data != nil {
+		serverID = p.Data.ID
+	}
+	want, fail := serverProvisionTargets()
+	return waitForServerState(cmd, serverID, want, fail)
 }
 
 func fetchUserProjects() []string {

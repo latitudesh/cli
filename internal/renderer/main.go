@@ -41,8 +41,28 @@ func GetRenderer() Renderer {
 	return BubbleTeaRenderer{}
 }
 
+// GetStaticRenderer is like GetRenderer but never returns the interactive
+// Bubble Tea view. Use it for flows where taking over the terminal is wrong —
+// e.g. a `--wait` that must print the resource and then keep streaming progress.
+func GetStaticRenderer() Renderer {
+	switch ResolveFormat() {
+	case FormatJSON:
+		return JSONRenderer{}
+	case FormatYAML:
+		return YAMLRenderer{}
+	case FormatCSV:
+		return CSVRenderer{}
+	}
+	return TableRenderer{} // plain ASCII, no full-screen takeover
+}
+
 // Render renders the data using the appropriate renderer
 func Render(data []ResponseData) {
 	renderer := GetRenderer()
 	renderer.Render(data)
+}
+
+// RenderStatic renders data without the interactive table.
+func RenderStatic(data []ResponseData) {
+	GetStaticRenderer().Render(data)
 }
