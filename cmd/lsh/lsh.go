@@ -3,6 +3,7 @@ package lsh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"path"
 
 	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
+	"github.com/latitudesh/latitudesh-go-sdk/retry"
+	"github.com/latitudesh/lsh/internal/config"
 	"github.com/latitudesh/lsh/internal/version"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -44,6 +47,23 @@ func NewClient() *latitudeshgosdk.Latitudesh {
 
 func NewContext() context.Context {
 	return context.Background()
+}
+
+// RetryConfig is the retry policy for read-only calls against endpoints
+// that fail transiently (the events endpoint intermittently 500s on
+// date-filtered queries). The SDK retries 429/500/502/503/504 with
+// exponential backoff; intervals are in milliseconds.
+func RetryConfig() retry.Config {
+	return retry.Config{
+		Strategy: "backoff",
+		Backoff: &retry.BackoffStrategy{
+			InitialInterval: 500,
+			MaxInterval:     4000,
+			Exponent:        1.5,
+			MaxElapsedTime:  15000,
+		},
+		RetryConnectionErrors: true,
+	}
 }
 
 func InitViperConfigs() {
@@ -81,7 +101,63 @@ func InitViperConfigs() {
 		if sudoUser != "" {
 			LogDebugf("[CONFIG] Also searched sudo user paths\n")
 		}
-		return
+	} else {
+		LogDebugf("[CONFIG] ✓ Using config file: %v\n", viper.ConfigFileUsed())
 	}
-	LogDebugf("[CONFIG] ✓ Using config file: %v\n", viper.ConfigFileUsed())
+
+	// Hydrate the legacy top-level `Authorization` / `api-version` viper
+	// keys (which the generated commands read) from the active profile.
+	// This keeps every existing operation working unchanged while the
+	// new login flow stores credentials per profile.
+	_ = HydrateFromActiveProfile("")
+}
+
+// HydrateFromActiveProfile resolves the active profile (honoring
+// LATITUDESH_TOKEN, the explicit override, LSH_PROFILE and the stored
+// default_profile, in that order) and sets the per-request viper keys
+// used by the generated SDK calls. It is safe to call multiple times —
+// useful when a `--profile` flag is parsed after the initial load.
+func HydrateFromActiveProfile(override string) error {
+	if token := os.Getenv("LATITUDESH_TOKEN"); token != "" {
+		viper.Set("Authorization", token)
+		if viper.GetString("api-version") == "" {
+			viper.Set("api-version", "2023-06-01")
+		}
+		LogDebugf("[AUTH] Using LATITUDESH_TOKEN from environment")
+		if override != "" {
+			fmt.Fprintf(os.Stderr, "warning: --profile %q ignored because LATITUDESH_TOKEN is set\n", override)
+		}
+		return nil
+	}
+
+	f, err := config.Load()
+	if err != nil {
+		if override != "" {
+			return fmt.Errorf("could not load profile config: %w", err)
+		}
+		LogDebugf("[CONFIG] Could not load profile config: %v", err)
+		return nil
+	}
+
+	_, profile, err := f.Resolve(override)
+	if err != nil {
+		// An explicit --profile that can't be resolved must fail loudly:
+		// silently falling back to the default profile would run the
+		// command under the wrong team's credentials.
+		if override != "" {
+			return fmt.Errorf("profile %q not found — run `lsh profile list` to see available profiles", override)
+		}
+		if !errors.Is(err, config.ErrProfileNotFound) {
+			LogDebugf("[CONFIG] Could not resolve profile: %v", err)
+		}
+		return nil
+	}
+
+	if profile.Authorization != "" {
+		viper.Set("Authorization", profile.Authorization)
+	}
+	if profile.APIVersion != "" {
+		viper.Set("api-version", profile.APIVersion)
+	}
+	return nil
 }

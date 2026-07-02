@@ -8,6 +8,7 @@ import (
 	"github.com/latitudesh/lsh/internal/api/resource"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
+	"github.com/latitudesh/lsh/internal/wait"
 
 	"github.com/go-openapi/swag"
 	"github.com/spf13/cobra"
@@ -31,14 +32,17 @@ type CreateServerReinstallOperation struct {
 
 func (o *CreateServerReinstallOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "reinstall",
-		Short:  "Reintall a server",
-		Long:   "Submit a reinstall request to a server.",
-		RunE:   o.run,
-		PreRun: o.preRun,
+		Use:   "reinstall",
+		Short: "Reinstall a server",
+		// MANUAL — keep when regenerating
+		Example: `  lsh servers reinstall --id sv_xxxxxxxx --operating_system=ubuntu_22_04_x64_lts`,
+		Long:    "Submit a reinstall request to a server.",
+		RunE:    o.run,
+		PreRun:  o.preRun,
 	}
 
 	o.registerFlags(cmd)
+	wait.AddFlags(cmd)
 
 	return cmd, nil
 }
@@ -61,7 +65,7 @@ func (o *CreateServerReinstallOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "operating_system",
 			Label:       "Operating System",
-			Description: `Enum: ["ipxe","windows_server_2019_std_v1","ubuntu_22_04_x64_lts","debian_11","rockylinux_8","debian_10","rhel8","centos_7_4_x64","centos_8_x64","ubuntu_20_04_x64_lts","debian_12","ubuntu22_ml_in_a_box","windows2022"]. The operating system for the new server`,
+			Description: "The operating system slug for the reinstall (e.g. ubuntu_22_04_x64_lts).",
 			Required:    false,
 			Options:     server.SupportedOperatingSystems,
 		},
@@ -86,7 +90,7 @@ func (o *CreateServerReinstallOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "raid",
 			Label:       "RAID Level",
-			Description: `Enum: ["raid-0","raid-1"]. RAID mode for the server`,
+			Description: "RAID mode for the server (e.g. raid-0, raid-1).",
 			Required:    false,
 			Options:     server.SupportedRAIDLevels,
 		},
@@ -134,8 +138,12 @@ func (o *CreateServerReinstallOperation) run(cmd *cobra.Command, args []string) 
 		return nil
 	}
 
-	if !lsh.Debug {
+	waitEnabled := wait.OptionsFrom(cmd).Enabled
+	if !lsh.Debug && !waitEnabled {
 		response.Render()
 	}
-	return nil
+
+	serverID, _ := cmd.Flags().GetString("id")
+	want, fail := serverProvisionTargets()
+	return waitForServerState(cmd, serverID, want, fail)
 }

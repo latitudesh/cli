@@ -1,6 +1,6 @@
 module github.com/latitudesh/lsh
 
-go 1.24.0
+go 1.25.10
 
 require (
 	github.com/charmbracelet/bubbles v0.21.0
@@ -12,16 +12,19 @@ require (
 	github.com/go-openapi/strfmt v0.22.0
 	github.com/go-openapi/swag v0.22.7
 	github.com/go-openapi/validate v0.22.6
-	github.com/latitudesh/latitudesh-go-sdk v1.9.0
+	github.com/jmespath/go-jmespath v0.4.0
+	github.com/latitudesh/latitudesh-go-sdk v1.16.0
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pb33f/libopenapi v0.15.14
+	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.18.2
 	golang.org/x/term v0.37.0
 	golang.org/x/text v0.14.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -84,5 +87,4 @@ require (
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -14,10 +14,11 @@ import (
 func NewCreateCmd() *cobra.Command {
 	o := CreateTagOperation{}
 	cmd := &cobra.Command{
-		Long:  "Create a Tag in the team.\n",
-		RunE:  o.run,
-		Short: "Create a Tag",
-		Use:   "create",
+		Long:    "Create a Tag in the team.\n",
+		RunE:    o.run,
+		Short:   "Create a tag",
+		Example: `  lsh tags create --name="prod" --color=#FF0000`,
+		Use:     "create",
 	}
 
 	// Flags

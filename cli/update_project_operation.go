@@ -34,10 +34,12 @@ type UpdateProjectOperation struct {
 
 func (o *UpdateProjectOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "update",
-		Short:  "Update a project",
-		RunE:   o.run,
-		PreRun: o.preRun,
+		Use:   "update",
+		Short: "Update a project",
+		// MANUAL — keep when regenerating
+		Example: `  lsh projects update --id_or_slug=my-project --name="New name"`,
+		RunE:    o.run,
+		PreRun:  o.preRun,
 	}
 
 	o.registerFlags(cmd)
@@ -88,7 +90,7 @@ func (o *UpdateProjectOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "environment",
 			Label:       "Environment",
-			Description: `Enum: ["Development","Staging","Production"].`,
+			Description: "The project environment label (e.g. development, staging, production).",
 			Options:     project.SupportedEnvironments,
 			Required:    false,
 		},

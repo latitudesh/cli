@@ -7,6 +7,8 @@ import (
 
 	"github.com/latitudesh/lsh/client"
 	"github.com/latitudesh/lsh/cmd/lsh"
+	"github.com/latitudesh/lsh/internal/pagination"
+	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/latitudesh/lsh/internal/version"
 
 	"github.com/go-openapi/runtime"
@@ -56,42 +58,125 @@ func makeClient(cmd *cobra.Command, _ []string) (*client.LatitudeShAPI, error) {
 func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	lsh.InitViperConfigs()
 
+	// Run ancestor PersistentPreRunE hooks even when a subcommand defines
+	// its own. Cobra otherwise runs only the nearest one, which would
+	// silently skip the root hook below (profile hydration + project
+	// resolution) if a generated command is ever regenerated with its own.
+	cobra.EnableTraverseRunHooks = true
+
+	// "Did you mean ..." suggestions for typos in command names.
+	rootCmd.SuggestionsMinimumDistance = 2
+
+	// Dedicated group so help topics show up clearly in `lsh --help`.
+	rootCmd.AddGroup(&cobra.Group{ID: helpTopicsGroupID, Title: "Help topics:"})
+	rootCmd.AddCommand(makeHelpAuthenticationCmd())
+	rootCmd.AddCommand(makeHelpProfilesCmd())
+	rootCmd.AddCommand(makeHelpAutomationCmd())
+	rootCmd.AddCommand(makeHelpOutputFormatsCmd())
+
+	// Re-resolve the active profile once flags have been parsed so that
+	// `--profile <name>` overrides LSH_PROFILE / default_profile for the
+	// duration of the command. Then resolve the --project flag (env >
+	// --all-projects > interactive prompt) for commands that need it.
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		// Record whether --output was set explicitly so the renderer can let an
+		// explicit -o (including -o table) win over the --json shortcut.
+		if cmd.Flags().Changed("output") {
+			viper.Set("output_explicit", true)
+		}
+		// Validate output/query/pagination selection up front so commands fail
+		// fast with an actionable message (and a non-zero exit) instead of
+		// silently falling back or clamping.
+		if err := renderer.ValidateOutputSelection(); err != nil {
+			return err
+		}
+		if err := pagination.Validate(); err != nil {
+			return err
+		}
+		// Hydrate the active profile into viper for commands that authenticate
+		// against the API. Skip the login/auth/profile subtree: there --profile
+		// names a profile to create/inspect/remove (it may not exist yet), and
+		// those commands handle the flag themselves.
+		profile, _ := cmd.Flags().GetString("profile")
+		if profile != "" && !managesProfiles(cmd) {
+			if err := lsh.HydrateFromActiveProfile(profile); err != nil {
+				return err
+			}
+		}
+		return resolveProjectFlag(cmd)
+	}
+
 	// Edit commands template
 	rootCmd.SetVersionTemplate(fmt.Sprintf("lsh %s\n", rootCmd.Version))
 
 	// register basic flags
-	rootCmd.PersistentFlags().String("hostname", client.DefaultHost, "hostname of the service")
+	rootCmd.PersistentFlags().String("hostname", client.DefaultHost, "API hostname (override for dev/staging)")
 	viper.BindPFlag("hostname", rootCmd.PersistentFlags().Lookup("hostname"))
-	rootCmd.PersistentFlags().String("scheme", client.DefaultSchemes[0], fmt.Sprintf("Choose from: %v", client.DefaultSchemes))
+	rootCmd.PersistentFlags().String("scheme", client.DefaultSchemes[0], "API scheme (override for dev/staging)")
 	viper.BindPFlag("scheme", rootCmd.PersistentFlags().Lookup("scheme"))
-	rootCmd.PersistentFlags().String("base-path", client.DefaultBasePath, fmt.Sprintf("For example: %v", client.DefaultBasePath))
+	rootCmd.PersistentFlags().String("base-path", client.DefaultBasePath, "API base path (override for dev/staging)")
 	viper.BindPFlag("base_path", rootCmd.PersistentFlags().Lookup("base-path"))
 
 	var outputFlag string
-	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "table", fmt.Sprintf("For example: %v", "json"))
+	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "table", "output format: table | json | yaml | csv")
 	viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
+	// LSH_OUTPUT sets a per-user default format. viper precedence is
+	// flag > env > config > default, which is exactly what PD-6072 requires.
+	viper.BindEnv("output", "LSH_OUTPUT")
 
 	var formatAsJSON bool
-	rootCmd.PersistentFlags().BoolVar(&formatAsJSON, "json", false, "format output as JSON")
+	rootCmd.PersistentFlags().BoolVar(&formatAsJSON, "json", false, "shortcut for --output=json")
 	viper.BindPFlag("json", rootCmd.PersistentFlags().Lookup("json"))
 
+	// Global automation controls. --query post-processes structured output with
+	// a JMESPath expression; the pagination flags govern every `list` command.
+	rootCmd.PersistentFlags().String("query", "", "filter json/yaml/csv output with a JMESPath expression (see 'lsh help output-formats')")
+	viper.BindPFlag("query", rootCmd.PersistentFlags().Lookup("query"))
+
+	rootCmd.PersistentFlags().Int64("page-size", pagination.DefaultPageSize, "items to request per API page")
+	viper.BindPFlag("page-size", rootCmd.PersistentFlags().Lookup("page-size"))
+
+	rootCmd.PersistentFlags().Int64("max-items", 0, "maximum number of items to return across pages (0 = no limit)")
+	viper.BindPFlag("max-items", rootCmd.PersistentFlags().Lookup("max-items"))
+
+	rootCmd.PersistentFlags().Bool("no-paginate", false, "fetch only the first page; print the next page to stderr if more exist")
+	viper.BindPFlag("no-paginate", rootCmd.PersistentFlags().Lookup("no-paginate"))
+
 	var noInput bool
-	rootCmd.PersistentFlags().BoolVar(&noInput, "no-input", false, "skip interactive mode")
+	rootCmd.PersistentFlags().BoolVar(&noInput, "no-input", false, "disable interactive prompts; fail fast instead (see 'lsh help automation')")
+
+	rootCmd.PersistentFlags().String("profile", "", "use the named profile (overrides LSH_PROFILE and the stored default)")
 
 	// configure config location
-	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file path")
+	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "path to the lsh config file (default ~/.config/lsh/config.json)")
 
 	// register security flags
 	if err := registerAuthInoWriterFlags(rootCmd); err != nil {
 		return nil, err
 	}
 
-	// add login with api -oken
+	// add login (browser-assisted by default, with --with-token escape hatch)
 	operationLoginCmd, err := makeOperationLoginCmd()
 	if err != nil {
 		return nil, err
 	}
 	rootCmd.AddCommand(operationLoginCmd)
+
+	// `auth` group (status, logout)
+	operationAuthCmd, err := makeOperationAuthCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationAuthCmd)
+
+	// `profile` group (use, list) — manages which stored profile is active.
+	// Singular form ("profile") to keep the namespace clear vs. `lsh teams`
+	// (plural) which manages team resources via the API.
+	operationProfileCmd, err := makeOperationProfileCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationProfileCmd)
 
 	operationUpdateCmd, err := makeOperationUpdateCmd()
 	if err != nil {
@@ -104,6 +189,12 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 		return nil, err
 	}
 	rootCmd.AddCommand(operationGroupAPIKeysCmd)
+
+	operationGroupRegionsCmd, err := makeOperationGroupRegionsCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationGroupRegionsCmd)
 
 	operationGroupPlansCmd, err := makeOperationGroupPlansCmd()
 	if err != nil {
@@ -141,18 +232,58 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	}
 	rootCmd.AddCommand(operationGroupVolumeCmd)
 
+	operationGroupTeamsCmd, err := makeOperationGroupTeamsCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationGroupTeamsCmd)
+
+	operationGroupIPsCmd, err := makeOperationGroupIPsCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationGroupIPsCmd)
+
+	operationGroupOperatingSystemsCmd, err := makeOperationGroupOperatingSystemsCmd()
+	if err != nil {
+		return nil, err
+	}
+	rootCmd.AddCommand(operationGroupOperatingSystemsCmd)
+
 	// add cobra completion
 	rootCmd.AddCommand(makeGenCompletionCmd())
 
 	return rootCmd, nil
 }
 
-// registerAuthInoWriterFlags registers all flags needed to perform authentication
+// registerAuthInoWriterFlags registers all flags needed to perform authentication.
+// The --Authorization flag is a low-level escape hatch (it maps directly to the
+// HTTP Authorization header) preserved for backwards compatibility. The normal
+// path is `lsh login` (browser or --with-token) and the LATITUDESH_TOKEN env var,
+// so we keep this flag working but hide it from --help.
 func registerAuthInoWriterFlags(cmd *cobra.Command) error {
-	/*Authorization */
-	cmd.PersistentFlags().String("Authorization", "", ``)
+	cmd.PersistentFlags().String("Authorization", "", "raw value for the Authorization header (use `lsh login` or LATITUDESH_TOKEN instead)")
+	_ = cmd.PersistentFlags().MarkHidden("Authorization")
 	viper.BindPFlag("Authorization", cmd.PersistentFlags().Lookup("Authorization"))
 	return nil
+}
+
+// managesProfiles reports whether cmd belongs to the login/auth/profile
+// subtree. There, --profile names a profile to create, inspect, or remove
+// — so it may legitimately not exist yet, and the root hydration hook must
+// not require it. Every other command uses --profile to pick an existing
+// profile to authenticate with.
+func managesProfiles(cmd *cobra.Command) bool {
+	top := cmd
+	for top.Parent() != nil && top.Parent().HasParent() {
+		top = top.Parent()
+	}
+	switch top.Name() {
+	case "login", "auth", "profile":
+		return true
+	default:
+		return false
+	}
 }
 
 // makeAuthInfoWriter retrieves cmd flags and construct an auth info writer

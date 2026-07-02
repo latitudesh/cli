@@ -28,8 +28,8 @@ func Execute() (*cobra.Command, error) {
 		log.Fatal("Cmd construction error: ", err)
 	}
 
-	rootCmd.PersistentFlags().BoolVar(&lsh.DryRun, "dry-run", false, "do not send the request to server")
-	rootCmd.PersistentFlags().BoolVar(&lsh.Debug, "debug", false, "output debug logs")
+	rootCmd.PersistentFlags().BoolVar(&lsh.DryRun, "dry-run", false, "log the request that would be sent and exit without calling the API")
+	rootCmd.PersistentFlags().BoolVar(&lsh.Debug, "debug", false, "print debug logs to stderr")
 
 	return cmd, cmd.Execute()
 }

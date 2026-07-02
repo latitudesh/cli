@@ -9,6 +9,7 @@ import (
 	"github.com/latitudesh/lsh/internal/api/resource"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/utils"
+	"github.com/latitudesh/lsh/internal/wait"
 
 	"github.com/spf13/cobra"
 )
@@ -30,13 +31,30 @@ type CreateServerOperation struct {
 
 func (o *CreateServerOperation) Register() (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:    "create",
-		Short:  "Deploy a bare metal server",
+		Use:   "create",
+		Short: "Deploy a bare metal server",
+		// MANUAL — keep when regenerating
+		Example: `  # Minimal deploy
+  lsh servers create \
+    --project=my-project \
+    --site=NYC2 \
+    --plan=c2-small-x86 \
+    --operating_system=ubuntu_22_04 \
+    --hostname=web-01
+
+  # With SSH keys
+  lsh servers create \
+    --project=my-project \
+    --site=NYC2 \
+    --plan=c2-small-x86 \
+    --hostname=web-02 \
+    --ssh_keys=key_abc,key_def`,
 		RunE:   o.run,
 		PreRun: o.preRun,
 	}
 
 	o.registerFlags(cmd)
+	wait.AddFlags(cmd)
 
 	return cmd, nil
 }
@@ -56,21 +74,21 @@ func (o *CreateServerOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "operating_system",
 			Label:       "Operating System",
-			Description: `Enum: ["ipxe","windows_server_2019_std_v1","ubuntu_22_04_x64_lts","debian_11","rockylinux_8","debian_10","rhel8","centos_7_4_x64","centos_8_x64","ubuntu_20_04_x64_lts","debian_12","ubuntu22_ml_in_a_box","windows2022"]. The operating system for the new server`,
+			Description: "The operating system slug for the new server (e.g. ubuntu_22_04_x64_lts).",
 			Required:    true,
 			Options:     server.SupportedOperatingSystems,
 		},
 		&cmdflag.String{
 			Name:        "plan",
 			Label:       "Plan",
-			Description: `Enum: ["c2-large-x86","c2-medium-x86","c2-small-x86","c3-large-x86","c3-medium-x86","c3-small-x86","c3-xlarge-x86","g3-large-x86","g3-medium-x86","g3-small-x86","g3-xlarge-x86","m3-large-x86","s2-small-x86","s3-large-x86"]. The plan to choose server from`,
+			Description: `The plan slug to provision (e.g. c3-small-x86). Run "lsh plans list" to see what is available.`,
 			Required:    true,
 			Options:     server.SupportedPlans,
 		},
 		&cmdflag.String{
 			Name:        "site",
 			Label:       "Site",
-			Description: `Enum: ["ASH","BGT","BUE","CHI","DAL","FRA","LAX","LON","MEX","MEX2","MIA","MIA2","NYC","SAN","SAN2","SAO","SAO2","SYD","TYO","TYO2"]. The site to deploy the server`,
+			Description: "The site slug to deploy the server in (e.g. NYC2).",
 			Required:    true,
 			Options:     server.SupportedSites,
 		},
@@ -90,7 +108,7 @@ func (o *CreateServerOperation) registerFlags(cmd *cobra.Command) {
 		&cmdflag.String{
 			Name:        "raid",
 			Label:       "RAID Level",
-			Description: `Enum: ["raid-0","raid-1"]. RAID mode for the server`,
+			Description: "RAID mode for the server (e.g. raid-0, raid-1).",
 			Required:    false,
 			Options:     server.SupportedRAIDLevels,
 		},
@@ -144,11 +162,21 @@ func (o *CreateServerOperation) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !lsh.Debug {
+	waitOpts := wait.OptionsFrom(cmd)
+
+	// When waiting, the create payload is an optimistic snapshot (it can report
+	// "on" while the server is still deploying); skip it and let the wait render
+	// the real final state instead.
+	if !lsh.Debug && !waitOpts.Enabled {
 		utils.Render(response.GetData())
 	}
 
-	return nil
+	var serverID string
+	if p := response.GetPayload(); p != nil && p.Data != nil {
+		serverID = p.Data.ID
+	}
+	want, fail := serverProvisionTargets()
+	return waitForServerState(cmd, serverID, want, fail)
 }
 
 func fetchUserProjects() []string {

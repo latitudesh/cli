@@ -13,7 +13,7 @@ func NewListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Long:  "List all Tags in the team.\n",
 		RunE:  op.run,
-		Short: "List all Tags",
+		Short: "List tags",
 		Use:   "list",
 	}
 

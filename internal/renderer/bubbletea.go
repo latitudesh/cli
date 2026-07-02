@@ -23,6 +23,11 @@ func (btr BubbleTeaRenderer) Render(data []ResponseData) {
 		return
 	}
 
+	if isIPData(data) {
+		renderIPsWithDetails(data)
+		return
+	}
+
 	// Convert ResponseData to Bubble Tea format
 	columns, rows := convertToTableFormat(data)
 
@@ -44,6 +49,38 @@ func isServerData(data []ResponseData) bool {
 	_, hasHostname := firstRow["hostname"]
 	_, hasIPMI := firstRow["ipmi_status"]
 	return hasHostname && hasIPMI
+}
+
+// isIPData checks if the data is IP address data
+func isIPData(data []ResponseData) bool {
+	if len(data) == 0 {
+		return false
+	}
+
+	firstRow := data[0].TableRow()
+	_, hasAddress := firstRow["address"]
+	_, hasFamily := firstRow["family"]
+	return hasAddress && hasFamily
+}
+
+// renderIPsWithDetails renders IPs with enter-to-details support
+func renderIPsWithDetails(data []ResponseData) {
+	columns, rows := convertToTableFormat(data)
+
+	var originals []map[string]string
+	for _, item := range data {
+		row := item.TableRow()
+		fields := make(map[string]string)
+		for _, cell := range row {
+			fields[cell.Label] = fmt.Sprintf("%v", cell.Value)
+		}
+		originals = append(originals, fields)
+	}
+
+	err := tui.RunResourceTable("IP Addresses", "IPs", "IP Details", "Address", columns, rows, originals)
+	if err != nil {
+		fmt.Printf("Error rendering table: %v\n", err)
+	}
 }
 
 // renderServersWithDetails renders servers with details support

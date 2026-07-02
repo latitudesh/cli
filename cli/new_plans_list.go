@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,20 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/latitudesh/lsh/internal/tui"
-	"github.com/olekukonko/tablewriter"
+	"github.com/latitudesh/lsh/internal/output/table"
+	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-// register in your root.go: rootCmd.AddCommand(newPlansCmd())
-func newPlansCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "plans", Short: "Inspect Latitude.sh server plans"}
-	cmd.AddCommand(newPlansListCmd())
-	cmd.AddCommand(newPlansAvailabilityCmd())
-	return cmd
-}
 
 func newPlansListCmd() *cobra.Command {
 	var (
@@ -45,8 +35,9 @@ func newPlansListCmd() *cobra.Command {
 	)
 
 	c := &cobra.Command{
-		Use:   "list",
-		Short: "List available plans in grouped format",
+		Use:          "list",
+		Short:        "List available plans in grouped format",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if token == "" {
 				token = os.Getenv("LATITUDESH_AUTH_TOKEN")
@@ -66,7 +57,11 @@ func newPlansListCmd() *cobra.Command {
 			}
 
 			grouped := groupPlans(plans, gpu, name, slug, inStock, location, stockLevel, diskEql, diskGte, diskLte, ramEql, ramGte, ramLte)
-			renderGroupedPlans(grouped)
+			rows := make([]renderer.ResponseData, 0, len(grouped))
+			for i := range grouped {
+				rows = append(rows, grouped[i])
+			}
+			renderer.Render(rows)
 			return nil
 		},
 	}
@@ -109,11 +104,17 @@ func newPlansAvailabilityCmd() *cobra.Command {
 	)
 
 	c := &cobra.Command{
-		Use:   "stock",
-		Short: "Show detailed plan availability by location with optional filters",
+		Use:          "stock",
+		Short:        "Show detailed plan availability by location with optional filters",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if format == "" {
-				format = "table"
+			// --format is the legacy per-command flag. It now feeds the global
+			// output selection so `plans stock` renders through the same
+			// pipeline as every other command (table/json/yaml/csv + --query).
+			// Never override an explicit -o/--output: viper.Set writes the
+			// highest-priority layer, so guard on the global flag not being set.
+			if cmd.Flags().Changed("format") && !cmd.Flags().Changed("output") && format != "" {
+				viper.Set("output", format)
 			}
 			if token == "" {
 				token = os.Getenv("LATITUDESH_AUTH_TOKEN")
@@ -132,25 +133,13 @@ func newPlansAvailabilityCmd() *cobra.Command {
 				return err
 			}
 
-			rows := filterAndFlatten(plans, region, location, inStock, available, gpu, name, slug, stockLevel, diskEql, diskGte, diskLte, ramEql, ramGte, ramLte)
-
-			switch strings.ToLower(format) {
-			case "json":
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				return enc.Encode(rows)
-			case "csv":
-				w := csv.NewWriter(os.Stdout)
-				_ = w.Write([]string{"plan_slug", "cpu_count", "cpu_cores", "cpu_clock", "cpu_type", "memory_total_gb", "drive_types", "stock_level", "monthly_usd", "region", "location"})
-				for _, r := range rows {
-					_ = w.Write([]string{r.PlanSlug, itoa(r.CPUCount), itoa(r.CPUCores), r.CPUClock, r.CPUType, itoa(r.MemoryTotalGB), strings.Join(r.DriveTypes, "; "), r.StockLevel, r.MonthlyUSD, r.Region, r.Location})
-				}
-				w.Flush()
-				return w.Error()
-			default:
-				renderStockTable(rows)
-				return nil
+			flat := filterAndFlatten(plans, region, location, inStock, available, gpu, name, slug, stockLevel, diskEql, diskGte, diskLte, ramEql, ramGte, ramLte)
+			rows := make([]renderer.ResponseData, 0, len(flat))
+			for i := range flat {
+				rows = append(rows, flat[i])
 			}
+			renderer.Render(rows)
+			return nil
 		},
 	}
 
@@ -169,7 +158,10 @@ func newPlansAvailabilityCmd() *cobra.Command {
 	c.Flags().IntVar(&ramEql, "ram_eql", 0, "Filter plans with RAM size (in GB) equals the provided value.")
 	c.Flags().IntVar(&ramGte, "ram_gte", 0, "Filter plans with RAM size (in GB) greater than or equal the provided value.")
 	c.Flags().IntVar(&ramLte, "ram_lte", 0, "Filter plans with RAM size (in GB) less than or equal the provided value.")
-	c.Flags().StringVar(&format, "format", "table", "Output format: table|csv|json")
+	// Deprecated: superseded by the global -o/--output flag. Kept (hidden) so
+	// existing `plans stock --format csv|json` invocations keep working.
+	c.Flags().StringVar(&format, "format", "", "(deprecated) use -o/--output instead: table|csv|json")
+	_ = c.Flags().MarkHidden("format")
 	c.Flags().StringVar(&token, "token", "", "API token (defaults to LATITUDESH_AUTH_TOKEN)")
 
 	return c
@@ -187,6 +179,20 @@ type groupedPlan struct {
 	InStock     []string `json:"in_stock"`
 	Features    []string `json:"features"`
 	Memory      string   `json:"memory"`
+}
+
+func (p groupedPlan) TableRow() table.Row {
+	return table.Row{
+		"id":           {Value: p.ID, Label: "ID"},
+		"slug":         {Value: p.Slug, Label: "Slug"},
+		"cpu":          {Value: p.CPU, Label: "CPU"},
+		"memory":       {Value: p.Memory, Label: "Memory"},
+		"drives":       {Value: p.Drives, Label: "Drives"},
+		"nic":          {Value: p.NIC, Label: "NIC"},
+		"features":     {Value: strings.Join(p.Features, ", "), Label: "Features"},
+		"available_in": {Value: strings.Join(p.AvailableIn, ", "), Label: "Available In"},
+		"in_stock":     {Value: strings.Join(p.InStock, ", "), Label: "In Stock"},
+	}
 }
 
 func groupPlans(pr *plansResponse, gpu bool, name, slug string, inStock bool, location, stockLevel string, diskEql, diskGte, diskLte, ramEql, ramGte, ramLte int) []groupedPlan {
@@ -344,303 +350,6 @@ func groupPlans(pr *plansResponse, gpu bool, name, slug string, inStock bool, lo
 	return grouped
 }
 
-func renderGroupedPlans(plans []groupedPlan) {
-	if len(plans) == 0 {
-		fmt.Println("\nNo plans found matching your filters.")
-		return
-	}
-
-	// Check if JSON output was requested
-	if viper.GetBool("json") || viper.GetString("output") == "json" {
-		renderGroupedPlansJSON(plans)
-		return
-	}
-
-	if os.Getenv("LSH_CLASSIC_OUTPUT") == "true" {
-		renderGroupedPlansClassic(plans)
-		return
-	}
-
-	columns := []table.Column{
-		{Title: "SLUG", Width: 20},
-		{Title: "CPU", Width: 25},
-		{Title: "DRIVES", Width: 30},
-		{Title: "NIC", Width: 10},
-		{Title: "ID", Width: 18},
-		{Title: "FEATURES", Width: 15},
-		{Title: "MEMORY", Width: 10},
-		{Title: "AVAILABLE IN", Width: 40},
-		{Title: "IN STOCK", Width: 30},
-	}
-
-	var rows []table.Row
-	var originalPlans []map[string]string
-
-	for _, p := range plans {
-		availStr := wrapLocationsSmartLimit(p.AvailableIn, 4)
-		stockStr := wrapLocationsSmartLimit(p.InStock, 3)
-
-		rows = append(rows, table.Row{
-			p.Slug,
-			p.CPU,
-			p.Drives,
-			p.NIC,
-			p.ID,
-			strings.Join(p.Features, ", "),
-			p.Memory,
-			availStr,
-			stockStr,
-		})
-
-		originalPlans = append(originalPlans, map[string]string{
-			"SLUG":         p.Slug,
-			"CPU":          p.CPU,
-			"DRIVES":       p.Drives,
-			"NIC":          p.NIC,
-			"ID":           p.ID,
-			"FEATURES":     strings.Join(p.Features, ", "),
-			"MEMORY":       p.Memory,
-			"AVAILABLE IN": strings.Join(p.AvailableIn, ", "),
-			"IN STOCK":     strings.Join(p.InStock, ", "),
-		})
-	}
-
-	tui.RunPlansTable("Available Plans", columns, rows, originalPlans)
-}
-
-func wrapLocations(locs []string, maxPerLine int) string {
-	if len(locs) == 0 {
-		return ""
-	}
-
-	var lines []string
-	var currentLine []string
-
-	for _, loc := range locs {
-		currentLine = append(currentLine, loc)
-		if len(currentLine) >= maxPerLine {
-			lines = append(lines, strings.Join(currentLine, ", "))
-			currentLine = nil
-		}
-	}
-
-	if len(currentLine) > 0 {
-		lines = append(lines, strings.Join(currentLine, ", "))
-	}
-
-	return strings.Join(lines, ",\n")
-}
-
-func wrapLocationsSimple(locs []string, maxLen int) string {
-	if len(locs) == 0 {
-		return ""
-	}
-
-	joined := strings.Join(locs, ", ")
-	if len(joined) > maxLen {
-		return joined[:maxLen-3] + "..."
-	}
-	return joined
-}
-
-func wrapLocationsSmartLimit(locs []string, maxDisplay int) string {
-	if len(locs) == 0 {
-		return ""
-	}
-
-	if len(locs) <= maxDisplay {
-		return strings.Join(locs, ", ")
-	}
-
-	displayed := strings.Join(locs[:maxDisplay], ", ")
-	remaining := len(locs) - maxDisplay
-	return fmt.Sprintf("%s, +%d", displayed, remaining)
-}
-
-func renderGroupedPlansJSON(plans []groupedPlan) {
-	jsonData, err := json.MarshalIndent(plans, "", "    ")
-	if err != nil {
-		fmt.Println("Could not encode plans as JSON.")
-		return
-	}
-	fmt.Println(string(jsonData))
-}
-
-func renderGroupedPlansClassic(plans []groupedPlan) {
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"SLUG", "CPU", "DRIVES", "NIC", "ID", "FEATURES", "MEMORY", "AVAILABLE IN", "IN STOCK"})
-	table.SetRowLine(true)
-	table.SetColWidth(18)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAutoFormatHeaders(true)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-
-	for _, p := range plans {
-		availStr := wrapLocations(p.AvailableIn, 20)
-		stockStr := wrapLocations(p.InStock, 10)
-
-		table.Append([]string{
-			p.Slug,
-			p.CPU,
-			p.Drives,
-			p.NIC,
-			p.ID,
-			strings.Join(p.Features, "\n"),
-			p.Memory,
-			availStr,
-			stockStr,
-		})
-	}
-
-	fmt.Println()
-	table.Render()
-	fmt.Printf("\nTotal: %d plans\n\n", len(plans))
-}
-
-func renderStockTable(rows []flatRow) {
-	if len(rows) == 0 {
-		fmt.Println("\nNo plans found matching your filters.")
-		return
-	}
-
-	if os.Getenv("LSH_CLASSIC_OUTPUT") == "true" {
-		renderStockTableClassic(rows)
-		return
-	}
-
-	// Converter para formato Bubble Tea
-	columns := []table.Column{
-		{Title: "PLAN", Width: 20},
-		{Title: "ID", Width: 18},
-		{Title: "CPU", Width: 25},
-		{Title: "RAM", Width: 10},
-		{Title: "DRIVES", Width: 20},
-		{Title: "FEATURES", Width: 15},
-		{Title: "STOCK", Width: 12},
-		{Title: "PRICE/MO", Width: 12},
-		{Title: "REGION", Width: 15},
-		{Title: "LOCATION", Width: 20},
-	}
-
-	var tableRows []table.Row
-	var originalPlans []map[string]string
-
-	for _, r := range rows {
-		// Format CPU
-		cpuInfo := fmt.Sprintf("%dx %s", r.CPUCount, r.CPUType)
-		if r.CPUClock != "" {
-			cpuInfo += " " + r.CPUClock
-		}
-
-		// Format RAM
-		ramInfo := fmt.Sprintf("%dGB", r.MemoryTotalGB)
-
-		// Format drives
-		drivesInfo := strings.Join(r.DriveTypes, ", ")
-
-		// Features
-		features := []string{"ssh", "user_data"}
-		if r.DriveCount > 1 {
-			features = append(features, "raid")
-		}
-		featuresInfo := strings.Join(features, ", ")
-
-		// Stock
-		stockDisplay := strings.ToUpper(r.StockLevel)
-
-		// Price
-		priceDisplay := fmt.Sprintf("$%s", r.MonthlyUSD)
-
-		tableRows = append(tableRows, table.Row{
-			r.PlanSlug,
-			r.PlanID,
-			cpuInfo,
-			ramInfo,
-			drivesInfo,
-			featuresInfo,
-			stockDisplay,
-			priceDisplay,
-			r.Region,
-			r.Location,
-		})
-
-		originalPlans = append(originalPlans, map[string]string{
-			"PLAN":     r.PlanSlug,
-			"ID":       r.PlanID,
-			"CPU":      cpuInfo,
-			"RAM":      ramInfo,
-			"DRIVES":   drivesInfo,
-			"FEATURES": featuresInfo,
-			"STOCK":    stockDisplay,
-			"PRICE/MO": priceDisplay,
-			"REGION":   r.Region,
-			"LOCATION": r.Location,
-		})
-	}
-
-	tui.RunPlansTable("Plans Availability", columns, tableRows, originalPlans)
-}
-
-func renderStockTableClassic(rows []flatRow) {
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"PLAN", "ID", "CPU", "RAM", "DRIVES", "FEATURES", "STOCK", "PRICE/MO", "REGION", "LOCATION"})
-	table.SetRowLine(true)
-	table.SetAutoWrapText(false)
-	table.SetAutoFormatHeaders(true)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetCenterSeparator("|")
-	table.SetColumnSeparator("|")
-	table.SetRowSeparator("-")
-
-	for _, r := range rows {
-		// Format CPU info more compactly
-		cpuInfo := fmt.Sprintf("%dx %s", r.CPUCount, r.CPUType)
-		if r.CPUClock != "" {
-			cpuInfo += fmt.Sprintf("\n%s", r.CPUClock)
-		}
-		if r.CPUCores > 0 {
-			cpuInfo += fmt.Sprintf("\n(%d cores)", r.CPUCores)
-		}
-
-		// Format RAM
-		ramInfo := fmt.Sprintf("%dGB", r.MemoryTotalGB)
-
-		// Format drives
-		drivesInfo := strings.Join(r.DriveTypes, "\n")
-
-		// Format features
-		features := []string{"ssh", "user_data"}
-		if r.DriveCount > 1 {
-			features = append(features, "raid")
-		}
-		featuresInfo := strings.Join(features, "\n")
-
-		// Format stock level
-		stockDisplay := strings.ToUpper(r.StockLevel)
-
-		// Format price
-		priceDisplay := fmt.Sprintf("$%s", r.MonthlyUSD)
-
-		table.Append([]string{
-			r.PlanSlug,
-			r.PlanID,
-			cpuInfo,
-			ramInfo,
-			drivesInfo,
-			featuresInfo,
-			stockDisplay,
-			priceDisplay,
-			r.Region,
-			r.Location,
-		})
-	}
-
-	fmt.Println()
-	table.Render()
-	fmt.Printf("\nTotal: %d results\n\n", len(rows))
-}
-
 // --- API layer ---
 
 // Minimal shapes that match the /plans response (only what we need)
@@ -724,6 +433,24 @@ type flatRow struct {
 	MonthlyUSD    string   `json:"monthly_usd"`
 	Region        string   `json:"region"`
 	Location      string   `json:"location"`
+}
+
+func (r flatRow) TableRow() table.Row {
+	cpu := fmt.Sprintf("%dx %s", r.CPUCount, r.CPUType)
+	if r.CPUClock != "" {
+		cpu += " " + r.CPUClock
+	}
+	return table.Row{
+		"plan_slug":       {Value: r.PlanSlug, Label: "Plan"},
+		"plan_id":         {Value: r.PlanID, Label: "ID"},
+		"cpu":             {Value: cpu, Label: "CPU"},
+		"memory_total_gb": {Value: fmt.Sprintf("%dGB", r.MemoryTotalGB), Label: "RAM"},
+		"drive_types":     {Value: strings.Join(r.DriveTypes, ", "), Label: "Drives"},
+		"stock_level":     {Value: strings.ToUpper(r.StockLevel), Label: "Stock"},
+		"monthly_usd":     {Value: r.MonthlyUSD, Label: "Price/mo"},
+		"region":          {Value: r.Region, Label: "Region"},
+		"location":        {Value: r.Location, Label: "Location"},
+	}
 }
 
 func fetchPlans(ctx context.Context, token string) (*plansResponse, error) {
@@ -876,8 +603,6 @@ func filterAndFlatten(pr *plansResponse, regionName, loc string, inStock, availa
 	})
 	return rows
 }
-
-func itoa(i int) string { return fmt.Sprintf("%d", i) }
 
 func toSet(ss []string) map[string]bool {
 	m := make(map[string]bool, len(ss))
