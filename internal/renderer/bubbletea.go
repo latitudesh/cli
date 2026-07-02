@@ -117,6 +117,9 @@ var preferredColumnOrder = []string{
 	"servers",
 	"vlans",
 	"tags",
+	"size_in_gb",
+	"project",
+	"attached",
 }
 
 // sortColumnsByPreference ordena as colunas baseado na ordem preferida
