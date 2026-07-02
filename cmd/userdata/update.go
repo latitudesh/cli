@@ -23,7 +23,7 @@ func NewUpdateCmd() *cobra.Command {
 	}
 
 	cmd.Flags().String("description", "", "New description of the user data")
-	registerContentFlags(cmd)
+	RegisterContentFlags(cmd)
 
 	return cmd
 }
@@ -40,7 +40,7 @@ func (o *UpdateUserDataOperation) run(cmd *cobra.Command, args []string) error {
 		attributes.Description = &description
 		changed = true
 	}
-	if content, ok := resolveContent(cmd); ok {
+	if content, ok := ResolveContent(cmd); ok {
 		attributes.Content = &content
 		changed = true
 	}

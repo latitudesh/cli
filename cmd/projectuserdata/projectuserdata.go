@@ -4,8 +4,6 @@
 package projectuserdata
 
 import (
-	"encoding/base64"
-
 	cobra "github.com/spf13/cobra"
 )
 
@@ -21,24 +19,4 @@ func projectID(cmd *cobra.Command) string {
 // hook keys off of. Omitting it defaults to the active project.
 func registerProjectFlag(cmd *cobra.Command) {
 	cmd.Flags().String("project", "", "Project ID or slug (defaults to the active project)")
-}
-
-// resolveContent mirrors the account-scoped userdata content handling: --content
-// takes plain text and is base64-encoded before sending, --content-base64 is
-// passed through unchanged.
-func resolveContent(cmd *cobra.Command) (string, bool) {
-	if cmd.Flags().Changed("content-base64") {
-		v, _ := cmd.Flags().GetString("content-base64")
-		return v, true
-	}
-	if cmd.Flags().Changed("content") {
-		v, _ := cmd.Flags().GetString("content")
-		return base64.StdEncoding.EncodeToString([]byte(v)), true
-	}
-	return "", false
-}
-
-func registerContentFlags(cmd *cobra.Command) {
-	cmd.Flags().String("content", "", "Plain-text content (base64-encoded before sending)")
-	cmd.Flags().String("content-base64", "", "Already base64-encoded content (sent as-is)")
 }

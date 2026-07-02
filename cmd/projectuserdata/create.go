@@ -24,7 +24,7 @@ func NewCreateCmd() *cobra.Command {
 
 	registerProjectFlag(cmd)
 	cmd.Flags().String("description", "", "Description of the user data (required)")
-	registerContentFlags(cmd)
+	userdata.RegisterContentFlags(cmd)
 
 	return cmd
 }
@@ -33,7 +33,7 @@ type CreateProjectUserDataOperation struct{}
 
 func (o *CreateProjectUserDataOperation) run(cmd *cobra.Command, args []string) error {
 	description, _ := cmd.Flags().GetString("description")
-	content, ok := resolveContent(cmd)
+	content, ok := userdata.ResolveContent(cmd)
 
 	if description == "" || !ok {
 		return fmt.Errorf("--description and one of --content/--content-base64 are required")

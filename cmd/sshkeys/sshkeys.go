@@ -6,15 +6,11 @@ import (
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/lsh/internal/output/table"
 	"github.com/latitudesh/lsh/internal/renderer"
+	"github.com/latitudesh/lsh/internal/utils"
 )
 
-// getStr safely dereferences a *string.
-func getStr(s *string) string {
-	if s != nil {
-		return *s
-	}
-	return ""
-}
+// getStr aliases utils.Str for brevity in this package.
+var getStr = utils.Str
 
 // SSHKeys is a renderable collection of SSH keys.
 type SSHKeys struct {

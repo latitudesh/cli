@@ -76,11 +76,11 @@ func TestUserDataDetailFields(t *testing.T) {
 func TestResolveContentEncodesPlainText(t *testing.T) {
 	t.Run("plain text is encoded", func(t *testing.T) {
 		cmd := &cobra.Command{}
-		registerContentFlags(cmd)
+		RegisterContentFlags(cmd)
 		if err := cmd.Flags().Parse([]string{"--content", "#cloud-config"}); err != nil {
 			t.Fatalf("parse: %v", err)
 		}
-		got, ok := resolveContent(cmd)
+		got, ok := ResolveContent(cmd)
 		if !ok {
 			t.Fatal("expected content to be present")
 		}
@@ -92,11 +92,11 @@ func TestResolveContentEncodesPlainText(t *testing.T) {
 
 	t.Run("base64 is passed through", func(t *testing.T) {
 		cmd := &cobra.Command{}
-		registerContentFlags(cmd)
+		RegisterContentFlags(cmd)
 		if err := cmd.Flags().Parse([]string{"--content-base64", "YWxyZWFkeQ=="}); err != nil {
 			t.Fatalf("parse: %v", err)
 		}
-		got, ok := resolveContent(cmd)
+		got, ok := ResolveContent(cmd)
 		if !ok || got != "YWxyZWFkeQ==" {
 			t.Errorf("content = %q (ok=%v), want YWxyZWFkeQ==", got, ok)
 		}
@@ -104,8 +104,8 @@ func TestResolveContentEncodesPlainText(t *testing.T) {
 
 	t.Run("no flag returns not-present", func(t *testing.T) {
 		cmd := &cobra.Command{}
-		registerContentFlags(cmd)
-		if _, ok := resolveContent(cmd); ok {
+		RegisterContentFlags(cmd)
+		if _, ok := ResolveContent(cmd); ok {
 			t.Error("expected content to be absent")
 		}
 	})
@@ -115,5 +115,19 @@ func TestResolveContentEncodesPlainText(t *testing.T) {
 func TestListRegistersSubcommandName(t *testing.T) {
 	if cmd := NewListCmd(); cmd.Use != "list" {
 		t.Errorf("Use = %q, want list", cmd.Use)
+	}
+}
+
+// TestContentFlagsMutuallyExclusive guards the cobra flag-group wiring: passing
+// both --content and --content-base64 must fail instead of silently preferring
+// one of them.
+func TestContentFlagsMutuallyExclusive(t *testing.T) {
+	cmd := &cobra.Command{Use: "x", RunE: func(*cobra.Command, []string) error { return nil }}
+	RegisterContentFlags(cmd)
+	cmd.SetArgs([]string{"--content", "a", "--content-base64", "YQ=="})
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected mutually-exclusive flag error, got nil")
 	}
 }

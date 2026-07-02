@@ -25,7 +25,7 @@ func NewUpdateCmd() *cobra.Command {
 
 	registerProjectFlag(cmd)
 	cmd.Flags().String("description", "", "New description of the user data")
-	registerContentFlags(cmd)
+	userdata.RegisterContentFlags(cmd)
 
 	return cmd
 }
@@ -42,7 +42,7 @@ func (o *UpdateProjectUserDataOperation) run(cmd *cobra.Command, args []string) 
 		attributes.Description = &description
 		changed = true
 	}
-	if content, ok := resolveContent(cmd); ok {
+	if content, ok := userdata.ResolveContent(cmd); ok {
 		attributes.Content = &content
 		changed = true
 	}

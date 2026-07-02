@@ -3,6 +3,8 @@ package projectuserdata
 import (
 	"encoding/base64"
 	"testing"
+
+	userdata "github.com/latitudesh/lsh/cmd/userdata"
 )
 
 // TestProjectFlagRegisteredOnAllCommands ensures every project-scoped user data
@@ -43,7 +45,7 @@ func TestResolveContentEncodesPlainText(t *testing.T) {
 	if err := cmd.Flags().Parse([]string{"--content", "#cloud-config"}); err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	got, ok := resolveContent(cmd)
+	got, ok := userdata.ResolveContent(cmd)
 	if !ok {
 		t.Fatal("expected content present")
 	}
