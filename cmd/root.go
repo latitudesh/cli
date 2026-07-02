@@ -31,5 +31,10 @@ func Execute() (*cobra.Command, error) {
 	rootCmd.PersistentFlags().BoolVar(&lsh.DryRun, "dry-run", false, "log the request that would be sent and exit without calling the API")
 	rootCmd.PersistentFlags().BoolVar(&lsh.Debug, "debug", false, "print debug logs to stderr")
 
+	// Attach the SDK-based project-scoped groups (`projects ssh-keys`,
+	// `projects user-data`) to the generated `projects` command, which only
+	// exists after MakeRootCmd has run.
+	wireProjectScopedCommands(cmd)
+
 	return cmd, cmd.Execute()
 }
