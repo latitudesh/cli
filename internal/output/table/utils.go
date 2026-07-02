@@ -3,6 +3,7 @@ package table
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/olekukonko/tablewriter"
 )
@@ -55,12 +56,52 @@ func RenderEmptyState(message string) {
 	fmt.Println()
 }
 
-func extractHeaders(row Row) Header {
-	var headers Header
+// preferredColumnOrder mirrors the interactive table ordering so static and
+// Bubble Tea views print columns consistently. Unlisted columns follow in
+// alphabetical order.
+var preferredColumnOrder = []string{
+	"id",
+	"name",
+	"slug",
+	"environment",
+	"description",
+	"provisioning_type",
+	"team",
+	"ips",
+	"servers",
+	"vlans",
+	"tags",
+}
 
-	for k, v := range row {
+func extractHeaders(row Row) Header {
+	ids := make([]string, 0, len(row))
+	for k := range row {
+		ids = append(ids, k)
+	}
+
+	priority := make(map[string]int, len(preferredColumnOrder))
+	for i, id := range preferredColumnOrder {
+		priority[id] = i
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		pi, oki := priority[ids[i]]
+		pj, okj := priority[ids[j]]
+		switch {
+		case oki && okj:
+			return pi < pj
+		case oki:
+			return true
+		case okj:
+			return false
+		default:
+			return ids[i] < ids[j]
+		}
+	})
+
+	var headers Header
+	for _, k := range ids {
 		headers.IDs = append(headers.IDs, k)
-		headers.Labels = append(headers.Labels, v.Label)
+		headers.Labels = append(headers.Labels, row[k].Label)
 	}
 
 	return headers

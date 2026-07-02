@@ -28,6 +28,13 @@ func (btr BubbleTeaRenderer) Render(data []ResponseData) {
 		return
 	}
 
+	// A single plain row doesn't warrant a full-screen interactive table;
+	// print it flat so the terminal isn't taken over for trivial output.
+	if len(data) == 1 {
+		GetStaticRenderer().Render(data)
+		return
+	}
+
 	// Convert ResponseData to Bubble Tea format
 	columns, rows := convertToTableFormat(data)
 
