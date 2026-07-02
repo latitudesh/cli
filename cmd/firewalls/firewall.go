@@ -73,6 +73,16 @@ func (m *Firewall) TableRow() table.Row {
 	}
 }
 
+// DetailView describes how firewalls are titled in the interactive views.
+func (m *Firewall) DetailView() renderer.DetailView {
+	return renderer.DetailView{
+		Title:        "Firewalls",
+		Noun:         "firewalls",
+		DetailPrefix: "Firewall",
+		TitleKey:     "Name",
+	}
+}
+
 // DetailFields expands each firewall rule as its own line in the interactive
 // details view (the compact table column only shows the rule count).
 func (m *Firewall) DetailFields() map[string]string {

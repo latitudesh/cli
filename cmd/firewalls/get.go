@@ -44,7 +44,7 @@ func (o *GetFirewallOperation) run(cmd *cobra.Command, args []string) error {
 
 	if response.Firewall != nil && response.Firewall.Data != nil && !lsh.Debug {
 		firewall := Firewall{FirewallData: *response.Firewall.Data}
-		utils.Render(firewall.GetData())
+		utils.RenderDetails(firewall.GetData())
 	}
 
 	return nil

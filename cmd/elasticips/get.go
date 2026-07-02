@@ -44,7 +44,7 @@ func (o *GetElasticIPOperation) run(cmd *cobra.Command, args []string) error {
 
 	if response.ElasticIP != nil && response.ElasticIP.Data != nil && !lsh.Debug {
 		ip := ElasticIP{ElasticIPData: *response.ElasticIP.Data}
-		utils.Render(ip.GetData())
+		utils.RenderDetails(ip.GetData())
 	}
 
 	return nil
