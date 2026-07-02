@@ -15,3 +15,11 @@ func TitleStr(str string) string {
 func Singular(str string) string {
 	return strings.TrimSuffix(str, "s")
 }
+
+// Str dereferences s, returning the empty string when nil.
+func Str(s *string) string {
+	if s != nil {
+		return *s
+	}
+	return ""
+}

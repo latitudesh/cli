@@ -28,6 +28,14 @@ func (btr BubbleTeaRenderer) Render(data []ResponseData) {
 		return
 	}
 
+	// Resources that expose rich detail fields get the enter-to-details table.
+	// Today only firewalls implement DetailFielder; parameterize the titles in
+	// renderFirewallsWithDetails when a second resource adopts it.
+	if _, ok := data[0].(DetailFielder); ok {
+		renderFirewallsWithDetails(data)
+		return
+	}
+
 	// Convert ResponseData to Bubble Tea format
 	columns, rows := convertToTableFormat(data)
 
@@ -61,6 +69,37 @@ func isIPData(data []ResponseData) bool {
 	_, hasAddress := firstRow["address"]
 	_, hasFamily := firstRow["family"]
 	return hasAddress && hasFamily
+}
+
+// DetailFielder lets a ResponseData expose extra key/value pairs for the
+// interactive details view, beyond the compact TableRow columns.
+type DetailFielder interface {
+	DetailFields() map[string]string
+}
+
+// renderFirewallsWithDetails renders firewalls with enter-to-details support,
+// expanding each firewall's rules in the details view.
+func renderFirewallsWithDetails(data []ResponseData) {
+	columns, rows := convertToTableFormat(data)
+
+	var originals []map[string]string
+	for _, item := range data {
+		fields := make(map[string]string)
+		for _, cell := range item.TableRow() {
+			fields[cell.Label] = fmt.Sprintf("%v", cell.Value)
+		}
+		if df, ok := item.(DetailFielder); ok {
+			for k, v := range df.DetailFields() {
+				fields[k] = v
+			}
+		}
+		originals = append(originals, fields)
+	}
+
+	err := tui.RunResourceTable("Firewalls", "firewalls", "Firewall", "Name", columns, rows, originals)
+	if err != nil {
+		fmt.Printf("Error rendering table: %v\n", err)
+	}
 }
 
 // renderIPsWithDetails renders IPs with enter-to-details support
