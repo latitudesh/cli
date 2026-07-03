@@ -70,9 +70,10 @@ func RenderSimpleTable(title string, headers []string, rows [][]string) {
 	for _, row := range rows {
 		var rowParts []string
 		for i, cell := range row {
-			// Truncate if necessary
-			if len(cell) > colWidths[i]-2 {
-				cell = cell[:colWidths[i]-5] + "..."
+			// Truncate if necessary; narrow columns (short headers like "ID")
+			// can make the cut point negative, which would panic on slicing.
+			if cut := colWidths[i] - 5; cut > 0 && len(cell) > colWidths[i]-2 {
+				cell = cell[:cut] + "..."
 			}
 			rowParts = append(rowParts, padString(cell, colWidths[i]))
 		}

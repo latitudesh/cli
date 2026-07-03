@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+
+	outputtable "github.com/latitudesh/lsh/internal/output/table"
 )
 
 type CSVRenderer struct{}
@@ -89,7 +91,7 @@ func csvColumns(items []interface{}) []string {
 			}
 		}
 	}
-	sortColumnsByPreference(cols)
+	outputtable.SortColumnsByPreference(cols)
 	return cols
 }
 

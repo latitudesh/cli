@@ -3,6 +3,7 @@ package table
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/olekukonko/tablewriter"
 )
@@ -55,12 +56,71 @@ func RenderEmptyState(message string) {
 	fmt.Println()
 }
 
-func extractHeaders(row Row) Header {
-	var headers Header
+// PreferredColumnOrder is the canonical column ordering shared by the
+// static and interactive (Bubble Tea) table views. Unlisted columns follow
+// in alphabetical order.
+var PreferredColumnOrder = []string{
+	"id",
+	"name",
+	"slug",
+	"environment",
+	"description",
+	"provisioning_type",
+	"team",
+	"ips",
+	"servers",
+	"vlans",
+	"tags",
+	"status",
+	"phase",
+	"ready",
+	"plan",
+	"os",
+	"operating_system",
+	"primary_ipv4",
+	"region",
+	"endpoint",
+	"storage_class",
+	"created_at",
+	"updated_at",
+}
 
-	for k, v := range row {
+// SortColumnsByPreference orders column ids by PreferredColumnOrder, with
+// unlisted columns following alphabetically. Shared by the static and
+// interactive renderers so the views never diverge.
+func SortColumnsByPreference(ids []string) {
+	priority := make(map[string]int, len(PreferredColumnOrder))
+	for i, id := range PreferredColumnOrder {
+		priority[id] = i
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		pi, oki := priority[ids[i]]
+		pj, okj := priority[ids[j]]
+		switch {
+		case oki && okj:
+			return pi < pj
+		case oki:
+			return true
+		case okj:
+			return false
+		default:
+			return ids[i] < ids[j]
+		}
+	})
+}
+
+func extractHeaders(row Row) Header {
+	ids := make([]string, 0, len(row))
+	for k := range row {
+		ids = append(ids, k)
+	}
+
+	SortColumnsByPreference(ids)
+
+	var headers Header
+	for _, k := range ids {
 		headers.IDs = append(headers.IDs, k)
-		headers.Labels = append(headers.Labels, v.Label)
+		headers.Labels = append(headers.Labels, row[k].Label)
 	}
 
 	return headers

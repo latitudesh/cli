@@ -91,6 +91,12 @@ func (m NumberInputModel) Value() int64 {
 	return m.value
 }
 
+// Submitted reports whether the user confirmed the input (vs. cancelling
+// with Ctrl+C/Esc), so callers can tell a cancellation apart from zero.
+func (m NumberInputModel) Submitted() bool {
+	return m.submitted
+}
+
 // RunNumberInput is a helper function to run the number input
 func RunNumberInput(label, placeholder string) (int64, error) {
 	p := tea.NewProgram(NewNumberInput(label, placeholder))
@@ -100,6 +106,9 @@ func RunNumberInput(label, placeholder string) (int64, error) {
 	}
 
 	if model, ok := m.(NumberInputModel); ok {
+		if !model.Submitted() {
+			return 0, fmt.Errorf("input cancelled")
+		}
 		return model.Value(), nil
 	}
 
