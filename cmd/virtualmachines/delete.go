@@ -51,7 +51,7 @@ func (o *DeleteVirtualMachineOperation) run(cmd *cobra.Command, args []string) e
 		if resp.HTTPMeta.Response != nil {
 			status = resp.HTTPMeta.Response.StatusCode
 		}
-		if status == http.StatusOK || status == http.StatusNoContent {
+		if status == http.StatusOK || status == http.StatusAccepted || status == http.StatusNoContent {
 			fmt.Fprintf(os.Stderr, "\nVirtual machine %s deleted successfully!\n", id)
 		} else {
 			fmt.Fprintf(os.Stderr, "Warning: Unexpected status code: %d\n", status)
