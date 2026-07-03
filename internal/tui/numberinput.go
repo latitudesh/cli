@@ -48,7 +48,7 @@ func (m NumberInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.submitted = true
 				return m, tea.Quit
 			}
-
+			
 			num, err := strconv.ParseInt(val, 10, 64)
 			if err != nil {
 				m.err = err
@@ -57,7 +57,7 @@ func (m NumberInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.value = num
 			m.submitted = true
 			return m, tea.Quit
-
+			
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		}
@@ -77,13 +77,13 @@ func (m NumberInputModel) View() string {
 		FocusedStyle.Render(m.label),
 		m.textInput.View(),
 	)
-
+	
 	if m.err != nil {
 		view += ErrorStyle.Render("Invalid number format") + "\n"
 	}
-
+	
 	view += HelpStyle.Render("enter: submit (empty to skip) • esc: cancel")
-
+	
 	return view
 }
 

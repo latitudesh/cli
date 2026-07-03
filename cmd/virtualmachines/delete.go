@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
@@ -51,9 +52,9 @@ func (o *DeleteVirtualMachineOperation) run(cmd *cobra.Command, args []string) e
 			status = resp.HTTPMeta.Response.StatusCode
 		}
 		if status == http.StatusOK || status == http.StatusNoContent {
-			fmt.Printf("\nVirtual machine %s deleted successfully!\n", id)
+			fmt.Fprintf(os.Stderr, "\nVirtual machine %s deleted successfully!\n", id)
 		} else {
-			fmt.Printf("Warning: Unexpected status code: %d\n", status)
+			fmt.Fprintf(os.Stderr, "Warning: Unexpected status code: %d\n", status)
 		}
 	}
 

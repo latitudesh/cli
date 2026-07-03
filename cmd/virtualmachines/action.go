@@ -3,6 +3,7 @@ package virtualmachines
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
@@ -81,7 +82,7 @@ func (o *ActionVirtualMachineOperation) run(cmd *cobra.Command, args []string) e
 
 	action, _ := cmd.Flags().GetString("action")
 	if !lsh.Debug {
-		fmt.Printf("\nAction %q submitted for virtual machine %s.\n\n", action, id)
+		fmt.Fprintf(os.Stderr, "\nAction %q submitted for virtual machine %s.\n", action, id)
 	}
 
 	return nil

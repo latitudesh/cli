@@ -66,7 +66,7 @@ func RenderSimpleTable(title string, headers []string, rows [][]string) {
 
 	// Render rows
 	rowStyle := lipgloss.NewStyle().Padding(0, 1)
-
+	
 	for _, row := range rows {
 		var rowParts []string
 		for i, cell := range row {
