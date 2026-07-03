@@ -67,8 +67,8 @@ func buildCreateRequest(cmd *cobra.Command) (components.VirtualMachinePayload, e
 		attrs.Site = &region
 	}
 	if cmd.Flags().Changed("os") {
-		os, _ := cmd.Flags().GetString("os")
-		attrs.OperatingSystem = &os
+		osSlug, _ := cmd.Flags().GetString("os")
+		attrs.OperatingSystem = &osSlug
 	}
 	if cmd.Flags().Changed("ssh-keys") {
 		attrs.SSHKeys, _ = cmd.Flags().GetStringSlice("ssh-keys")

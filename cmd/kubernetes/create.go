@@ -91,8 +91,8 @@ func buildCreateRequest(cmd *cobra.Command) (components.CreateKubernetesCluster,
 		attrs.WorkerCount = &c
 	}
 	if cmd.Flags().Changed("os") {
-		os, _ := cmd.Flags().GetString("os")
-		attrs.OperatingSystem = &os
+		osSlug, _ := cmd.Flags().GetString("os")
+		attrs.OperatingSystem = &osSlug
 	}
 
 	return components.CreateKubernetesCluster{
