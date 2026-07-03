@@ -126,14 +126,21 @@ func (m ResourceTableModel) ShouldShowDetails() bool {
 // the details view (e.g. "Address" → "IP Details: 192.0.2.10"); the
 // details fields follow the table's column order.
 func RunResourceTable(title, noun, detailTitlePrefix, detailTitleKey string, columns []table.Column, rows []table.Row, originals []map[string]string) error {
-	if len(rows) == 0 {
-		fmt.Println(ErrorStyle.Render("\nNo results found.\n"))
-		return nil
-	}
-
 	fieldOrder := make([]string, 0, len(columns))
 	for _, c := range columns {
 		fieldOrder = append(fieldOrder, c.Title)
+	}
+
+	return RunResourceTableOrdered(title, noun, detailTitlePrefix, detailTitleKey, columns, rows, originals, fieldOrder)
+}
+
+// RunResourceTableOrdered is RunResourceTable with an explicit details field
+// order, so callers can append detail-only fields (absent from the table
+// columns) at a chosen position instead of the default alphabetical tail.
+func RunResourceTableOrdered(title, noun, detailTitlePrefix, detailTitleKey string, columns []table.Column, rows []table.Row, originals []map[string]string, fieldOrder []string) error {
+	if len(rows) == 0 {
+		fmt.Println(ErrorStyle.Render("\nNo results found.\n"))
+		return nil
 	}
 
 	for {

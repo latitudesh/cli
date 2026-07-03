@@ -19,6 +19,13 @@ func RenderStatic(data []renderer.ResponseData) {
 	renderer.RenderStatic(data)
 }
 
+// RenderDetails renders a single resource, opening the interactive details
+// sheet directly — for `get` commands. Structured formats fall back to the
+// regular renderer.
+func RenderDetails(data []renderer.ResponseData) {
+	renderer.RenderDetails(data)
+}
+
 // PrintError prints a formatted error. Recognized API failures are
 // rewritten as actionable guidance for the user (e.g. 401 → "run lsh login").
 func PrintError(err error) {

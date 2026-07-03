@@ -7,6 +7,7 @@ import (
 
 	"github.com/latitudesh/lsh/client"
 	"github.com/latitudesh/lsh/cmd/lsh"
+	servers "github.com/latitudesh/lsh/cmd/servers"
 	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/latitudesh/lsh/internal/version"
@@ -214,11 +215,12 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	}
 	rootCmd.AddCommand(operationGroupServersCmd)
 
-	operationGroupSSHKeysCmd, err := makeOperationGroupSSHKeysCmd()
-	if err != nil {
-		return nil, err
-	}
-	rootCmd.AddCommand(operationGroupSSHKeysCmd)
+	// The legacy generated `ssh_keys` group is intentionally no longer
+	// registered here. It has been replaced by the SDK-based `ssh-keys`
+	// (team scope) and `projects ssh-keys` (project scope) groups wired in
+	// cmd/build_ssh_keys.go and cmd/build_projects_scoped.go. The kebab-case
+	// `ssh-keys` command keeps `ssh_keys` as a hidden alias so the old
+	// invocation still works. See PD-6273.
 
 	operationGroupVirtualNetworksCmd, err := makeOperationGroupVirtualNetworksCmd()
 	if err != nil {
@@ -458,6 +460,15 @@ func makeOperationGroupServersCmd() (*cobra.Command, error) {
 		return nil, err
 	}
 	operationGroupServersCmd.AddCommand(operationServerReinstallCmd)
+
+	// PD-6075: SDK-backed server extensions.
+	operationGroupServersCmd.AddCommand(servers.NewPowerOnCmd())
+	operationGroupServersCmd.AddCommand(servers.NewPowerOffCmd())
+	operationGroupServersCmd.AddCommand(servers.NewRebootCmd())
+	operationGroupServersCmd.AddCommand(servers.NewRescueModeCmd())
+	operationGroupServersCmd.AddCommand(servers.NewExitRescueModeCmd())
+	operationGroupServersCmd.AddCommand(servers.NewLockCmd())
+	operationGroupServersCmd.AddCommand(servers.NewUnlockCmd())
 
 	return operationGroupServersCmd, nil
 }
