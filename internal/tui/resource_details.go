@@ -1,19 +1,25 @@
 package tui
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // ResourceDetailsModel renders one resource as a label/value sheet, like
-// the server details view but with a caller-provided field order.
+// the server details view but with a caller-provided field order. The sheet
+// body lives in a viewport so long values (e.g. decoded cloud-init scripts)
+// can be scrolled instead of overflowing the screen.
 type ResourceDetailsModel struct {
 	title    string
 	fields   map[string]string
 	order    []string
+	viewport viewport.Model
+	ready    bool
 	quitting bool
 }
 
@@ -37,21 +43,54 @@ func (m ResourceDetailsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		}
+	case tea.WindowSizeMsg:
+		headerHeight := lipgloss.Height(m.headerView())
+		footerHeight := lipgloss.Height(m.footerView())
+		bodyHeight := msg.Height - headerHeight - footerHeight
+		if bodyHeight < 1 {
+			bodyHeight = 1
+		}
+
+		if !m.ready {
+			m.viewport = viewport.New(msg.Width, bodyHeight)
+			m.viewport.SetHorizontalStep(8)
+			m.viewport.SetContent(m.contentView())
+			m.ready = true
+		} else {
+			m.viewport.Width = msg.Width
+			m.viewport.Height = bodyHeight
+		}
+		return m, nil
 	}
-	return m, nil
+
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
 }
 
-func (m ResourceDetailsModel) View() string {
-	if m.quitting {
-		return ""
-	}
-
+func (m ResourceDetailsModel) headerView() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(PrimaryColor).
 		MarginBottom(1).
 		Padding(0, 1)
 
+	return titleStyle.Render(m.title)
+}
+
+func (m ResourceDetailsModel) footerView() string {
+	scroll := ""
+	if m.ready && m.viewport.TotalLineCount() > m.viewport.Height {
+		scroll = fmt.Sprintf(" • %3.0f%%", m.viewport.ScrollPercent()*100)
+	}
+	if m.ready && m.viewport.HorizontalScrollPercent() > 0 {
+		scroll += fmt.Sprintf(" • →%3.0f%%", m.viewport.HorizontalScrollPercent()*100)
+	}
+	return HelpStyle.Render("↑/↓ ←/→: scroll • esc/backspace: back • q: quit" + scroll)
+}
+
+// contentView renders the label/value sheet that fills the viewport.
+func (m ResourceDetailsModel) contentView() string {
 	fieldLabelStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(PrimaryColor).
@@ -99,24 +138,32 @@ func (m ResourceDetailsModel) View() string {
 
 	content := strings.Join(fields, "\n")
 
-	box := boxStyle.Render(content)
+	return boxStyle.Render(content)
+}
 
-	help := HelpStyle.Render("esc/backspace: back • q: quit")
+func (m ResourceDetailsModel) View() string {
+	if m.quitting {
+		return ""
+	}
+	if !m.ready {
+		return m.headerView()
+	}
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		titleStyle.Render(m.title),
-		box,
-		"\n",
-		help,
+		m.headerView(),
+		m.viewport.View(),
+		m.footerView(),
 	)
 }
 
-// RunResourceDetails shows the details of a single resource.
+// RunResourceDetails shows the details of a single resource. Mouse cell
+// motion is enabled so the wheel scrolls the details viewport.
 func RunResourceDetails(title string, fields map[string]string, order []string) error {
 	p := tea.NewProgram(
 		NewResourceDetails(title, fields, order),
 		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
 	)
 
 	_, err := p.Run()
