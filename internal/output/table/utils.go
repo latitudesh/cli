@@ -56,10 +56,10 @@ func RenderEmptyState(message string) {
 	fmt.Println()
 }
 
-// preferredColumnOrder mirrors the interactive table ordering so static and
-// Bubble Tea views print columns consistently. Unlisted columns follow in
-// alphabetical order.
-var preferredColumnOrder = []string{
+// PreferredColumnOrder is the canonical column ordering shared by the
+// static and interactive (Bubble Tea) table views. Unlisted columns follow
+// in alphabetical order.
+var PreferredColumnOrder = []string{
 	"id",
 	"name",
 	"slug",
@@ -76,6 +76,7 @@ var preferredColumnOrder = []string{
 	"ready",
 	"plan",
 	"os",
+	"operating_system",
 	"primary_ipv4",
 	"region",
 	"endpoint",
@@ -84,14 +85,12 @@ var preferredColumnOrder = []string{
 	"updated_at",
 }
 
-func extractHeaders(row Row) Header {
-	ids := make([]string, 0, len(row))
-	for k := range row {
-		ids = append(ids, k)
-	}
-
-	priority := make(map[string]int, len(preferredColumnOrder))
-	for i, id := range preferredColumnOrder {
+// SortColumnsByPreference orders column ids by PreferredColumnOrder, with
+// unlisted columns following alphabetically. Shared by the static and
+// interactive renderers so the views never diverge.
+func SortColumnsByPreference(ids []string) {
+	priority := make(map[string]int, len(PreferredColumnOrder))
+	for i, id := range PreferredColumnOrder {
 		priority[id] = i
 	}
 	sort.Slice(ids, func(i, j int) bool {
@@ -108,6 +107,15 @@ func extractHeaders(row Row) Header {
 			return ids[i] < ids[j]
 		}
 	})
+}
+
+func extractHeaders(row Row) Header {
+	ids := make([]string, 0, len(row))
+	for k := range row {
+		ids = append(ids, k)
+	}
+
+	SortColumnsByPreference(ids)
 
 	var headers Header
 	for _, k := range ids {
