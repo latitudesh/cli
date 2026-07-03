@@ -2,16 +2,12 @@ package servers
 
 import (
 	"context"
-	"errors"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/utils"
 	cobra "github.com/spf13/cobra"
 )
-
-// errNoFlags is returned by update-style commands invoked with no changes.
-var errNoFlags = errors.New("no fields to update: pass at least one flag")
 
 // NewLockCmd builds `lsh servers lock <id>`.
 func NewLockCmd() *cobra.Command {

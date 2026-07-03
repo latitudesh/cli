@@ -95,6 +95,12 @@ func TestWaitFlagsRegistered(t *testing.T) {
 	if NewRebootCmd().Flags().Lookup("wait") == nil {
 		t.Error("reboot: missing --wait flag")
 	}
+	if NewPowerOnCmd().Flags().Lookup("wait") == nil {
+		t.Error("power-on: missing --wait flag")
+	}
+	if NewPowerOffCmd().Flags().Lookup("wait") == nil {
+		t.Error("power-off: missing --wait flag")
+	}
 	if NewRescueModeCmd().Flags().Lookup("wait") == nil {
 		t.Error("rescue-mode: missing --wait flag")
 	}
