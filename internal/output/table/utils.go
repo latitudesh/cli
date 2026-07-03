@@ -76,6 +76,7 @@ var preferredColumnOrder = []string{
 	"ready",
 	"plan",
 	"os",
+	"operating_system",
 	"primary_ipv4",
 	"region",
 	"endpoint",
