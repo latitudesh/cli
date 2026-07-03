@@ -115,7 +115,9 @@ func (o *CreateVirtualMachineOperation) run(cmd *cobra.Command, args []string) e
 	var vmID string
 	if response.VirtualMachine != nil && response.VirtualMachine.Data != nil {
 		vmID = getStr(response.VirtualMachine.Data.ID)
-		if !lsh.Debug {
+		// With --wait the waiter renders the final state itself; rendering the
+		// initial snapshot too would emit two JSON blobs on stdout.
+		if !lsh.Debug && !wait.OptionsFrom(cmd).Enabled {
 			vm := VirtualMachine{VirtualMachineAttributes: *response.VirtualMachine.Data}
 			utils.RenderStatic(vm.GetData())
 		}
