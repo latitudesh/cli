@@ -2,9 +2,9 @@ package renderer
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/charmbracelet/bubbles/table"
+	outputtable "github.com/latitudesh/lsh/internal/output/table"
 	"github.com/latitudesh/lsh/internal/tui"
 )
 
@@ -111,66 +111,6 @@ func renderServersWithDetails(data []ResponseData) {
 	}
 }
 
-// preferredColumnOrder defines the preferred order of columns
-var preferredColumnOrder = []string{
-	"id",
-	"name",
-	"slug",
-	"environment",
-	"description",
-	"provisioning_type",
-	"team",
-	"ips",
-	"servers",
-	"vlans",
-	"tags",
-	"status",
-	"phase",
-	"ready",
-	"plan",
-	"os",
-	"operating_system",
-	"primary_ipv4",
-	"region",
-	"endpoint",
-	"storage_class",
-	"created_at",
-	"updated_at",
-}
-
-// sortColumnsByPreference ordena as colunas baseado na ordem preferida
-func sortColumnsByPreference(columnIDs []string) {
-	// Create a map of priorities
-	priority := make(map[string]int)
-	for i, id := range preferredColumnOrder {
-		priority[id] = i
-	}
-
-	// Sort using the priority
-	sort.Slice(columnIDs, func(i, j int) bool {
-		priI, okI := priority[columnIDs[i]]
-		priJ, okJ := priority[columnIDs[j]]
-
-		// If both are in the priority list, use the defined order
-		if okI && okJ {
-			return priI < priJ
-		}
-
-		// If only i is in the list, i comes first
-		if okI {
-			return true
-		}
-
-		// If only j is in the list, j comes first
-		if okJ {
-			return false
-		}
-
-		// If neither is in the list, alphabetical order
-		return columnIDs[i] < columnIDs[j]
-	})
-}
-
 // convertToTableFormat converts ResponseData to Bubble Tea format
 func convertToTableFormat(data []ResponseData) ([]table.Column, []table.Row) {
 	if len(data) == 0 {
@@ -190,7 +130,7 @@ func convertToTableFormat(data []ResponseData) ([]table.Column, []table.Row) {
 	}
 
 	// Sort columns by the preferred order
-	sortColumnsByPreference(columnIDs)
+	outputtable.SortColumnsByPreference(columnIDs)
 
 	// Second pass: calculate maximum width based on real content
 	for _, item := range data {

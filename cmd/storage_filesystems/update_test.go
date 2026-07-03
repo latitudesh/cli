@@ -37,3 +37,17 @@ func TestUpdateAndDeleteArgs(t *testing.T) {
 		t.Errorf("delete: unexpected error with one arg: %v", err)
 	}
 }
+
+// TestUpdateRejectsNonPositiveSize guards the client-side --size validation so
+// a zero or negative value fails fast instead of reaching the API.
+func TestUpdateRejectsNonPositiveSize(t *testing.T) {
+	for _, size := range []string{"0", "-100"} {
+		cmd := NewUpdateCmd()
+		if err := cmd.Flags().Parse([]string{"--size", size}); err != nil {
+			t.Fatalf("flag parse error: %v", err)
+		}
+		if err := cmd.RunE(cmd, []string{"fs_x"}); err == nil {
+			t.Errorf("expected error for --size %s, got nil", size)
+		}
+	}
+}

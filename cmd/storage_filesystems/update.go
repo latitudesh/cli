@@ -54,6 +54,11 @@ func (o *UpdateFilesystemOperation) run(cmd *cobra.Command, args []string) error
 		utils.PrintError(err)
 		return err
 	}
+	if size <= 0 {
+		err := fmt.Errorf("--size must be a positive number of GB (got %d)", size)
+		utils.PrintError(err)
+		return err
+	}
 
 	request := buildUpdateRequest(sizeSet, size)
 	// The API needs the ID inside the body too; mirror the path param.
