@@ -7,6 +7,7 @@ import (
 
 	"github.com/latitudesh/lsh/client"
 	"github.com/latitudesh/lsh/cmd/lsh"
+	servers "github.com/latitudesh/lsh/cmd/servers"
 	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/latitudesh/lsh/internal/version"
@@ -459,6 +460,15 @@ func makeOperationGroupServersCmd() (*cobra.Command, error) {
 		return nil, err
 	}
 	operationGroupServersCmd.AddCommand(operationServerReinstallCmd)
+
+	// PD-6075: SDK-backed server extensions.
+	operationGroupServersCmd.AddCommand(servers.NewPowerOnCmd())
+	operationGroupServersCmd.AddCommand(servers.NewPowerOffCmd())
+	operationGroupServersCmd.AddCommand(servers.NewRebootCmd())
+	operationGroupServersCmd.AddCommand(servers.NewRescueModeCmd())
+	operationGroupServersCmd.AddCommand(servers.NewExitRescueModeCmd())
+	operationGroupServersCmd.AddCommand(servers.NewLockCmd())
+	operationGroupServersCmd.AddCommand(servers.NewUnlockCmd())
 
 	return operationGroupServersCmd, nil
 }
