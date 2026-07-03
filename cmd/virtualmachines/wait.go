@@ -51,13 +51,15 @@ func waitForVirtualMachine(cmd *cobra.Command, vmID string) error {
 	fmt.Fprintf(os.Stderr, "Virtual machine %s is now %q\n", vmID, status)
 
 	// The create response is an optimistic snapshot; re-fetch to render the
-	// real, final state. Best-effort: a failed re-fetch is silent because the
-	// wait itself already succeeded.
+	// real, final state. The wait itself already succeeded, so a failed
+	// re-fetch only degrades the display — surface it on stderr.
 	if !lsh.Debug {
 		resp, err := client.VirtualMachines.Get(ctx, vmID, operations.WithRetries(lsh.RetryConfig()))
 		if err == nil && resp.VirtualMachine != nil && resp.VirtualMachine.Data != nil {
 			vm := VirtualMachine{VirtualMachineAttributes: *resp.VirtualMachine.Data}
 			utils.RenderStatic(vm.GetData())
+		} else {
+			fmt.Fprintf(os.Stderr, "warning: could not fetch the final virtual machine state for display: %v\n", err)
 		}
 	}
 	return nil

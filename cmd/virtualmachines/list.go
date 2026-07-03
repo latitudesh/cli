@@ -2,6 +2,7 @@ package virtualmachines
 
 import (
 	"context"
+	"strings"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cli"
@@ -25,7 +26,7 @@ func NewListCmd() *cobra.Command {
 	}
 
 	cmd.Flags().String("project", "", "Filter by project ID or slug")
-	cmd.Flags().String("tags", "", "Filter by tag IDs (comma-separated)")
+	cmd.Flags().StringSlice("tags", nil, "Filter by tag IDs (repeatable or comma-separated)")
 
 	return cmd
 }
@@ -44,8 +45,9 @@ func (o *ListVirtualMachineOperation) run(cmd *cobra.Command, args []string) err
 		filterProject = &v
 	}
 	if cmd.Flags().Changed("tags") {
-		v, _ := cmd.Flags().GetString("tags")
-		filterTags = &v
+		v, _ := cmd.Flags().GetStringSlice("tags")
+		joined := strings.Join(v, ",")
+		filterTags = &joined
 	}
 
 	client := lsh.NewClient()

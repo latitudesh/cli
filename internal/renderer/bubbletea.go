@@ -124,6 +124,17 @@ var preferredColumnOrder = []string{
 	"servers",
 	"vlans",
 	"tags",
+	"status",
+	"phase",
+	"ready",
+	"plan",
+	"os",
+	"primary_ipv4",
+	"region",
+	"endpoint",
+	"storage_class",
+	"created_at",
+	"updated_at",
 }
 
 // sortColumnsByPreference ordena as colunas baseado na ordem preferida

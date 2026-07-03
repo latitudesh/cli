@@ -134,6 +134,19 @@ func (o *CreateClusterOperation) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Without --wait, stdout must still carry the created resource so
+	// -o json pipelines get structured output (the wait path renders the
+	// final state itself).
+	if !lsh.Debug && !wait.OptionsFrom(cmd).Enabled && clusterID != "" {
+		resp, gerr := client.KubernetesClusters.GetKubernetesCluster(ctx, clusterID, operations.WithRetries(lsh.RetryConfig()))
+		if gerr == nil && resp.KubernetesCluster != nil && resp.KubernetesCluster.Data != nil {
+			cluster := Cluster{KubernetesClusterData: *resp.KubernetesCluster.Data}
+			utils.RenderStatic(cluster.GetData())
+		} else {
+			fmt.Fprintf(os.Stderr, "warning: could not fetch the created cluster for display: %v\n", gerr)
+		}
+	}
+
 	return waitForCluster(cmd, clusterID)
 }
 

@@ -59,6 +59,8 @@ func waitForCluster(cmd *cobra.Command, clusterID string) error {
 		if err == nil && resp.KubernetesCluster != nil && resp.KubernetesCluster.Data != nil {
 			cluster := Cluster{KubernetesClusterData: *resp.KubernetesCluster.Data}
 			utils.RenderStatic(cluster.GetData())
+		} else {
+			fmt.Fprintf(os.Stderr, "warning: could not fetch the final cluster state for display: %v\n", err)
 		}
 	}
 	return nil
