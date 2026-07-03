@@ -13,7 +13,7 @@ require (
 	github.com/go-openapi/swag v0.22.7
 	github.com/go-openapi/validate v0.22.6
 	github.com/jmespath/go-jmespath v0.4.0
-	github.com/latitudesh/latitudesh-go-sdk v1.16.0
+	github.com/latitudesh/latitudesh-go-sdk v1.16.5
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/olekukonko/tablewriter v0.0.5
