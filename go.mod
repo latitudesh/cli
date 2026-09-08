@@ -23,7 +23,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.18.2
 	golang.org/x/term v0.37.0
-	golang.org/x/text v0.14.0
+	golang.org/x/text v0.17.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -77,7 +77,7 @@ require (
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	go.mongodb.org/mongo-driver v1.13.1 // indirect
+	go.mongodb.org/mongo-driver v1.17.7 // indirect
 	go.opentelemetry.io/otel v1.17.0 // indirect
 	go.opentelemetry.io/otel/metric v1.17.0 // indirect
 	go.opentelemetry.io/otel/trace v1.17.0 // indirect
