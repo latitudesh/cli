@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -37,7 +36,7 @@ func waitForVirtualMachine(cmd *cobra.Command, vmID string) error {
 
 	fmt.Fprintf(os.Stderr, "Waiting for virtual machine %s to finish provisioning… (Ctrl+C to stop)\n", vmID)
 
-	want := []components.VirtualMachineAttributesStatus{components.VirtualMachineAttributesStatusRunning}
+	want := []wait.VirtualMachineStatus{wait.VirtualMachineStatusRunning}
 	status, err := wait.ForVirtualMachineState(ctx, client, vmID, want, o, operations.WithRetries(lsh.RetryConfig()))
 	switch {
 	case errors.Is(err, wait.ErrCanceled):
@@ -54,7 +53,7 @@ func waitForVirtualMachine(cmd *cobra.Command, vmID string) error {
 	// real, final state. The wait itself already succeeded, so a failed
 	// re-fetch only degrades the display — surface it on stderr.
 	if !lsh.Debug {
-		resp, err := client.VirtualMachines.Get(ctx, vmID, operations.WithRetries(lsh.RetryConfig()))
+		resp, err := client.VirtualMachines.Get(ctx, vmID, nil, operations.WithRetries(lsh.RetryConfig()))
 		if err == nil && resp.VirtualMachine != nil && resp.VirtualMachine.Data != nil {
 			vm := VirtualMachine{VirtualMachineAttributes: *resp.VirtualMachine.Data}
 			utils.RenderStatic(vm.GetData())

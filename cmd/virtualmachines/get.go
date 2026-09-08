@@ -36,7 +36,7 @@ func (o *GetVirtualMachineOperation) run(cmd *cobra.Command, args []string) erro
 	client := lsh.NewClient()
 	ctx := context.Background()
 
-	response, err := client.VirtualMachines.Get(ctx, id, operations.WithRetries(lsh.RetryConfig()))
+	response, err := client.VirtualMachines.Get(ctx, id, nil, operations.WithRetries(lsh.RetryConfig()))
 	if err != nil {
 		utils.PrintError(err)
 		return err

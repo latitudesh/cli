@@ -108,7 +108,7 @@ func TestServerStatusNilSafe(t *testing.T) {
 	if serverStatus(&operations.GetServerResponse{}) != nil {
 		t.Error("serverStatus with nil Server should be nil")
 	}
-	on := components.ServerDataStatusOn
+	on := string(ServerStatusOn)
 	resp := &operations.GetServerResponse{
 		Server: &components.Server{
 			Data: &components.ServerData{
@@ -117,37 +117,37 @@ func TestServerStatusNilSafe(t *testing.T) {
 		},
 	}
 	got := serverStatus(resp)
-	if got == nil || *got != components.ServerDataStatusOn {
+	if got == nil || *got != ServerStatusOn {
 		t.Errorf("serverStatus = %v, want on", got)
 	}
 }
 
 func TestContainsStatus(t *testing.T) {
-	set := []components.ServerDataStatus{
-		components.ServerDataStatusOn,
-		components.ServerDataStatusDeploying,
+	set := []ServerStatus{
+		ServerStatusOn,
+		ServerStatusDeploying,
 	}
-	if !containsStatus(set, components.ServerDataStatusOn) {
+	if !containsStatus(set, ServerStatusOn) {
 		t.Error("expected on to be in set")
 	}
-	if containsStatus(set, components.ServerDataStatusOff) {
+	if containsStatus(set, ServerStatusOff) {
 		t.Error("did not expect off to be in set")
 	}
 }
 
 func TestDecideServerState(t *testing.T) {
-	want := []components.ServerDataStatus{components.ServerDataStatusOn, components.ServerDataStatusOff}
-	fail := []components.ServerDataStatus{components.ServerDataStatusFailedDeployment}
+	want := []ServerStatus{ServerStatusOn, ServerStatusOff}
+	fail := []ServerStatus{ServerStatusFailedDeployment}
 
 	t.Run("want hit without requireTransition is done", func(t *testing.T) {
-		done, _, err := decideServerState(components.ServerDataStatusOn, want, fail, false, false)
+		done, _, err := decideServerState(ServerStatusOn, want, fail, false, false)
 		if err != nil || !done {
 			t.Fatalf("done=%v err=%v, want done=true err=nil", done, err)
 		}
 	})
 
 	t.Run("want hit is gated until a transition is seen", func(t *testing.T) {
-		done, transitioned, err := decideServerState(components.ServerDataStatusOn, want, fail, true, false)
+		done, transitioned, err := decideServerState(ServerStatusOn, want, fail, true, false)
 		if err != nil || done {
 			t.Fatalf("done=%v err=%v, want done=false err=nil (gated)", done, err)
 		}
@@ -157,18 +157,18 @@ func TestDecideServerState(t *testing.T) {
 	})
 
 	t.Run("transition state flips seenTransition then want succeeds", func(t *testing.T) {
-		_, transitioned, _ := decideServerState(components.ServerDataStatusDeploying, want, fail, true, false)
+		_, transitioned, _ := decideServerState(ServerStatusDeploying, want, fail, true, false)
 		if !transitioned {
 			t.Fatal("deploying should set seenTransition")
 		}
-		done, _, err := decideServerState(components.ServerDataStatusOn, want, fail, true, transitioned)
+		done, _, err := decideServerState(ServerStatusOn, want, fail, true, transitioned)
 		if err != nil || !done {
 			t.Fatalf("done=%v err=%v, want done=true after transition", done, err)
 		}
 	})
 
 	t.Run("fail state reported immediately even without transition (H1 regression)", func(t *testing.T) {
-		done, _, err := decideServerState(components.ServerDataStatusFailedDeployment, want, fail, true, false)
+		done, _, err := decideServerState(ServerStatusFailedDeployment, want, fail, true, false)
 		if done {
 			t.Error("fail state must not be 'done'")
 		}

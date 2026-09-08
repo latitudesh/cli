@@ -77,7 +77,7 @@ func runRegionsList(_ *cobra.Command, _ []string) error {
 	pageSize := page.PageSize
 	pageNumber := int64(1)
 
-	resp, err := client.Regions.Get(ctx, &pageSize, &pageNumber)
+	resp, err := client.Regions.Get(ctx, operations.GetRegionsRequest{PageSize: &pageSize, PageNumber: &pageNumber})
 	if err != nil {
 		stopSpinner()
 		utils.PrintError(err)

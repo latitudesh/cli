@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/wait"
@@ -21,7 +20,7 @@ import (
 // requireTransition guards operations that act on a server which may already
 // sit in a target state (e.g. power_on on an already-on server) so the wait
 // does not return before the operation has actually taken effect.
-func waitForServerState(cmd *cobra.Command, serverID string, want, fail []components.ServerDataStatus, requireTransition bool) error {
+func waitForServerState(cmd *cobra.Command, serverID string, want, fail []wait.ServerStatus, requireTransition bool) error {
 	o := wait.OptionsFrom(cmd)
 	if !o.Enabled {
 		if cmd.Flags().Changed("timeout") {
@@ -58,13 +57,13 @@ func waitForServerState(cmd *cobra.Command, serverID string, want, fail []compon
 
 // powerActionTargets maps a power action to the server states that satisfy the
 // wait (want) and the states that abort it (fail).
-func powerActionTargets(action string) (want, fail []components.ServerDataStatus) {
-	fail = []components.ServerDataStatus{components.ServerDataStatusFailedDeployment}
+func powerActionTargets(action string) (want, fail []wait.ServerStatus) {
+	fail = []wait.ServerStatus{wait.ServerStatusFailedDeployment}
 	switch action {
 	case "power_on", "reboot":
-		return []components.ServerDataStatus{components.ServerDataStatusOn}, fail
+		return []wait.ServerStatus{wait.ServerStatusOn}, fail
 	case "power_off":
-		return []components.ServerDataStatus{components.ServerDataStatusOff}, fail
+		return []wait.ServerStatus{wait.ServerStatusOff}, fail
 	default:
 		return nil, fail
 	}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	sdk "github.com/latitudesh/latitudesh-go-sdk"
-	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 )
 
@@ -22,10 +21,10 @@ func ForVirtualMachineState(
 	ctx context.Context,
 	client *sdk.Latitudesh,
 	vmID string,
-	want []components.VirtualMachineAttributesStatus,
+	want []VirtualMachineStatus,
 	o Options,
 	opts ...operations.Option,
-) (components.VirtualMachineAttributesStatus, error) {
+) (VirtualMachineStatus, error) {
 	if o.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, o.Timeout)
@@ -33,12 +32,12 @@ func ForVirtualMachineState(
 	}
 
 	var (
-		last    components.VirtualMachineAttributesStatus
+		last    VirtualMachineStatus
 		lastErr error
 	)
 
 	err := Poll(ctx, DefaultBackoff(), func(ctx context.Context) (bool, error) {
-		resp, err := client.VirtualMachines.Get(ctx, vmID, opts...)
+		resp, err := client.VirtualMachines.Get(ctx, vmID, nil, opts...)
 		if err != nil {
 			if isTerminalAPIError(err) {
 				return false, err
@@ -63,14 +62,18 @@ func ForVirtualMachineState(
 
 // virtualMachineStatus extracts the status from a ShowVirtualMachine response,
 // tolerating any nil link in the data → attributes → status chain.
-func virtualMachineStatus(resp *operations.ShowVirtualMachineResponse) *components.VirtualMachineAttributesStatus {
+func virtualMachineStatus(resp *operations.ShowVirtualMachineResponse) *VirtualMachineStatus {
 	if resp == nil || resp.VirtualMachine == nil || resp.VirtualMachine.Data == nil || resp.VirtualMachine.Data.Attributes == nil {
 		return nil
 	}
-	return resp.VirtualMachine.Data.Attributes.Status
+	if resp.VirtualMachine.Data.Attributes.Status == nil {
+		return nil
+	}
+	st := VirtualMachineStatus(*resp.VirtualMachine.Data.Attributes.Status)
+	return &st
 }
 
-func containsVMStatus(set []components.VirtualMachineAttributesStatus, s components.VirtualMachineAttributesStatus) bool {
+func containsVMStatus(set []VirtualMachineStatus, s VirtualMachineStatus) bool {
 	for _, v := range set {
 		if v == s {
 			return true

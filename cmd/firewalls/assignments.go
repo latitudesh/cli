@@ -91,7 +91,7 @@ func (o *ListAssignmentsOperation) run(cmd *cobra.Command, args []string) error 
 			value, _ := cmd.Flags().GetString("server")
 			filterServer = &value
 		}
-		response, err := client.Firewalls.GetAllFirewallAssignments(ctx, filterServer, nil, nil, operations.WithRetries(lsh.RetryConfig()))
+		response, err := client.Firewalls.GetAllFirewallAssignments(ctx, filterServer, nil, nil, nil, operations.WithRetries(lsh.RetryConfig()))
 		if err != nil {
 			utils.PrintError(err)
 			return err
@@ -149,7 +149,7 @@ func buildCreateAssignmentRequest(cmd *cobra.Command) (firewallID string, body o
 		Data: operations.CreateFirewallAssignmentFirewallsAssignmentsData{
 			Type: operations.CreateFirewallAssignmentFirewallsAssignmentsTypeFirewallAssignments,
 			Attributes: &operations.CreateFirewallAssignmentFirewallsAssignmentsAttributes{
-				ServerID: serverID,
+				ServerID: &serverID,
 			},
 		},
 	}
@@ -189,11 +189,13 @@ func (o *CreateAssignmentOperation) run(cmd *cobra.Command, args []string) error
 		// current SDK model does not map (its fields come back empty). Fall back
 		// to the request inputs so the confirmation shows the association that
 		// was created instead of a blank row.
-		if fs.Attributes == nil || getStr(fs.Attributes.FirewallID) == "" {
+		if fs.Data == nil || fs.Data.Attributes == nil || getStr(fs.Data.Attributes.FirewallID) == "" {
 			serverID, _ := cmd.Flags().GetString("server")
-			fs.Attributes = &components.FirewallServerAttributes{
-				FirewallID: &firewallID,
-				ServerID:   &serverID,
+			fs.Data = &components.FirewallServerData{
+				Attributes: &components.FirewallServerAttributes{
+					FirewallID: &firewallID,
+					Server:     &components.FirewallServerServer{ID: &serverID},
+				},
 			}
 		}
 		assignment := FirewallServerAssignment{FirewallServer: fs}

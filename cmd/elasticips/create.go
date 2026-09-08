@@ -49,9 +49,9 @@ func buildCreateRequest(cmd *cobra.Command) (components.CreateElasticIP, error) 
 	request := components.CreateElasticIP{
 		Data: components.CreateElasticIPData{
 			Type: components.CreateElasticIPTypeElasticIps,
-			Attributes: components.CreateElasticIPAttributes{
+			Attributes: &components.CreateElasticIPAttributes{
 				ProjectID: project,
-				ServerID:  server,
+				ServerID:  &server,
 			},
 		},
 	}

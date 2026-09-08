@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -134,7 +135,9 @@ func (m ListModel) Choice() string {
 
 // RunList é uma função helper para executar a lista
 func RunList(title string, items []string, descriptions []string) (string, error) {
-	p := tea.NewProgram(NewList(title, items, descriptions))
+	// The prompt is UI, not output: it goes to stderr so a command whose stdout
+	// is piped or redirected (-o json > file) is not corrupted by the widget.
+	p := tea.NewProgram(NewList(title, items, descriptions), tea.WithOutput(os.Stderr))
 	m, err := p.Run()
 	if err != nil {
 		return "", err
@@ -142,7 +145,7 @@ func RunList(title string, items []string, descriptions []string) (string, error
 
 	if model, ok := m.(ListModel); ok {
 		if model.Choice() == "" {
-			return "", fmt.Errorf("selection cancelled")
+			return "", ErrCanceled
 		}
 		return model.Choice(), nil
 	}

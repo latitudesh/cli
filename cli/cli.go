@@ -8,6 +8,7 @@ import (
 	"github.com/latitudesh/lsh/client"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	servers "github.com/latitudesh/lsh/cmd/servers"
+	"github.com/latitudesh/lsh/internal/exitcode"
 	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/latitudesh/lsh/internal/version"
@@ -70,10 +71,14 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 
 	// Dedicated group so help topics show up clearly in `lsh --help`.
 	rootCmd.AddGroup(&cobra.Group{ID: helpTopicsGroupID, Title: "Help topics:"})
+	// Storage products (object storage, filesystems, volumes) share a section
+	// so they stay discoverable together in `lsh --help`.
+	rootCmd.AddGroup(&cobra.Group{ID: StorageGroupID, Title: "Storage:"})
 	rootCmd.AddCommand(makeHelpAuthenticationCmd())
 	rootCmd.AddCommand(makeHelpProfilesCmd())
 	rootCmd.AddCommand(makeHelpAutomationCmd())
 	rootCmd.AddCommand(makeHelpOutputFormatsCmd())
+	rootCmd.AddCommand(makeHelpExitCodesCmd())
 
 	// Re-resolve the active profile once flags have been parsed so that
 	// `--profile <name>` overrides LSH_PROFILE / default_profile for the
@@ -88,11 +93,20 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 		// Validate output/query/pagination selection up front so commands fail
 		// fast with an actionable message (and a non-zero exit) instead of
 		// silently falling back or clamping.
+		// These are command-line errors. Groups that opted into the documented
+		// exit codes report them as usage (2); the older groups keep exiting 1
+		// for every failure, so their scripts are unaffected.
+		usageCode := func(err error) error {
+			if err == nil || !usesExitCodes(cmd) {
+				return err
+			}
+			return exitcode.New(exitcode.Usage, err)
+		}
 		if err := renderer.ValidateOutputSelection(); err != nil {
-			return err
+			return usageCode(err)
 		}
 		if err := pagination.Validate(); err != nil {
-			return err
+			return usageCode(err)
 		}
 		// Hydrate the active profile into viper for commands that authenticate
 		// against the API. Skip the login/auth/profile subtree: there --profile
@@ -119,7 +133,7 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	viper.BindPFlag("base_path", rootCmd.PersistentFlags().Lookup("base-path"))
 
 	var outputFlag string
-	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "table", "output format: table | json | yaml | csv")
+	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "table", "output format: table | json | yaml | csv | text")
 	viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
 	// LSH_OUTPUT sets a per-user default format. viper precedence is
 	// flag > env > config > default, which is exactly what PD-6072 requires.
@@ -131,7 +145,7 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 
 	// Global automation controls. --query post-processes structured output with
 	// a JMESPath expression; the pagination flags govern every `list` command.
-	rootCmd.PersistentFlags().String("query", "", "filter json/yaml/csv output with a JMESPath expression (see 'lsh help output-formats')")
+	rootCmd.PersistentFlags().String("query", "", "filter json/yaml/csv/text output with a JMESPath expression (see 'lsh help output-formats')")
 	viper.BindPFlag("query", rootCmd.PersistentFlags().Lookup("query"))
 
 	rootCmd.PersistentFlags().Int64("page-size", pagination.DefaultPageSize, "items to request per API page")
@@ -561,9 +575,11 @@ func makeOperationGroupVirtualNetworksCmd() (*cobra.Command, error) {
 
 func makeOperationGroupVolumeCmd() (*cobra.Command, error) {
 	operationGroupVolumeCmd := &cobra.Command{
-		Use:   "volume",
-		Short: "Manage volumes",
-		Long:  `Commands to manage volume operations such as listing, mounting, creating, and deleting volumes`,
+		Use:     "volume",
+		Aliases: []string{"volumes"},
+		GroupID: StorageGroupID,
+		Short:   "Manage volumes",
+		Long:    `Commands to manage volume operations such as listing, mounting, creating, and deleting volumes`,
 	}
 
 	operationVolumeListCmd, err := makeOperationVolumeListCmd()
@@ -597,4 +613,17 @@ func makeOperationGroupVolumeCmd() (*cobra.Command, error) {
 	operationGroupVolumeCmd.AddCommand(operationVolumeDeleteCmd)
 
 	return operationGroupVolumeCmd, nil
+}
+
+// usesExitCodes reports whether cmd belongs to a subtree that opted into the
+// documented exit codes (see exitcode.OptInAnnotation). The annotation is set
+// on every command of such a group, but the walk keeps it working if only the
+// group root carries it.
+func usesExitCodes(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Annotations[exitcode.OptInAnnotation] == "true" {
+			return true
+		}
+	}
+	return false
 }

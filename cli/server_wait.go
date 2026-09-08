@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/client/servers"
 	"github.com/latitudesh/lsh/cmd/lsh"
@@ -21,7 +20,7 @@ import (
 // The create/reinstall calls still go through the legacy client; the wait loop
 // polls via the SDK (Servers.Get). Progress and outcome are written to stderr
 // so they never corrupt structured (-o json) output on stdout.
-func waitForServerState(cmd *cobra.Command, serverID string, want, fail []components.ServerDataStatus) error {
+func waitForServerState(cmd *cobra.Command, serverID string, want, fail []wait.ServerStatus) error {
 	o := wait.OptionsFrom(cmd)
 	if !o.Enabled {
 		if cmd.Flags().Changed("timeout") {
@@ -85,10 +84,10 @@ func renderServerState(cmd *cobra.Command, serverID string) {
 // Provisioning is "done" once the server settles into a stable power state —
 // it may finish either powered on or off — and "failed" on a failed deployment.
 // The in-progress states (deploying, disk_erasing) keep the wait polling.
-func serverProvisionTargets() (want, fail []components.ServerDataStatus) {
-	return []components.ServerDataStatus{
-			components.ServerDataStatusOn,
-			components.ServerDataStatusOff,
+func serverProvisionTargets() (want, fail []wait.ServerStatus) {
+	return []wait.ServerStatus{
+			wait.ServerStatusOn,
+			wait.ServerStatusOff,
 		},
-		[]components.ServerDataStatus{components.ServerDataStatusFailedDeployment}
+		[]wait.ServerStatus{wait.ServerStatusFailedDeployment}
 }

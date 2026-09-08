@@ -54,8 +54,8 @@ func (o *CreateProjectSSHKeyOperation) run(cmd *cobra.Command, args []string) er
 		Data: operations.PostProjectSSHKeyProjectsSSHKeysData{
 			Type: operations.PostProjectSSHKeyProjectsSSHKeysTypeSSHKeys,
 			Attributes: &operations.PostProjectSSHKeyProjectsSSHKeysAttributes{
-				Name:      &name,
-				PublicKey: &publicKey,
+				Name:      name,
+				PublicKey: publicKey,
 			},
 		},
 	}

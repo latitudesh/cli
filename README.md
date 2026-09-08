@@ -132,6 +132,77 @@ sudo lsh volume mount --id vol_abc123
 - The CLI automatically finds your credentials when you run commands with sudo
 - Volume mount needs sudo for nvme-cli installation and NVMe operations
 
+`lsh volumes` and `lsh filesystems` are aliases of `lsh volume` and `lsh storage-filesystems`.
+
+## Object storage
+
+`lsh s3` manages buckets, objects, access keys and lifecycle rules, addressing
+buckets and objects as `s3://<bucket>/<key>`. Bucket administration goes through the
+Latitude API; object operations talk to the bucket's S3 endpoint directly, so
+endpoint and signing region never have to be configured by hand.
+
+`<bucket>` accepts the display name, the `bkt_` ID or the backend bucket name. If
+the same display name exists in more than one place, the command lists the
+candidates and you narrow it with `--project`, `-c`/`--storage-class`, `--site`
+(e.g. `lsh s3 stat s3://backups -c high_performance --site TYO4`), or the `bkt_` ID.
+
+Create a bucket, upload, list and delete (in a terminal, `mb` offers to create
+an S3 access key and saves it to your profile):
+
+```bash
+lsh s3 mb s3://backups --region DAL --project <PROJECT_ID_OR_SLUG>
+lsh s3 cp ./dump.sql s3://backups/2026/09/
+lsh s3 ls s3://backups/2026/09/ --human-readable --summarize
+lsh s3 cp s3://backups/2026/09/dump.sql ./restore/
+lsh s3 rm s3://backups/2026/09/dump.sql
+```
+
+Give an application or CI job its own scoped access key (the secret is shown
+once; `-o text --query` extracts it for a secret store):
+
+```bash
+lsh s3 access-keys create --bucket backups=rw --bucket logs=readonly --name ci-deploy
+lsh s3 access-keys create --bucket backups=rw --name ci-deploy -o text --query "[0].secret_access_key" | gh secret set LSH_S3_SECRET_ACCESS_KEY
+lsh s3 access-keys list
+lsh s3 access-keys rotate ci-deploy --delete-old
+```
+
+Expire objects automatically with lifecycle rules:
+
+```bash
+lsh s3 lifecycle create s3://logs --prefix tmp/ --expiration-days 7
+lsh s3 lifecycle list s3://logs
+lsh s3 lifecycle delete s3://logs expire-7d-tmp
+```
+
+Use the same buckets from rclone, mc, s3cmd or any other S3 client:
+
+```bash
+lsh s3 configure export s3://backups --format env      # also: aws | rclone | mc | s3cmd | process
+```
+
+Clean up safely (`--dry-run` only reads; multi-object deletes ask for
+confirmation in a terminal and require `--yes` in CI):
+
+```bash
+lsh s3 rm s3://logs/tmp/ --recursive --dry-run
+lsh s3 rm s3://logs/tmp/ --recursive --yes
+lsh s3 rb s3://logs --force --yes
+```
+
+In CI, object commands authenticate with an S3 access key from the environment
+instead of a saved profile:
+
+| Variable | Purpose |
+| --- | --- |
+| `LSH_S3_ACCESS_KEY_ID` / `LSH_S3_SECRET_ACCESS_KEY` | S3 access key used by `cp`, `ls`, `rm`, `stat` and `presign` (both required). |
+| `LSH_S3_ENDPOINT_URL` | Talk to this S3 endpoint without the API; buckets are then addressed by their backend `bucket_name`. |
+| `LSH_S3_SIGNING_REGION` | SigV4 signing region when it cannot be derived from the endpoint. |
+| `LSH_S3_USE_AWS_ENV` | Set to `1` to reuse `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`. |
+
+`lsh help exit-codes` documents the exit codes (0-7, 130) that `lsh s3` returns
+for scripts.
+
 ## Output formats & automation
 
 Every `list` command can render its results in different formats, so the output
@@ -143,11 +214,12 @@ lsh servers list -o table            # human-readable table (default)
 lsh servers list -o json             # JSON
 lsh servers list -o yaml             # YAML
 lsh servers list -o csv              # CSV (header + one row per item)
+lsh servers list -o text             # raw values, tab-separated
 lsh servers list --json              # shortcut for -o json
 ```
 
 Filter the structured output with a [JMESPath](https://jmespath.org/) expression
-via `--query` (works with json/yaml/csv):
+via `--query` (works with json/yaml/csv/text):
 
 ```bash
 lsh servers list --query "[?status=='on'].id" -o json
@@ -165,8 +237,8 @@ lsh servers list --no-paginate       # first page only; next page printed to std
 
 | Variable | Purpose |
 | --- | --- |
-| `LSH_OUTPUT` | Default output format (`table`/`json`/`yaml`/`csv`). Precedence: `--output` flag > `LSH_OUTPUT` > config file > default. |
-| `LSH_CLASSIC_OUTPUT` | Set to `true` to force the legacy plain-ASCII table. An explicit `-o json/yaml/csv` still wins over it. |
+| `LSH_OUTPUT` | Default output format (`table`/`json`/`yaml`/`csv`/`text`). Precedence: `--output` flag > `LSH_OUTPUT` > config file > default. |
+| `LSH_CLASSIC_OUTPUT` | Set to `true` to force the legacy plain-ASCII table. An explicit `-o json/yaml/csv/text` still wins over it. |
 | `LATITUDESH_TOKEN` | API token; bypasses any stored profile (see `lsh help authentication`). |
 | `LSH_PROFILE` | Use the named profile for the command. |
 | `LSH_PROJECT` | Pre-fill `--project` so list commands don't prompt. |
