@@ -122,3 +122,48 @@ func TestResolveCredentialEndpointOverrideRequiresEnv(t *testing.T) {
 		t.Errorf("error should tell the user which variables to set: %v", err)
 	}
 }
+
+// TestExplicitKeyChecksCompatibility covers the --access-key path: Covers() is
+// true for every bucket on a fullaccess key, so without an explicit
+// compatibility check a key from another backend, site or project would be
+// sent to the bucket and fail at the server instead of locally.
+func TestExplicitKeyChecksCompatibility(t *testing.T) {
+	hp := &Bucket{ID: "bkt_1", Name: "fast", StorageClass: ClassHighPerformance, Site: "TYO4", ProjectID: "proj_1"}
+	full := func(class, site, project string) config.StoredAccessKey {
+		return config.StoredAccessKey{AccessKeyID: "AK", StorageClass: class, Site: site, ProjectID: project, Scope: config.ScopeFullAccess}
+	}
+	cases := []struct {
+		name string
+		key  config.StoredAccessKey
+		want string
+	}{
+		{"other storage class", full(ClassStandard, "TYO4", "proj_1"), "do not share credentials"},
+		{"other site", full(ClassHighPerformance, "DAL", "proj_1"), "only works in its own site"},
+		{"other project", full(ClassHighPerformance, "TYO4", "proj_2"), "belongs to project"},
+	}
+	for _, c := range cases {
+		err := explainIncompatibleKey("ci-key", c.key, hp)
+		if err == nil {
+			t.Errorf("%s: expected the selection to be rejected", c.name)
+			continue
+		}
+		if code := exitcode.Of(err); code != exitcode.Usage {
+			t.Errorf("%s: exit code = %d, want %d", c.name, code, exitcode.Usage)
+		}
+		if !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: error %q should explain the mismatch (%q)", c.name, err, c.want)
+		}
+	}
+
+	// A compatible key passes, and partial metadata is not judged: an imported
+	// key with no class/site/project stays usable.
+	for _, ok := range []config.StoredAccessKey{
+		full(ClassHighPerformance, "tyo4", "proj_1"),
+		full("", "", ""),
+		{AccessKeyID: "AK", Scope: config.ScopeUnknown},
+	} {
+		if err := explainIncompatibleKey("ci-key", ok, hp); err != nil {
+			t.Errorf("key %+v must be accepted, got %v", ok, err)
+		}
+	}
+}

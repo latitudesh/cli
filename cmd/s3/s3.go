@@ -303,12 +303,27 @@ func openBucket(ctx context.Context, cmd *cobra.Command, token string, write boo
 	// A high_performance key is bound to one site, but the SDK model drops the
 	// bucket's site, so without this the site check in keyMatchesBucket is a
 	// no-op on the data plane and a key from another site can be selected.
-	if b.StorageClass == objectstorage.ClassHighPerformance && b.Site == "" && !b.EndpointOverride {
+	// The site is only a selection constraint, so the lookup is skipped when
+	// the credential does not come from the profile; when it does, a failed
+	// lookup has to fail the command — continuing with an empty site turns the
+	// constraint into a wildcard and lets a key from another site win.
+	if b.StorageClass == objectstorage.ClassHighPerformance && b.Site == "" && !b.EndpointOverride && usesSavedCredential() {
 		if fillErr := newResolver(cmd).FillSite(ctx, b); fillErr != nil {
-			lsh.LogDebugf("[s3] could not determine the site of %s: %v", b.Display(), fillErr)
+			return nil, exitcode.Errorf(exitcode.Of(fillErr),
+				"could not determine which site bucket %s is in, and a high_performance access key is only valid in its own site: %v\n  retry, or name the key explicitly with --access-key <name>",
+				b.Display(), fillErr)
 		}
 	}
 	return openResolved(cmd, b, write)
+}
+
+// usesSavedCredential reports whether the credential will come from the active
+// profile, which is the only case where the bucket's site changes the outcome.
+// LSH_S3_* credentials bypass the profile entirely; an explicit --access-key
+// does not, because the named key is still checked against the bucket's site.
+func usesSavedCredential() bool {
+	_, fromEnv, _ := objectstorage.EnvCredential()
+	return !fromEnv
 }
 
 // openResolved is openBucket for an already-resolved bucket.

@@ -162,6 +162,13 @@ func ResolveCredential(b *Bucket, o CredentialOptions) (Credential, error) {
 		}
 		c := fromStored(o.AccessKeyName, k, profileName)
 		if b != nil && !b.EndpointOverride && b.ID != "" {
+			// Covers() is true for every bucket ID on a fullaccess key, so
+			// without this the class/site/project constraints that automatic
+			// selection enforces would never be checked for an explicit key:
+			// the request would go out and fail at the backend instead.
+			if err := explainIncompatibleKey(o.AccessKeyName, k, b); err != nil {
+				return Credential{}, err
+			}
 			if k.Scope != config.ScopeUnknown && !k.Covers(b.ID, false) {
 				return Credential{}, exitcode.Errorf(exitcode.Permission, "saved key %q does not cover bucket %s", o.AccessKeyName, b.Display())
 			}
@@ -191,6 +198,30 @@ func fromStored(name string, k config.StoredAccessKey, profile string) Credentia
 		Key:         k,
 		Profile:     profile,
 	}
+}
+
+// explainIncompatibleKey reports why a saved key cannot serve b, or nil when
+// nothing rules it out. It applies the constraints keyMatchesBucket uses for
+// automatic selection — with the same "empty means unknown, so do not judge"
+// rule, which keeps imported keys with partial metadata usable — but names the
+// mismatch instead of silently skipping the key, because here the user picked
+// it explicitly.
+func explainIncompatibleKey(name string, k config.StoredAccessKey, b *Bucket) error {
+	switch {
+	case k.StorageClass != "" && b.StorageClass != "" && k.StorageClass != b.StorageClass:
+		return exitcode.Errorf(exitcode.Usage,
+			"saved key %q is a %s key and bucket %s is %s; the two backends do not share credentials — run 'lsh s3 access-keys list --saved' to pick another, or drop --access-key to let the CLI choose",
+			name, k.StorageClass, b.Display(), b.StorageClass)
+	case k.Site != "" && b.Site != "" && !strings.EqualFold(k.Site, b.Site):
+		return exitcode.Errorf(exitcode.Usage,
+			"saved key %q belongs to site %s and bucket %s is in %s; a %s key only works in its own site",
+			name, strings.ToUpper(k.Site), b.Display(), strings.ToUpper(b.Site), ClassHighPerformance)
+	case k.ProjectID != "" && b.ProjectID != "" && k.ProjectID != b.ProjectID:
+		return exitcode.Errorf(exitcode.Usage,
+			"saved key %q belongs to project %s and bucket %s to project %s",
+			name, k.ProjectID, b.Display(), b.ProjectID)
+	}
+	return nil
 }
 
 // SelectKey applies the automatic selection rules over the saved keys:
@@ -277,53 +308,91 @@ func NoCredentialError(b *Bucket, profile string, write bool, keys map[string]co
 }
 
 // SaveKey stores k under name in the active profile and persists the file.
+//
+// The read-modify-write runs inside config.Update so two processes saving keys
+// at the same time cannot drop each other's entry: a lost entry would strand a
+// live credential whose secret the API never returns again.
 func SaveKey(profileOverride, name string, k config.StoredAccessKey) (string, error) {
-	f, profileName, p, err := ActiveProfile(profileOverride)
+	var profileName string
+	err := config.Update(func(f *config.File) error {
+		var p config.Profile
+		var resolveErr error
+		profileName, p, resolveErr = resolveProfileIn(f, profileOverride)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		p.SetObjectStorageKey(name, k)
+		f.SetProfile(profileName, p)
+		return nil
+	})
+	return profileName, err
+}
+
+// resolveProfileIn resolves the active profile inside an already-loaded file,
+// mapping the same errors ActiveProfile reports. It exists so a config.Update
+// transaction works on the file it locked instead of loading a second copy.
+func resolveProfileIn(f *config.File, override string) (string, config.Profile, error) {
+	name, p, err := f.Resolve(override)
 	if err != nil {
-		return "", err
+		if errors.Is(err, config.ErrProfileNotFound) {
+			if override != "" {
+				return name, p, exitcode.Errorf(exitcode.Usage, "profile %q not found — run 'lsh profile list'", override)
+			}
+			return "", config.Profile{}, exitcode.Errorf(exitcode.Credentials, "no active profile — run 'lsh login' (or use LSH_S3_ACCESS_KEY_ID/LSH_S3_SECRET_ACCESS_KEY)")
+		}
+		return name, p, err
 	}
-	p.SetObjectStorageKey(name, k)
-	f.SetProfile(profileName, p)
-	if err := config.Save(f); err != nil {
-		return profileName, err
-	}
-	return profileName, nil
+	return name, p, nil
 }
 
 // ForgetKey removes a saved key by name from the active profile.
 func ForgetKey(profileOverride, name string) (string, bool, error) {
-	f, profileName, p, err := ActiveProfile(profileOverride)
-	if err != nil {
-		return "", false, err
-	}
-	removed := p.RemoveObjectStorageKey(name)
-	if removed {
-		f.SetProfile(profileName, p)
-		if err := config.Save(f); err != nil {
-			return profileName, false, err
+	var profileName string
+	var removed bool
+	err := config.Update(func(f *config.File) error {
+		var p config.Profile
+		var resolveErr error
+		profileName, p, resolveErr = resolveProfileIn(f, profileOverride)
+		if resolveErr != nil {
+			return resolveErr
 		}
+		removed = p.RemoveObjectStorageKey(name)
+		if removed {
+			f.SetProfile(profileName, p)
+		}
+		return nil
+	})
+	if err != nil {
+		return profileName, false, err
 	}
 	return profileName, removed, nil
 }
 
 // ForgetKeyByID removes every saved key with the given access key ID.
 func ForgetKeyByID(profileOverride, accessKeyID string) (string, []string, error) {
-	f, profileName, p, err := ActiveProfile(profileOverride)
-	if err != nil {
-		return "", nil, err
-	}
+	var profileName string
 	var removed []string
-	for name, k := range p.ObjectStorageKeys() {
-		if k.AccessKeyID == accessKeyID {
-			p.RemoveObjectStorageKey(name)
-			removed = append(removed, name)
+	err := config.Update(func(f *config.File) error {
+		var p config.Profile
+		var resolveErr error
+		profileName, p, resolveErr = resolveProfileIn(f, profileOverride)
+		if resolveErr != nil {
+			return resolveErr
 		}
-	}
-	if len(removed) > 0 {
-		f.SetProfile(profileName, p)
-		if err := config.Save(f); err != nil {
-			return profileName, nil, err
+		removed = nil
+		for name, k := range p.ObjectStorageKeys() {
+			if k.AccessKeyID == accessKeyID {
+				p.RemoveObjectStorageKey(name)
+				removed = append(removed, name)
+			}
 		}
+		if len(removed) > 0 {
+			f.SetProfile(profileName, p)
+		}
+		return nil
+	})
+	if err != nil {
+		return profileName, nil, err
 	}
 	sort.Strings(removed)
 	return profileName, removed, nil
