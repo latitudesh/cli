@@ -258,8 +258,9 @@ func fetchMetrics(ctx context.Context, api *sdk.Latitudesh, buckets []*objectsto
 // NewMetricsCmd builds `lsh s3 metrics [s3://bucket]`.
 func NewMetricsCmd() *cobra.Command {
 	cmd := newCmd(&cobra.Command{
-		Use:   "metrics [s3://bucket]",
-		Short: "Storage consumption and estimated cost",
+		Use:     "metrics [s3://bucket]",
+		GroupID: groupReports,
+		Short:   "Current size and estimated cost of a bucket",
 		Long: `Show the storage consumed in the current billing period and the estimated
 cost, per bucket. Without a bucket every bucket of the project (or of the team
 with --all-projects) is listed, sorted by estimated cost, with a TOTAL row in

@@ -1267,7 +1267,7 @@ func addTransferFlags(cmd *cobra.Command, f *transferFlags, recursive bool) {
 		"checksum-algorithm":    "the CLI uses Content-MD5; additional checksums are rejected by S3-compatible backends",
 		"checksum-mode":         "checksum validation on download is not available",
 		"request-payer":         "there is no requester-pays billing on Latitude",
-		"storage-class":         "storage class is a bucket attribute on Latitude (standard|high_performance); set it with lsh s3 mb --storage-class",
+		"storage-class":         "storage class is a bucket attribute on Latitude (standard|high_performance); set it with lsh s3 create-bucket --storage-class",
 	})
 	if sse := fs.Lookup("sse"); sse != nil {
 		sse.NoOptDefVal = "AES256"

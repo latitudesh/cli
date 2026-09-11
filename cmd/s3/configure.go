@@ -40,9 +40,15 @@ func NewConfigureCmd() *cobra.Command {
 	cmd := newCmd(&cobra.Command{
 		Use:     "configure",
 		Aliases: []string{"credentials"},
-		Short:   "Set up S3 access keys on this machine",
+		GroupID: groupCredentials,
+		Short:   "Create an access key and save it for this machine",
 		Long: `Create an S3 access key and save it in the active lsh profile so the object
-commands (ls, cp, rm, stat, presign) can use it automatically.
+commands (list, copy, move, delete, get, presign) can use it automatically.
+
+This is the path for the machine you are typing on. For an application, a CI
+job or a colleague, create a separate key with 'lsh s3 access-keys create':
+it prints the key once (and saves it here too with --save) instead of
+walking through the wizard.
 
 The wizard asks for the project, the storage class (standard = general
 purpose; high_performance = low latency on selected sites), the site for
@@ -630,7 +636,7 @@ func runConfigure(cmd *cobra.Command, _ []string) error {
 	if savedAs != st.Name {
 		objectstorage.Hintf("(%q already held another key, so this one was saved as %q)", st.Name, savedAs)
 	}
-	objectstorage.Hintf("Next: lsh s3 ls%s", configureExampleBucket(st, "   lsh s3 cp ./file s3://%s/"))
+	objectstorage.Hintf("Next: lsh s3 list%s", configureExampleBucket(st, "   lsh s3 copy ./file s3://%s/"))
 	objectstorage.Hintf("For apps or CI create a separate key: lsh s3 access-keys create --bucket <b> --name <app>")
 	objectstorage.Hintf("Export it for other tools: lsh s3 configure export --format env%s", configureExampleBucket(st, " s3://%s"))
 	if !isHuman() {
@@ -912,7 +918,7 @@ func configureSelectInteractive(ctx context.Context, cmd *cobra.Command, st *con
 		if st.Site != "" {
 			where += " in " + st.Site
 		}
-		return exitcode.Errorf(exitcode.NotFound, "no %s buckets found in project %s; create one with 'lsh s3 mb s3://<name> --region <site> --project %s'", where, r.Project, r.Project)
+		return exitcode.Errorf(exitcode.NotFound, "no %s buckets found in project %s; create one with 'lsh s3 create-bucket s3://<name> --region <site> --project %s'", where, r.Project, r.Project)
 	}
 	labels := make([]string, len(candidates))
 	for i, b := range candidates {

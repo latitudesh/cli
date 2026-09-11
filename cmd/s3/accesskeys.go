@@ -11,8 +11,13 @@ func NewAccessKeysCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "access-keys",
 		Aliases: []string{"keys", "access-key"},
-		Short:   "Manage S3 access keys",
+		GroupID: groupCredentials,
+		Short:   "Manage access keys (create, list, rotate, delete)",
 		Long: `Manage the S3 access keys of your object storage buckets.
+
+To set up the machine you are on, 'lsh s3 configure' asks the questions and
+saves the key for you; the commands here are for keys handed to applications,
+CI jobs or other people, and for auditing what exists.
 
 Access keys are separate from your API token: the API creates them, but the
 secret is returned once and never again. A key is either fullaccess (every
@@ -20,7 +25,7 @@ bucket of the project in that storage class, and site for high_performance)
 or limited_access (specific buckets with rw or readonly permission).
 
 Keys can be saved in the active lsh profile (--save, or --save-as <name>);
-'lsh s3 cp/ls/rm' then pick the least-privileged saved key that covers the
+'lsh s3 copy/ls/rm' then pick the least-privileged saved key that covers the
 bucket automatically.
 Saved keys never leave this machine except towards the bucket's endpoint.`,
 		Example: `  lsh s3 access-keys list

@@ -144,7 +144,7 @@ func runAccessKeysList(cmd *cobra.Command, _ []string) error {
 			slugs[b.ProjectRef()] = b.ProjectSlug
 		}
 	} else {
-		// Pick the project like `lsh s3 ls`: --project / LSH_PROJECT, or
+		// Pick the project like `lsh s3 list`: --project / LSH_PROJECT, or
 		// --all-projects, otherwise the interactive picker (with "All projects").
 		project, allProjects, perr := cli.PickProjectForList(cmd)
 		if perr != nil {

@@ -56,7 +56,7 @@ func Humanize(err error, b *Bucket, c *Credential) error {
 				endpoint = b.Endpoint
 				backend = b.BucketName
 			}
-			return exitcode.Errorf(exitcode.NotFound, "bucket %s (backend name %q) was not found at %s; it may still be provisioning — check 'lsh s3 stat %s'", bucketName, backend, endpoint, displayOrBackend(b))
+			return exitcode.Errorf(exitcode.NotFound, "bucket %s (backend name %q) was not found at %s; it may still be provisioning — check 'lsh s3 get %s'", bucketName, backend, endpoint, displayOrBackend(b))
 		case "NoSuchKey", "NotFound":
 			key := resp.Key
 			if key == "" {

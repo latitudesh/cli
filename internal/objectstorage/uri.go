@@ -189,9 +189,9 @@ func ErrUsagef(format string, a ...interface{}) error {
 // bucketNotFound formats the "no such bucket" error shared by the resolver.
 func bucketNotFound(ref, project string) error {
 	if project != "" {
-		return exitcode.Errorf(exitcode.NotFound, "bucket %q not found in project %s; run 'lsh s3 ls' to see available buckets", ref, project)
+		return exitcode.Errorf(exitcode.NotFound, "bucket %q not found in project %s; run 'lsh s3 list' to see available buckets", ref, project)
 	}
-	return exitcode.Errorf(exitcode.NotFound, "bucket %q not found; run 'lsh s3 ls' to see available buckets", ref)
+	return exitcode.Errorf(exitcode.NotFound, "bucket %q not found; run 'lsh s3 list' to see available buckets", ref)
 }
 
 var _ = fmt.Sprintf

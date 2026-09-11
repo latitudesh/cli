@@ -133,7 +133,7 @@ projects first and retrying:
 
 Confirmations (--yes / --no-input)
 
-Destructive object storage commands (lsh s3 rm --recursive, rb --force,
+Destructive object storage commands (lsh s3 delete --recursive, rb --force,
 access-keys delete, lifecycle delete --all) ask for confirmation when run
 in a terminal. The contract for automation is:
 
@@ -148,7 +148,7 @@ exits 0. See 'lsh help exit-codes' for the full table.
 
 Object storage credentials
 
-Object commands (lsh s3 cp/ls/rm/stat/presign) authenticate with an S3
+Object commands (lsh s3 copy/ls/rm/stat/presign) authenticate with an S3
 access key, not with the API token. In CI, export one of the following:
 
   LSH_S3_ACCESS_KEY_ID        S3 access key id (both variables are required;
@@ -164,12 +164,12 @@ access key, not with the API token. In CI, export one of the following:
 
   # Resolve s3://<display-name> through the API, sign with the env key
   LATITUDESH_TOKEN=ak_xxx LSH_S3_ACCESS_KEY_ID=... LSH_S3_SECRET_ACCESS_KEY=... \
-    lsh s3 cp ./dump.sql s3://backups/2026/09/
+    lsh s3 copy ./dump.sql s3://backups/2026/09/
 
   # No API at all: endpoint + backend bucket name
   LSH_S3_ENDPOINT_URL=https://s3.us-central-1.storage.sh \
   LSH_S3_ACCESS_KEY_ID=... LSH_S3_SECRET_ACCESS_KEY=... \
-    lsh s3 ls s3://backups-7f3a/
+    lsh s3 list s3://backups-7f3a/
 
   # Hand a scoped key to another job (the secret is printed once)
   lsh s3 access-keys create --bucket backups=rw --name ci -o text \
@@ -281,7 +281,7 @@ specific exit code to every failure so scripts can tell "not found" from
 Errors are always printed to stderr; stdout carries only data, so
 '-o json' and '-o text' output stays pipeable even when a command fails.
 
-  lsh s3 cp ./dump.sql s3://backups/ || case $? in
+  lsh s3 copy ./dump.sql s3://backups/ || case $? in
     4) echo "configure an access key: lsh s3 configure" ;;
     7) echo "refused; add --yes in CI" ;;
   esac
@@ -289,6 +289,61 @@ Errors are always printed to stderr; stdout carries only data, so
 Older command groups (servers, projects, plans, ...) predate this table
 and still exit 1 for every error. Their behaviour is unchanged; only
 'lsh s3' uses the codes above.
+`,
+	)
+}
+
+func makeHelpS3Cmd() *cobra.Command {
+	return newHelpTopic(
+		"object-storage",
+		"How object storage addressing, endpoints and access keys work",
+		`lsh — Object storage
+
+The commands live under 'lsh s3' ('lsh s3 --help' lists them).
+
+Two planes
+  Buckets, access keys, lifecycle rules, metrics and usage are managed
+  through the Latitude API with your API token ('lsh login').
+  Objects (list, copy, move, delete, get, presign, sync) are read and
+  written on the bucket's own S3 endpoint with an S3 access key, which is a
+  separate credential the API returns exactly once when the key is created.
+
+Addressing
+  Buckets and objects are written as s3://<bucket>[/<key>]. <bucket> may be
+  the display name, the bkt_ ID or the backend bucket name. When the same
+  display name exists more than once (another project, storage class or
+  site), the command lists the candidates; narrow it with --project,
+  -c/--storage-class or --site, or use the bkt_ ID.
+
+  The endpoint, the SigV4 signing region and path-style addressing are
+  derived from the bucket, so none of them is configured by hand:
+    standard          https://s3.<region>.storage.sh
+    high_performance  https://objects.<site>.storage.sh   (bound to one site)
+
+Access keys
+  A key is either fullaccess (every bucket of a storage class in a project —
+  and of one site, for high_performance) or limited_access (specific buckets,
+  rw or readonly). Keys saved in the active profile are picked automatically
+  per bucket, preferring the least-privileged one that covers it.
+
+  For the machine you are on:    lsh s3 configure
+  For an app, CI job or someone: lsh s3 access-keys create --bucket <b>=rw
+  Reuse elsewhere:               lsh s3 configure export s3://<b> --format env
+
+  Precedence: LSH_S3_ACCESS_KEY_ID + LSH_S3_SECRET_ACCESS_KEY (environment)
+  > --access-key <saved-name> > the best saved key of the active profile.
+  Without any of them the command exits 4 with the commands that fix it.
+
+Without the API
+  --endpoint-url (or LSH_S3_ENDPOINT_URL) talks to an S3 endpoint directly:
+  <bucket> is then the backend bucket name and credentials come only from
+  the environment. --signing-region overrides the region when it cannot be
+  derived from the endpoint.
+
+Safety
+  Deleting several objects asks for confirmation in a terminal and needs
+  --yes in scripts; --dry-run prints the plan without writing anything;
+  --max-delete caps a recursive deletion. Exit codes: 'lsh help exit-codes'.
 `,
 	)
 }

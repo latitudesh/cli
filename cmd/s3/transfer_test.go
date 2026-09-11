@@ -865,7 +865,7 @@ func TestCommandsRegisterFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := cp.PreRunE(cp, nil)
-	if exitcode.Of(err) != exitcode.Usage || !strings.Contains(err.Error(), "lsh s3 mb --storage-class") {
+	if exitcode.Of(err) != exitcode.Usage || !strings.Contains(err.Error(), "lsh s3 create-bucket --storage-class") {
 		t.Errorf("--storage-class: %v", err)
 	}
 }

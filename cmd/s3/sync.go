@@ -28,8 +28,9 @@ func NewSyncCmd() *cobra.Command {
 	var f transferFlags
 	var so syncOptions
 	cmd := newCmd(&cobra.Command{
-		Use:   "sync <source> <destination>",
-		Short: "Synchronize directories and prefixes",
+		Use:     "sync <source> <destination>",
+		GroupID: groupObjects,
+		Short:   "Synchronize directories and prefixes",
 		Long: `Recursively copy new and changed files between a local directory and a
 prefix, or between two prefixes on the same endpoint.
 
@@ -44,11 +45,11 @@ a partial run never leaves the destination without both versions; re-run the
 sync to apply them. They also never leave the destination tree: a candidate
 reached through a directory symlink is reported and kept.
 
-Output lines use upload:/download:/copy:/delete:. --dry-run (or --dryrun)
+Output lines use upload:/download:/copy:/delete:. --dry-run (or --dry-run)
 prints the plan without writing or deleting anything.`,
 		Example: `  lsh s3 sync ./site s3://www
   lsh s3 sync s3://backups/2026/ ./backups/2026/
-  lsh s3 sync ./logs s3://logs/host-1/ --exclude "*" --include "*.log" --delete --dryrun
+  lsh s3 sync ./logs s3://logs/host-1/ --exclude "*" --include "*.log" --delete --dry-run
   lsh s3 sync s3://backups/ s3://archive/backups/ --size-only`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {

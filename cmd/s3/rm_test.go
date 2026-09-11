@@ -650,13 +650,13 @@ func TestRmBucketOnlyPointsAtRb(t *testing.T) {
 	if code := exitcode.Of(err); code != exitcode.Usage {
 		t.Errorf("exit code = %d, want %d", code, exitcode.Usage)
 	}
-	for _, want := range []string{"names a bucket, not an object", "--recursive --all", "lsh s3 rb s3://bkt_abc123"} {
+	for _, want := range []string{"names a bucket, not an object", "--recursive --all", "lsh s3 delete-bucket s3://bkt_abc123"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q is missing %q", err, want)
 		}
 	}
 	// A prefix keeps the shorter --recursive hint.
-	if _, err := rmParseArgs("s3://logs/tmp/", rmOptions{}); err == nil || strings.Contains(err.Error(), "lsh s3 rb") {
+	if _, err := rmParseArgs("s3://logs/tmp/", rmOptions{}); err == nil || strings.Contains(err.Error(), "lsh s3 delete-bucket") {
 		t.Errorf("a prefix must keep the --recursive hint, got %v", err)
 	}
 }

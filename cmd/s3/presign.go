@@ -34,7 +34,8 @@ func NewPresignCmd() *cobra.Command {
 	cmd := newCmd(&cobra.Command{
 		Use:     "presign s3://bucket/key",
 		Aliases: []string{"presigned-url", "share"},
-		Short:   "Generate a pre-signed URL",
+		GroupID: groupObjects,
+		Short:   "Generate a pre-signed URL for an object",
 		Long: `Generate a pre-signed URL that grants temporary access to one object
 without sharing credentials.
 
@@ -69,7 +70,7 @@ command composes with $(...) and curl.`,
 		// ObjectRef's shared message points at --recursive, a flag only rm and
 		// the transfer commands have; presign signs exactly one object.
 		if r, parseErr := objectstorage.ParseRemote(args[0]); parseErr == nil && strings.HasSuffix(r.Key, "/") {
-			return printErr(objectstorage.ErrUsagef("key %q ends with '/'; presign signs a single object (use 'lsh s3 ls %s' to list the prefix)", r.Key, r))
+			return printErr(objectstorage.ErrUsagef("key %q ends with '/'; presign signs a single object (use 'lsh s3 list %s' to list the prefix)", r.Key, r))
 		}
 		ref, err := objectstorage.ObjectRef(args[0], false)
 		if err != nil {

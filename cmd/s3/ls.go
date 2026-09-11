@@ -33,12 +33,13 @@ const (
 // maxListPageSize is the largest max-keys S3 accepts per request.
 const maxListPageSize = 1000
 
-// NewLsCmd builds `lsh s3 ls [s3://bucket[/prefix]]`.
+// NewLsCmd builds `lsh s3 list [s3://bucket[/prefix]]`.
 func NewLsCmd() *cobra.Command {
 	cmd := newCmd(&cobra.Command{
-		Use:     "ls [s3://bucket[/prefix]]",
-		Aliases: []string{"list"},
-		Short:   "List buckets, or the objects under a prefix",
+		Use:     "list [s3://bucket[/prefix]]",
+		Aliases: []string{"ls"},
+		GroupID: groupBuckets,
+		Short:   "List buckets, or the objects under a prefix (alias: ls)",
 		Long: `List buckets, or the objects under a prefix.
 
 Without an argument, lists buckets through the Latitude API. Pick a project
@@ -59,14 +60,14 @@ stderr and accepted by --starting-token.
 Structured output (-o json|yaml|csv) emits one row per object or prefix;
 --stream with -o json prints one JSON object per line as the listing arrives
 instead of buffering everything.`,
-		Example: `  lsh s3 ls
-  lsh s3 ls --project my-project --storage-class high_performance
-  lsh s3 ls s3://backups/2026/09/
-  lsh s3 ls s3://backups --recursive --human-readable --summarize
-  lsh s3 ls s3://backups/logs/ --versions
-  lsh s3 ls s3://backups --recursive -o json --stream | jq -r .key
-  lsh s3 ls s3://backups --no-paginate --page-size 100
-  lsh s3 ls s3://backups --starting-token <token>`,
+		Example: `  lsh s3 list
+  lsh s3 list --project my-project --storage-class high_performance
+  lsh s3 list s3://backups/2026/09/
+  lsh s3 list s3://backups --recursive --human-readable --summarize
+  lsh s3 list s3://backups/logs/ --versions
+  lsh s3 list s3://backups --recursive -o json --stream | jq -r .key
+  lsh s3 list s3://backups --no-paginate --page-size 100
+  lsh s3 list s3://backups --starting-token <token>`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: runLs,
 	})

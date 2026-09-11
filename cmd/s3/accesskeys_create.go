@@ -414,7 +414,7 @@ func printCreatedHuman(w io.Writer, v createdKeyView, showSecret bool) {
 	if v.Endpoint != "" {
 		fmt.Fprintf(w, "  Endpoint:           %s\n", v.Endpoint)
 	} else {
-		fmt.Fprintf(w, "  Endpoint:           (see 'lsh s3 stat s3://<bucket>' for the bucket endpoint)\n")
+		fmt.Fprintf(w, "  Endpoint:           (see 'lsh s3 get s3://<bucket>' for the bucket endpoint)\n")
 	}
 	if v.SigningRegion != "" {
 		fmt.Fprintf(w, "  Signing region:     %s\n", v.SigningRegion)

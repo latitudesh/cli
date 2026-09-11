@@ -79,6 +79,7 @@ func MakeRootCmd(rootCmd *cobra.Command) (*cobra.Command, error) {
 	rootCmd.AddCommand(makeHelpAutomationCmd())
 	rootCmd.AddCommand(makeHelpOutputFormatsCmd())
 	rootCmd.AddCommand(makeHelpExitCodesCmd())
+	rootCmd.AddCommand(makeHelpS3Cmd())
 
 	// Re-resolve the active profile once flags have been parsed so that
 	// `--profile <name>` overrides LSH_PROFILE / default_profile for the

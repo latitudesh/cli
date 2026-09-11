@@ -237,7 +237,7 @@ func (r *Resolver) Resolve(ctx context.Context, token string) (*Bucket, error) {
 			if nameMatches > 0 {
 				// The name existed but the --storage-class/--site filters ruled
 				// every candidate out.
-				return nil, exitcode.Errorf(exitcode.NotFound, "no bucket named %q matches the given filters (%s); run 'lsh s3 ls' to see the buckets", token, r.filterDesc())
+				return nil, exitcode.Errorf(exitcode.NotFound, "no bucket named %q matches the given filters (%s); run 'lsh s3 list' to see the buckets", token, r.filterDesc())
 			}
 			return nil, bucketNotFound(token, r.Project)
 		case 1:

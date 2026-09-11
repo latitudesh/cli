@@ -18,13 +18,14 @@ import (
 
 const flagStatVersionID = "version-id"
 
-// NewStatCmd builds `lsh s3 stat s3://bucket[/key]`.
+// NewStatCmd builds `lsh s3 get s3://bucket[/key]`.
 func NewStatCmd() *cobra.Command {
 	cmd := newCmd(&cobra.Command{
-		Use:        "stat s3://bucket[/key]",
-		Aliases:    []string{"get", "describe", "head"},
+		Use:        "get s3://bucket[/key]",
+		Aliases:    []string{"stat", "describe", "head"},
+		GroupID:    groupBuckets,
 		SuggestFor: []string{"show", "info"},
-		Short:      "Show a bucket or object",
+		Short:      "Show a bucket or an object (alias: stat)",
 		Long: `Show a bucket or an object.
 
 For a bucket (s3://bucket) the details come from the Latitude API: id, names,
@@ -32,10 +33,10 @@ endpoint, site, signing region, class, versioning, object lock and which saved
 access keys cover it. For an object (s3://bucket/key) the CLI issues a HEAD
 request to the S3 endpoint: size, ETag, content type, last modified, version
 and user metadata.`,
-		Example: `  lsh s3 stat s3://backups
-  lsh s3 stat s3://backups/2026/09/dump.sql
-  lsh s3 stat s3://backups/2026/09/dump.sql --version-id 3HL4kqtJlcpXroDTDmJ
-  lsh s3 stat s3://backups -o json`,
+		Example: `  lsh s3 get s3://backups
+  lsh s3 get s3://backups/2026/09/dump.sql
+  lsh s3 get s3://backups/2026/09/dump.sql --version-id 3HL4kqtJlcpXroDTDmJ
+  lsh s3 get s3://backups -o json`,
 		Args: cobra.ExactArgs(1),
 		RunE: runStat,
 	})
@@ -75,7 +76,7 @@ func runStat(cmd *cobra.Command, args []string) error {
 	}
 
 	if strings.HasSuffix(ref.Key, "/") {
-		return printErr(objectstorage.ErrUsagef("key %q ends with '/'; stat inspects a single object (use 'lsh s3 ls %s' to list a prefix)", ref.Key, ref))
+		return printErr(objectstorage.ErrUsagef("key %q ends with '/'; stat inspects a single object (use 'lsh s3 list %s' to list a prefix)", ref.Key, ref))
 	}
 	sess, err := openBucket(ctx, cmd, ref.Bucket, false)
 	if err != nil {

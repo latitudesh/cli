@@ -4,8 +4,9 @@ import (
 	s3 "github.com/latitudesh/lsh/cmd/s3"
 )
 
-// s3Cmd is the object storage group (`lsh s3`, aliases `buckets` and the
-// legacy `storage-objects`). It replaces cmd/storage_objects.
+// s3Cmd is the object storage group (`lsh s3`, alias `object-storage`). It
+// replaces cmd/storage_objects; the old name survives as a hidden, deprecated
+// command that re-dispatches here (see s3.NewLegacyAliasCmd).
 var s3Cmd = s3.NewGroupCmd()
 
 func init() {
@@ -28,4 +29,5 @@ func init() {
 	s3.Finalize(s3Cmd)
 
 	rootCmd.AddCommand(s3Cmd)
+	rootCmd.AddCommand(s3.NewLegacyAliasCmd(rootCmd))
 }

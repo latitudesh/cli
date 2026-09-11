@@ -37,7 +37,8 @@ func NewLifecycleCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "lifecycle",
 		Aliases: []string{"lifecycle-rules"},
-		Short:   "Manage bucket lifecycle rules",
+		GroupID: groupReports,
+		Short:   "Manage lifecycle rules (expire objects automatically)",
 		Long: `Manage the lifecycle rules of a bucket (automatic expiration of objects,
 noncurrent versions and incomplete multipart uploads).
 

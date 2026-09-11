@@ -62,12 +62,13 @@ type rbOptions struct {
 	Human     bool
 }
 
-// NewRbCmd builds `lsh s3 rb s3://bucket`.
+// NewRbCmd builds `lsh s3 delete-bucket s3://bucket`.
 func NewRbCmd() *cobra.Command {
 	cmd := newCmd(&cobra.Command{
-		Use:     "rb s3://bucket",
-		Aliases: []string{"delete"},
-		Short:   "Delete a bucket",
+		Use:     "delete-bucket s3://bucket",
+		Aliases: []string{"rb"},
+		GroupID: groupBuckets,
+		Short:   "Delete a bucket (alias: rb)",
 		Long: `Delete a bucket through the Latitude API.
 
 Without --force the bucket must be empty; the API refuses otherwise (exit 7).
@@ -78,10 +79,10 @@ force-deleted; GOVERNANCE retention needs --bypass-governance-retention.
 
 --force never skips the confirmation: pass --yes in scripts. Without a TTY and
 without --yes the command fails fast with exit 7.`,
-		Example: `  lsh s3 rb s3://backups
-  lsh s3 rb s3://backups --force
-  lsh s3 rb s3://backups --force --versions --yes
-  lsh s3 rb s3://backups --force --max-delete 100 --dryrun`,
+		Example: `  lsh s3 delete-bucket s3://backups
+  lsh s3 delete-bucket s3://backups --force
+  lsh s3 delete-bucket s3://backups --force --versions --yes
+  lsh s3 delete-bucket s3://backups --force --max-delete 100 --dry-run`,
 		Args: cobra.ExactArgs(1),
 		RunE: runRb,
 	})

@@ -340,8 +340,9 @@ func usageStorageIDNames(ctx context.Context, api *sdk.Latitudesh, buckets []*ob
 // NewUsageCmd builds `lsh s3 usage`.
 func NewUsageCmd() *cobra.Command {
 	cmd := newCmd(&cobra.Command{
-		Use:   "usage",
-		Short: "Daily storage usage history",
+		Use:     "usage",
+		GroupID: groupReports,
+		Short:   "Day-by-day storage history for a project",
 		Long: `Show the daily storage usage of a project (bytes stored per day), optionally
 restricted to one bucket and aggregated per bucket, tier or region.
 

@@ -144,17 +144,17 @@ endpoint and signing region never have to be configured by hand.
 `<bucket>` accepts the display name, the `bkt_` ID or the backend bucket name. If
 the same display name exists in more than one place, the command lists the
 candidates and you narrow it with `--project`, `-c`/`--storage-class`, `--site`
-(e.g. `lsh s3 stat s3://backups -c high_performance --site TYO4`), or the `bkt_` ID.
+(e.g. `lsh s3 get s3://backups -c high_performance --site TYO4`), or the `bkt_` ID.
 
 Create a bucket, upload, list and delete (in a terminal, `mb` offers to create
 an S3 access key and saves it to your profile):
 
 ```bash
-lsh s3 mb s3://backups --region DAL --project <PROJECT_ID_OR_SLUG>
-lsh s3 cp ./dump.sql s3://backups/2026/09/
-lsh s3 ls s3://backups/2026/09/ --human-readable --summarize
-lsh s3 cp s3://backups/2026/09/dump.sql ./restore/
-lsh s3 rm s3://backups/2026/09/dump.sql
+lsh s3 create-bucket s3://backups --region DAL --project <PROJECT_ID_OR_SLUG>
+lsh s3 copy ./dump.sql s3://backups/2026/09/
+lsh s3 list s3://backups/2026/09/ --human-readable --summarize
+lsh s3 copy s3://backups/2026/09/dump.sql ./restore/
+lsh s3 delete s3://backups/2026/09/dump.sql
 ```
 
 Give an application or CI job its own scoped access key (the secret is shown
@@ -185,9 +185,9 @@ Clean up safely (`--dry-run` only reads; multi-object deletes ask for
 confirmation in a terminal and require `--yes` in CI):
 
 ```bash
-lsh s3 rm s3://logs/tmp/ --recursive --dry-run
-lsh s3 rm s3://logs/tmp/ --recursive --yes
-lsh s3 rb s3://logs --force --yes
+lsh s3 delete s3://logs/tmp/ --recursive --dry-run
+lsh s3 delete s3://logs/tmp/ --recursive --yes
+lsh s3 delete-bucket s3://logs --force --yes
 ```
 
 In CI, object commands authenticate with an S3 access key from the environment

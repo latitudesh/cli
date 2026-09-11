@@ -48,12 +48,13 @@ type mbOptions struct {
 	RetentionDays int64
 }
 
-// NewMbCmd builds `lsh s3 mb s3://bucket`.
+// NewMbCmd builds `lsh s3 create-bucket s3://bucket`.
 func NewMbCmd() *cobra.Command {
 	cmd := newCmd(&cobra.Command{
-		Use:     "mb s3://bucket",
-		Aliases: []string{"create"},
-		Short:   "Create a bucket",
+		Use:     "create-bucket s3://bucket",
+		Aliases: []string{"mb", "create"},
+		GroupID: groupBuckets,
+		Short:   "Create a bucket (alias: mb)",
 		Long: `Create an object storage bucket through the Latitude API.
 
 The bucket is created in a Latitude site (--region DAL, NYC, TYO4…). The
@@ -63,13 +64,13 @@ retention cannot be changed after creation.
 
 In an interactive session missing --project and --region are asked for, and
 right after the bucket is created the CLI offers to create and save an S3
-access key so cp/ls/rm work immediately; use --create-access-key or
+access key so copy/list/delete work immediately; use --create-access-key or
 --no-access-key in scripts.`,
-		Example: `  lsh s3 mb s3://backups --region DAL --project my-project
-  lsh s3 mb s3://fast-cache --region TYO4 --storage-class high_performance
-  lsh s3 mb s3://audit --region NYC --locking --retention-mode COMPLIANCE --retention-days 30
-  lsh s3 mb s3://ci-artifacts --region DAL --create-access-key
-  lsh s3 mb s3://backups --region DAL -o json`,
+		Example: `  lsh s3 create-bucket s3://backups --region DAL --project my-project
+  lsh s3 create-bucket s3://fast-cache --region TYO4 --storage-class high_performance
+  lsh s3 create-bucket s3://audit --region NYC --locking --retention-mode COMPLIANCE --retention-days 30
+  lsh s3 create-bucket s3://ci-artifacts --region DAL --create-access-key
+  lsh s3 create-bucket s3://backups --region DAL -o json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: runMb,
 	})
@@ -173,7 +174,7 @@ func runMb(cmd *cobra.Command, args []string) error {
 
 	offerAccessKey(ctx, cmd, b, o)
 	if isHuman() {
-		objectstorage.Hintf("Try: lsh s3 cp ./file s3://%s/", b.Name)
+		objectstorage.Hintf("Try: lsh s3 copy ./file s3://%s/", b.Name)
 	}
 	return nil
 }
@@ -199,7 +200,7 @@ func mbOptionsFromCmd(cmd *cobra.Command, args []string) (mbOptions, error) {
 		}
 		o.Name = ref.Bucket
 	default:
-		return o, exitcode.Errorf(exitcode.Usage, "missing bucket: usage 'lsh s3 mb s3://<bucket> --region <site>'")
+		return o, exitcode.Errorf(exitcode.Usage, "missing bucket: usage 'lsh s3 create-bucket s3://<bucket> --region <site>'")
 	}
 	o.Region, _ = f.GetString(flagMbRegion)
 	o.StorageClass, _ = f.GetString(flagMbStorageClass)
@@ -223,7 +224,7 @@ func buildCreateBucketRequest(o mbOptions) (operations.PostStorageBucketsRequest
 	var req operations.PostStorageBucketsRequestBody
 	name := strings.TrimSpace(o.Name)
 	if name == "" {
-		return req, exitcode.Errorf(exitcode.Usage, "missing bucket name: usage 'lsh s3 mb s3://<bucket> --region <site>'")
+		return req, exitcode.Errorf(exitcode.Usage, "missing bucket name: usage 'lsh s3 create-bucket s3://<bucket> --region <site>'")
 	}
 	if strings.ContainsAny(name, " /\\") {
 		return req, exitcode.Errorf(exitcode.Usage, "invalid bucket name %q: it cannot contain spaces or slashes", name)

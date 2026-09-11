@@ -1,7 +1,7 @@
 // Package s3 implements `lsh s3`, the object storage command group. It mixes
 // control-plane calls to the Latitude API (buckets, access keys, lifecycle,
 // metrics, usage) with data-plane calls straight to the bucket's S3 endpoint
-// (ls, cp, rm, stat, presign), using the verbs and flags of `aws s3` so
+// (list, copy, move, delete, get, presign), using the verbs and flags of `aws s3` so
 // existing habits and scripts carry over.
 package s3
 
@@ -39,39 +39,54 @@ const (
 	flagSite          = "site"
 )
 
+// Help groups of the s3 command list. Grouping the fourteen subcommands the
+// way the root groups its command families keeps the list from reading flat.
+const (
+	groupBuckets     = "s3-buckets"
+	groupObjects     = "s3-objects"
+	groupCredentials = "s3-credentials"
+	groupReports     = "s3-reports"
+)
+
 // NewGroupCmd builds the `s3` group. Subcommands are attached by
 // cmd/build_s3.go so each lives in its own file.
+//
+// The canonical verbs follow the rest of the CLI (list, get, copy, move,
+// delete, create-bucket, delete-bucket); the short S3 spellings (ls, stat,
+// cp, mv, rm, mb, rb) are aliases, so both vocabularies work and the help
+// reads in the CLI's own terms.
 func NewGroupCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "s3",
-		Aliases: []string{"buckets", "storage-objects"},
-		// Typing these at the root gets a "did you mean s3" hint.
-		SuggestFor: []string{"s3api", "upload", "download", "configure", "bucket", "objects", "object-storage"},
+		Use: "s3",
+		// Typing these at the root gets a "did you mean s3" hint. The long
+		// name is deliberately not an alias: 'lsh help object-storage' is the
+		// guide, and cobra's help resolves aliases as well as names.
+		SuggestFor: []string{"s3api", "object-storage", "upload", "download", "configure", "bucket", "buckets", "objects"},
 		GroupID:    cli.StorageGroupID,
-		Short:      "Object storage: buckets, objects, access keys and lifecycle",
-		Long: `Manage S3-compatible object storage.
+		Short:      "Object storage: buckets, objects, access keys and lifecycle rules",
+		Long: `Object storage: buckets, objects, access keys and lifecycle rules.
 
-Bucket management, access keys, lifecycle rules and metrics go through the
-Latitude API; object operations (ls, cp, rm, stat, presign) talk to the
-bucket's S3 endpoint directly. Buckets are addressed as s3://<bucket>[/<key>],
-where <bucket> is the display name, the bkt_ ID or the backend bucket name.
-Endpoint, signing region and path-style addressing are resolved from the API,
-so nothing has to be configured by hand.
+Buckets and objects are addressed as s3://<bucket>[/<key>]. Endpoint, region
+and credentials are resolved for you. See 'lsh help object-storage' for how
+addressing and access keys work.
 
 Getting started:
-  lsh s3 mb s3://backups --region DAL --project my-project
-  lsh s3 cp ./dump.sql s3://backups/2026/09/
-  lsh s3 ls s3://backups/2026/09/
+  lsh s3 create-bucket s3://backups --region DAL --project my-project
+  lsh s3 copy ./dump.sql s3://backups/2026/09/
+  lsh s3 list s3://backups/2026/09/
 
+Short aliases: ls, mb, rb, cp, mv, rm, stat.
 Exit codes for scripts: 'lsh help exit-codes'.`,
-		Example: `  lsh s3 ls
-  lsh s3 ls s3://backups/2026/ --recursive --human-readable --summarize
-  lsh s3 cp ./dump.sql s3://backups/2026/09/
-  lsh s3 cp s3://backups/2026/09/dump.sql ./restore/
-  lsh s3 rm s3://backups/tmp/ --recursive --dryrun
+		Example: `  lsh s3 list
+  lsh s3 list s3://backups/2026/ --recursive --human-readable --summarize
+  lsh s3 copy s3://backups/2026/09/dump.sql ./restore/
+  lsh s3 delete s3://backups/tmp/ --recursive --dry-run
+  lsh s3 delete-bucket s3://backups
   lsh s3 presign s3://backups/report.pdf --expires-in 15m
-  lsh s3 access-keys create --bucket backups --name ci-deploy
+  lsh s3 access-keys create --bucket backups=rw --name ci-deploy
   lsh s3 lifecycle create s3://logs --prefix tmp/ --expiration-days 7`,
+		// --dryrun is the hidden spelling of the global --dry-run: map it onto
+		// the same switch so every subcommand sees a single value.
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			if v, _ := cmd.Flags().GetBool(flagDryRunAWS); v {
 				lsh.DryRun = true
@@ -79,7 +94,12 @@ Exit codes for scripts: 'lsh help exit-codes'.`,
 			return nil
 		},
 	}
-
+	cmd.AddGroup(
+		&cobra.Group{ID: groupBuckets, Title: "Buckets:"},
+		&cobra.Group{ID: groupObjects, Title: "Objects:"},
+		&cobra.Group{ID: groupCredentials, Title: "Credentials:"},
+		&cobra.Group{ID: groupReports, Title: "Settings and reports:"},
+	)
 	pf := cmd.PersistentFlags()
 	pf.String(flagAccessKey, "", "use the saved access key with this name instead of the automatic selection")
 	pf.String(flagEndpointURL, "", "address the bucket on this S3 endpoint without the Latitude API (bucket is the backend name; credentials only from the environment)")
@@ -224,7 +244,7 @@ func signingRegionOverride(cmd *cobra.Command) string {
 	return os.Getenv(objectstorage.EnvSigningRegion)
 }
 
-// dryRun reports whether --dry-run (or --dryrun) is active.
+// dryRun reports whether --dry-run (or --dry-run) is active.
 func dryRun() bool { return lsh.DryRun }
 
 // isHuman reports whether output goes to the human (table) format, in which
@@ -490,4 +510,30 @@ func saveNewKey(cmd *cobra.Command, name string, k config.StoredAccessKey) (stri
 		return final, profileName, err
 	}
 	return final, profileName, nil
+}
+
+// NewLegacyAliasCmd returns the hidden `storage-objects` command kept for
+// scripts written against the group this one replaced. Cobra prints the
+// deprecation notice on stderr and leaves the command out of the help; the
+// arguments are re-dispatched to `lsh s3` untouched (flag parsing is disabled
+// here so nothing is interpreted before it reaches the real command).
+//
+// Two legacy verbs changed meaning and are called out in the notice: `rm` and
+// `delete` remove objects now, and a bucket is removed with `delete-bucket`.
+func NewLegacyAliasCmd(root *cobra.Command) *cobra.Command {
+	return &cobra.Command{
+		Use:                "storage-objects",
+		Hidden:             true,
+		SilenceUsage:       true,
+		Deprecated:         "use 'lsh s3' instead. Note: 'rm' and 'delete' now remove objects; remove a bucket with 'lsh s3 delete-bucket'",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root.SetArgs(append([]string{"s3"}, args...))
+			err := root.Execute()
+			// The inner run has already reported the error; keep the outer
+			// Execute from printing it a second time.
+			cmd.SilenceErrors = true
+			return err
+		},
+	}
 }

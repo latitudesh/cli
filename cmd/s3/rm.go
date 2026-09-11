@@ -17,7 +17,7 @@ import (
 // rmBatchSize is the S3 multi-delete limit.
 const rmBatchSize = 1000
 
-// rmOptions are the parsed flags of `lsh s3 rm`.
+// rmOptions are the parsed flags of `lsh s3 delete`.
 type rmOptions struct {
 	Recursive        bool
 	All              bool
@@ -31,13 +31,14 @@ type rmOptions struct {
 	Filters          *objectstorage.Filters
 }
 
-// NewRmCmd builds `lsh s3 rm s3://bucket/key`.
+// NewRmCmd builds `lsh s3 delete s3://bucket/key`.
 func NewRmCmd() *cobra.Command {
 	filters := &objectstorage.Filters{}
 	cmd := newCmd(&cobra.Command{
-		Use:     "rm s3://bucket/key",
-		Aliases: []string{"delete-object", "remove"},
-		Short:   "Delete objects",
+		Use:     "delete s3://bucket/key",
+		Aliases: []string{"rm", "delete-object", "remove"},
+		GroupID: groupObjects,
+		Short:   "Delete objects — the bucket stays (alias: rm)",
 		Long: `Delete one object, or every object under a prefix with --recursive.
 
 A single object is deleted without confirmation and the command exits 0 even
@@ -52,11 +53,11 @@ relative to the prefix, in the order given; the last matching rule wins.
 Object lock: buckets in COMPLIANCE mode are refused; GOVERNANCE mode requires
 --bypass-governance-retention. Use --dry-run to print the plan without
 deleting anything.`,
-		Example: `  lsh s3 rm s3://backups/2026/09/dump.sql
-  lsh s3 rm s3://logs/tmp/ --recursive --dryrun
-  lsh s3 rm s3://logs/tmp/ --recursive --exclude "*" --include "*.log" --yes
-  lsh s3 rm s3://logs --recursive --all --max-delete 5000 --yes
-  lsh s3 rm s3://backups/dump.sql --version-id 3HL4kqtJlcpXroDTDmJ`,
+		Example: `  lsh s3 delete s3://backups/2026/09/dump.sql
+  lsh s3 delete s3://logs/tmp/ --recursive --dry-run
+  lsh s3 delete s3://logs/tmp/ --recursive --exclude "*" --include "*.log" --yes
+  lsh s3 delete s3://logs --recursive --all --max-delete 5000 --yes
+  lsh s3 delete s3://backups/dump.sql --version-id 3HL4kqtJlcpXroDTDmJ`,
 		Args: cobra.ExactArgs(1),
 	})
 	f := cmd.Flags()
@@ -135,7 +136,7 @@ func rmParseArgs(arg string, opts rmOptions) (objectstorage.Ref, error) {
 		ref, err := objectstorage.ObjectRef(arg, false)
 		if err != nil {
 			if bucket, bucketErr := objectstorage.ParseBucketOnly(arg); bucketErr == nil {
-				return ref, objectstorage.ErrUsagef("%s names a bucket, not an object; to delete its objects use 'lsh s3 rm s3://%s --recursive --all', to delete the bucket itself use 'lsh s3 rb s3://%s'", arg, bucket.Bucket, bucket.Bucket)
+				return ref, objectstorage.ErrUsagef("%s names a bucket, not an object; to delete its objects use 'lsh s3 delete s3://%s --recursive --all', to delete the bucket itself use 'lsh s3 delete-bucket s3://%s'", arg, bucket.Bucket, bucket.Bucket)
 			}
 		}
 		return ref, err
