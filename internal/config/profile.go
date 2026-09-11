@@ -13,6 +13,10 @@ type Profile struct {
 	Email         string `json:"email,omitempty"`
 	Source        string `json:"source,omitempty"`
 	APIVersion    string `json:"api_version,omitempty"`
+
+	// ObjectStorage holds the S3 access keys saved for `lsh s3`. Optional:
+	// profiles written before this field existed load unchanged.
+	ObjectStorage *ObjectStorageConfig `json:"object_storage,omitempty"`
 }
 
 // SourceBrowser is set on profiles created via the browser-assisted

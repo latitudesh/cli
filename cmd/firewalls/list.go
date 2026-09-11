@@ -46,7 +46,7 @@ func (o *ListFirewallsOperation) run(cmd *cobra.Command, args []string) error {
 		filterProject = &value
 	}
 
-	response, err := client.Firewalls.List(ctx, filterProject, nil, nil, operations.WithRetries(lsh.RetryConfig()))
+	response, err := client.Firewalls.List(ctx, filterProject, nil, nil, nil, operations.WithRetries(lsh.RetryConfig()))
 	if err != nil {
 		utils.PrintError(err)
 		return err

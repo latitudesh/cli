@@ -5,6 +5,7 @@ import (
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
+	"github.com/latitudesh/lsh/internal/wait"
 )
 
 func strp(s string) *string { return &s }
@@ -48,17 +49,17 @@ func TestActionsCmdRequiresArg(t *testing.T) {
 // TestPowerActionTargets verifies each action waits for the correct terminal
 // power state.
 func TestPowerActionTargets(t *testing.T) {
-	cases := map[string]components.ServerDataStatus{
-		"power_on":  components.ServerDataStatusOn,
-		"reboot":    components.ServerDataStatusOn,
-		"power_off": components.ServerDataStatusOff,
+	cases := map[string]wait.ServerStatus{
+		"power_on":  wait.ServerStatusOn,
+		"reboot":    wait.ServerStatusOn,
+		"power_off": wait.ServerStatusOff,
 	}
 	for action, wantState := range cases {
 		want, fail := powerActionTargets(action)
 		if len(want) != 1 || want[0] != wantState {
 			t.Errorf("powerActionTargets(%q) want = %v, expected [%v]", action, want, wantState)
 		}
-		if len(fail) != 1 || fail[0] != components.ServerDataStatusFailedDeployment {
+		if len(fail) != 1 || fail[0] != wait.ServerStatusFailedDeployment {
 			t.Errorf("powerActionTargets(%q) fail = %v, expected [failed_deployment]", action, fail)
 		}
 	}

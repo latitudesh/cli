@@ -165,7 +165,7 @@ func TestBuildCreateFirewallRequest(t *testing.T) {
 		t.Fatalf("buildCreateFirewallRequest returned error: %v", err)
 	}
 
-	if request.Data.Type != operations.CreateFirewallTypeFirewalls {
+	if request.Data.Type != operations.CreateFirewallFirewallsTypeFirewalls {
 		t.Errorf("type = %v, want firewalls", request.Data.Type)
 	}
 	if request.Data.Attributes.Name != "web" {
@@ -262,7 +262,7 @@ func TestBuildCreateAssignmentRequest(t *testing.T) {
 	if body.Data.Type != operations.CreateFirewallAssignmentFirewallsAssignmentsTypeFirewallAssignments {
 		t.Errorf("type = %v, want firewall_assignments", body.Data.Type)
 	}
-	if body.Data.Attributes == nil || body.Data.Attributes.ServerID != "sv_x" {
+	if body.Data.Attributes == nil || body.Data.Attributes.ServerID == nil || *body.Data.Attributes.ServerID != "sv_x" {
 		t.Errorf("server_id = %v, want sv_x", body.Data.Attributes)
 	}
 }

@@ -88,9 +88,9 @@ func (o *CreateTagOperation) run(cmd *cobra.Command, args []string) error {
 		Data: &operations.CreateTagTagsData{
 			Type: &createTagType,
 			Attributes: &operations.CreateTagTagsAttributes{
-				Name:        &name,
+				Name:        name,
 				Description: &description,
-				Color:       &color,
+				Color:       color,
 			},
 		},
 	}

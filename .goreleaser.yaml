@@ -21,8 +21,11 @@ builds:
   -
     env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
     ldflags:
-      - -X "github.com/latitudesh/lsh/internal/version.Version={{ .Tag }}"
+      # -s -w strips symbol and DWARF tables (~30% smaller binaries).
+      - -s -w -X "github.com/latitudesh/lsh/internal/version.Version={{ .Tag }}"
     goos:
       - linux
       - windows

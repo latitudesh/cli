@@ -106,15 +106,15 @@ func TestCreateBuildsRequestBody(t *testing.T) {
 		Data: operations.PostSSHKeySSHKeysData{
 			Type: operations.PostSSHKeySSHKeysTypeSSHKeys,
 			Attributes: &operations.PostSSHKeySSHKeysAttributes{
-				Name:      &name,
-				PublicKey: &publicKey,
+				Name:      name,
+				PublicKey: publicKey,
 			},
 		},
 	}
 	if request.Data.Type != "ssh_keys" {
 		t.Errorf("type = %q, want ssh_keys", request.Data.Type)
 	}
-	if *request.Data.Attributes.Name != name || *request.Data.Attributes.PublicKey != publicKey {
+	if request.Data.Attributes.Name != name || request.Data.Attributes.PublicKey != publicKey {
 		t.Error("attributes not wired through")
 	}
 }

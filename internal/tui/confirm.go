@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -64,7 +65,9 @@ func (m ConfirmModel) Result() bool {
 
 // RunConfirm é uma função helper
 func RunConfirm(message string) (bool, error) {
-	p := tea.NewProgram(NewConfirm(message))
+	// The prompt is UI, not output: it goes to stderr so a command whose stdout
+	// is piped or redirected (-o json > file) is not corrupted by the widget.
+	p := tea.NewProgram(NewConfirm(message), tea.WithOutput(os.Stderr))
 	m, err := p.Run()
 	if err != nil {
 		return false, err

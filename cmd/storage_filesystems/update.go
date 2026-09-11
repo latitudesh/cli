@@ -33,7 +33,7 @@ type UpdateFilesystemOperation struct{}
 func buildUpdateRequest(sizeSet bool, size int64) operations.PatchStorageFilesystemsFilesystemStorageRequestBody {
 	attributes := operations.PatchStorageFilesystemsFilesystemStorageAttributes{}
 	if sizeSet {
-		attributes.SizeInGb = &size
+		attributes.SizeInGb = size
 	}
 
 	return operations.PatchStorageFilesystemsFilesystemStorageRequestBody{

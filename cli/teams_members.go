@@ -128,7 +128,7 @@ func runTeamMembersList(_ *cobra.Command, _ []string) error {
 	pageSize := page.PageSize
 	pageNumber := int64(1)
 
-	resp, err := client.Teams.Members.GetTeamMembers(ctx, &pageSize, &pageNumber)
+	resp, err := client.Teams.Members.GetTeamMembers(ctx, &pageSize, &pageNumber, nil)
 	if err != nil {
 		stopSpinner()
 		utils.PrintError(err)
@@ -339,7 +339,7 @@ func selectTeamMember(ctx context.Context, client *latitudeshgosdk.Latitudesh) (
 	// output-pagination flags (--max-items / --no-paginate), so it walks all
 	// pages itself using the default page size.
 	pageSize := pagination.DefaultPageSize
-	resp, err := client.Teams.Members.GetTeamMembers(ctx, &pageSize, nil)
+	resp, err := client.Teams.Members.GetTeamMembers(ctx, &pageSize, nil, nil)
 	if err != nil {
 		return teamMemberChoice{}, err
 	}

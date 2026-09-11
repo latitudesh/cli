@@ -32,12 +32,12 @@ func ForServerState(
 	ctx context.Context,
 	client *sdk.Latitudesh,
 	serverID string,
-	want, fail []components.ServerDataStatus,
+	want, fail []ServerStatus,
 	requireTransition bool,
 	o Options,
-	onStatus func(components.ServerDataStatus),
+	onStatus func(ServerStatus),
 	opts ...operations.Option,
-) (components.ServerDataStatus, error) {
+) (ServerStatus, error) {
 	if o.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, o.Timeout)
@@ -45,7 +45,7 @@ func ForServerState(
 	}
 
 	var (
-		last           components.ServerDataStatus
+		last           ServerStatus
 		lastErr        error
 		seenTransition bool
 	)
@@ -95,8 +95,8 @@ func ForServerState(
 // operation acting on a server already in a target state (e.g. a reinstall on a
 // powered-on server) does not return before it actually begins.
 func decideServerState(
-	status components.ServerDataStatus,
-	want, fail []components.ServerDataStatus,
+	status ServerStatus,
+	want, fail []ServerStatus,
 	requireTransition, seenTransition bool,
 ) (done bool, transitioned bool, err error) {
 	inWant := containsStatus(want, status)
@@ -131,14 +131,18 @@ func isTerminalAPIError(err error) bool {
 
 // serverStatus extracts the status from a GetServer response, tolerating any
 // nil link in the data → attributes → status chain.
-func serverStatus(resp *operations.GetServerResponse) *components.ServerDataStatus {
+func serverStatus(resp *operations.GetServerResponse) *ServerStatus {
 	if resp == nil || resp.Server == nil || resp.Server.Data == nil || resp.Server.Data.Attributes == nil {
 		return nil
 	}
-	return resp.Server.Data.Attributes.Status
+	if resp.Server.Data.Attributes.Status == nil {
+		return nil
+	}
+	st := ServerStatus(*resp.Server.Data.Attributes.Status)
+	return &st
 }
 
-func containsStatus(set []components.ServerDataStatus, s components.ServerDataStatus) bool {
+func containsStatus(set []ServerStatus, s ServerStatus) bool {
 	for _, v := range set {
 		if v == s {
 			return true

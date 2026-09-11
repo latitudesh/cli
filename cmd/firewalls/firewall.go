@@ -171,16 +171,21 @@ func (m *FirewallServerAssignment) GetData() []renderer.ResponseData {
 }
 
 func (m *FirewallServerAssignment) TableRow() table.Row {
-	var firewallID, serverID string
-	if attr := m.Attributes; attr != nil {
-		firewallID = getStr(attr.FirewallID)
-		serverID = getStr(attr.ServerID)
+	var id, firewallID, serverID string
+	if d := m.Data; d != nil {
+		id = getStr(d.ID)
+		if attr := d.Attributes; attr != nil {
+			firewallID = getStr(attr.FirewallID)
+			if attr.Server != nil {
+				serverID = getStr(attr.Server.ID)
+			}
+		}
 	}
 
 	return table.Row{
 		"id": table.Cell{
 			Label: "ID",
-			Value: table.String(getStr(m.ID)),
+			Value: table.String(id),
 		},
 		"firewall_id": table.Cell{
 			Label: "Firewall ID",

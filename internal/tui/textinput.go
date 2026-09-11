@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -72,7 +73,9 @@ func (m TextInputModel) Value() string {
 
 // RunTextInput is a helper function to run the input
 func RunTextInput(label, placeholder string) (string, error) {
-	p := tea.NewProgram(NewTextInput(label, placeholder))
+	// The prompt is UI, not output: it goes to stderr so a command whose stdout
+	// is piped or redirected (-o json > file) is not corrupted by the widget.
+	p := tea.NewProgram(NewTextInput(label, placeholder), tea.WithOutput(os.Stderr))
 	m, err := p.Run()
 	if err != nil {
 		return "", err
