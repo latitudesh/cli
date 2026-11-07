@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cli"
 	"github.com/latitudesh/lsh/cmd/lsh"
+	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/utils"
 	cobra "github.com/spf13/cobra"
 )
@@ -82,17 +84,14 @@ func (o *ListElasticIPsOperation) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	response, err := client.ElasticIps.ListElasticIps(ctx, request, operations.WithRetries(lsh.RetryConfig()))
+	opts := pagination.Resolve()
+	ips, result, err := listElasticIPs(ctx, client, request, opts)
 	if err != nil {
 		utils.PrintError(err)
 		return err
 	}
-
-	ips := ElasticIPs{}
-	if response.ElasticIps != nil {
-		for i := range response.ElasticIps.Data {
-			ips.Data = append(ips.Data, &ElasticIP{ElasticIPData: response.ElasticIps.Data[i]})
-		}
+	if opts.NoPaginate && result.HasMore {
+		pagination.PrintNextCursor(result.NextPage)
 	}
 
 	if !lsh.Debug {
@@ -100,4 +99,38 @@ func (o *ListElasticIPsOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// listElasticIPs walks every page of GET /elastic_ips (the API returns 20 per
+// page by default), honoring --page-size/--max-items/--no-paginate.
+func listElasticIPs(ctx context.Context, client *latitudeshgosdk.Latitudesh, request operations.ListElasticIpsRequest, opts pagination.Options) (ElasticIPs, pagination.Result, error) {
+	ips := ElasticIPs{}
+	pageNumber := int64(1)
+	request.PageSize = &opts.PageSize
+	request.PageNumber = &pageNumber
+
+	first, err := client.ElasticIps.ListElasticIps(ctx, request, operations.WithRetries(lsh.RetryConfig()))
+	if err != nil {
+		return ips, pagination.Result{}, err
+	}
+	result, err := pagination.Walk(first, opts,
+		func(r *operations.ListElasticIpsResponse) func() (*operations.ListElasticIpsResponse, error) {
+			return r.Next
+		},
+		func(r *operations.ListElasticIpsResponse, limit int) int {
+			if r.ElasticIps == nil {
+				return 0
+			}
+			added := 0
+			for i := range r.ElasticIps.Data {
+				if limit >= 0 && added >= limit {
+					break
+				}
+				ips.Data = append(ips.Data, &ElasticIP{ElasticIPData: r.ElasticIps.Data[i]})
+				added++
+			}
+			return added
+		},
+	)
+	return ips, result, err
 }
