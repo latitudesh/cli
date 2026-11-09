@@ -39,7 +39,11 @@ func LogDebugf(format string, v ...interface{}) {
 	log.Printf(format, v...)
 }
 
-func NewClient() *latitudeshgosdk.Latitudesh {
+// NewClient builds the Go SDK client with the stored API key and the API host
+// selected by ServerURL. Extra options (a custom HTTP client, a different key)
+// are applied after those, so every SDK client in the CLI talks to the same
+// host.
+func NewClient(extra ...latitudeshgosdk.SDKOption) *latitudeshgosdk.Latitudesh {
 	AuthorizationKey := viper.GetString("Authorization")
 
 	opts := []latitudeshgosdk.SDKOption{
@@ -48,6 +52,7 @@ func NewClient() *latitudeshgosdk.Latitudesh {
 	if serverURL := ServerURL(); serverURL != "" {
 		opts = append(opts, latitudeshgosdk.WithServerURL(serverURL))
 	}
+	opts = append(opts, extra...)
 	return latitudeshgosdk.New(opts...)
 }
 

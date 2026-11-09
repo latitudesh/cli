@@ -77,9 +77,7 @@ func (o *VolumeListOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient(latitudeshgosdk.WithSecurity(apiKey))
 
 	// Create filter pointer if project is specified
 	var filterProject *string
