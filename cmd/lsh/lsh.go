@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"strings"
 
 	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/retry"
+	"github.com/latitudesh/lsh/client"
 	"github.com/latitudesh/lsh/internal/config"
 	"github.com/latitudesh/lsh/internal/version"
 	"github.com/mitchellh/go-homedir"
@@ -37,12 +39,50 @@ func LogDebugf(format string, v ...interface{}) {
 	log.Printf(format, v...)
 }
 
-func NewClient() *latitudeshgosdk.Latitudesh {
+// NewClient builds the Go SDK client with the stored API key and the API host
+// selected by ServerURL. Extra options (a custom HTTP client, a different key)
+// are applied after those, so every SDK client in the CLI talks to the same
+// host.
+func NewClient(extra ...latitudeshgosdk.SDKOption) *latitudeshgosdk.Latitudesh {
 	AuthorizationKey := viper.GetString("Authorization")
 
-	return latitudeshgosdk.New(
+	opts := []latitudeshgosdk.SDKOption{
 		latitudeshgosdk.WithSecurity(AuthorizationKey),
-	)
+	}
+	if serverURL := ServerURL(); serverURL != "" {
+		opts = append(opts, latitudeshgosdk.WithServerURL(serverURL))
+	}
+	opts = append(opts, extra...)
+	return latitudeshgosdk.New(opts...)
+}
+
+// ServerURL returns the API base URL selected by --hostname, --scheme and
+// --base-path (or the hostname/scheme/base_path keys in the config file), the
+// same settings the legacy client and `lsh login` already use. It returns ""
+// when none of them is set, so the SDK keeps its own default
+// (https://api.latitude.sh).
+func ServerURL() string {
+	hostname := strings.TrimSpace(viper.GetString("hostname"))
+	scheme := strings.TrimSpace(viper.GetString("scheme"))
+	basePath := strings.Trim(strings.TrimSpace(viper.GetString("base_path")), "/")
+	defaultHostname, defaultScheme := client.DefaultHost, client.DefaultSchemes[0]
+
+	if (hostname == "" || hostname == defaultHostname) &&
+		(scheme == "" || scheme == defaultScheme) &&
+		basePath == "" {
+		return ""
+	}
+	if hostname == "" {
+		hostname = defaultHostname
+	}
+	if scheme == "" {
+		scheme = defaultScheme
+	}
+	serverURL := scheme + "://" + hostname
+	if basePath != "" {
+		serverURL += "/" + basePath
+	}
+	return serverURL
 }
 
 func NewContext() context.Context {

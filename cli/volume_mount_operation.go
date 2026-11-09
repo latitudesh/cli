@@ -491,9 +491,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 
 	// Initialize the new SDK client
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient(latitudeshgosdk.WithSecurity(apiKey))
 
 	// Step 1: Fetch volume storage details to get connector_id (subsystem NQN)
 	subsystemNQN, _ := cmd.Flags().GetString("subsystem-nqn")

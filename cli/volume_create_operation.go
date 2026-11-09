@@ -97,9 +97,7 @@ func (o *VolumeCreateOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient(latitudeshgosdk.WithSecurity(apiKey))
 
 	fmt.Fprintf(os.Stdout, "Creating volume storage...\n")
 	fmt.Fprintf(os.Stdout, "  Project: %s\n", project)

@@ -79,9 +79,7 @@ func (o *VolumeDeleteOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient(latitudeshgosdk.WithSecurity(apiKey))
 
 	// Confirm deletion
 	fmt.Fprintf(os.Stdout, "⚠️  Warning: You are about to delete volume storage: %s\n", volumeID)

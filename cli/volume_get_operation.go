@@ -80,9 +80,7 @@ func (o *VolumeGetOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient(latitudeshgosdk.WithSecurity(apiKey))
 
 	// NOTE: The SDK doesn't seem to have a GetStorageVolume (singular) method yet
 	// For now, use list and filter by ID
