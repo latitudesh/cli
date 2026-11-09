@@ -210,3 +210,69 @@ func TestWalkNilFirstPage(t *testing.T) {
 		t.Fatalf("expected empty result for nil first page, got %v %+v", got, res)
 	}
 }
+
+// sdkStylePages mirrors the generated SDK: every response carries a non-nil
+// Next closure, which returns (nil, nil) once a page comes back shorter than
+// pageSize (or empty).
+func sdkStylePages(items []int, pageSize int, calls *int) *fakePage {
+	var build func(start int) *fakePage
+	build = func(start int) *fakePage {
+		end := start + pageSize
+		if end > len(items) {
+			end = len(items)
+		}
+		p := &fakePage{items: items[start:end]}
+		p.next = func() (*fakePage, error) {
+			*calls++
+			if len(p.items) == 0 || len(p.items) < pageSize {
+				return nil, nil
+			}
+			return build(end), nil
+		}
+		return p
+	}
+	return build(0)
+}
+
+func TestWalkNoPaginateShortPageHasNoMore(t *testing.T) {
+	calls := 0
+	first := sdkStylePages([]int{1, 2, 3}, 100, &calls)
+
+	got, res, err := collect(first, Options{PageSize: 100, NoPaginate: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 3 || calls != 0 {
+		t.Fatalf("expected 3 items and no follow-up fetch, got %d items, %d calls", len(got), calls)
+	}
+	if res.HasMore {
+		t.Fatalf("expected HasMore=false for a page shorter than page[size], got %+v", res)
+	}
+}
+
+func TestWalkNoPaginateFullPageHasMore(t *testing.T) {
+	calls := 0
+	first := sdkStylePages([]int{1, 2, 3, 4, 5}, 2, &calls)
+
+	_, res, err := collect(first, Options{PageSize: 2, NoPaginate: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !res.HasMore || res.NextPage != 2 {
+		t.Fatalf("expected HasMore=true and NextPage=2, got %+v", res)
+	}
+}
+
+func TestWalkMaxItemsTrimmedPageHasMore(t *testing.T) {
+	calls := 0
+	first := sdkStylePages([]int{1, 2, 3, 4, 5}, 100, &calls)
+
+	// The cap trims the page, so items are left even though the page is short.
+	_, res, err := collect(first, Options{PageSize: 100, MaxItems: 2})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !res.HasMore {
+		t.Fatalf("expected HasMore=true when --max-items trimmed the page, got %+v", res)
+	}
+}

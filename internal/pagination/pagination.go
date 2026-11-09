@@ -100,16 +100,24 @@ func Walk[R any](
 			limit = int(opts.MaxItems) - total
 		}
 
-		total += onPage(page, limit)
+		added := onPage(page, limit)
+		total += added
 		nextFn := next(page)
+
+		// The SDK sets Next on every response and only finds out there is no
+		// next page when it is called (it returns nil for an empty page or one
+		// shorter than page[size]). A page that was not trimmed by the item cap
+		// and came back short is therefore the last one.
+		lastPage := nextFn == nil ||
+			(opts.PageSize > 0 && (limit < 0 || added < limit) && int64(added) < opts.PageSize)
 
 		switch {
 		case opts.NoPaginate:
 			// Only the first page was requested; report where to resume.
-			return Result{HasMore: nextFn != nil, NextPage: pageNum + 1}, nil
+			return Result{HasMore: !lastPage, NextPage: pageNum + 1}, nil
 		case opts.MaxItems > 0 && total >= int(opts.MaxItems):
 			// Item cap reached; do not issue further requests.
-			return Result{HasMore: nextFn != nil, NextPage: pageNum + 1}, nil
+			return Result{HasMore: !lastPage, NextPage: pageNum + 1}, nil
 		case nextFn == nil:
 			return Result{HasMore: false}, nil
 		}
