@@ -45,6 +45,7 @@ func New(baseURL, userAgent, apiVersion string) *Client {
 type CreateSessionRequest struct {
 	ClientName    string `json:"client_name,omitempty"`
 	ClientVersion string `json:"client_version,omitempty"`
+	CallbackURL   string `json:"callback_url,omitempty"`
 }
 
 // Session is the public payload returned by the API on create and on
@@ -103,6 +104,14 @@ func (c *Client) CreateSession(ctx context.Context, req CreateSessionRequest) (*
 // (with credential fields when status=approved) or HTTPError. Callers
 // treat 410 (gone) and 404 (not found) as terminal.
 func (c *Client) PollSession(ctx context.Context, id, secret string) (*Session, error) {
+	return c.PollSessionWithCode(ctx, id, secret, "")
+}
+
+// PollSessionWithCode polls a session that was created with a callback
+// URL. The approval code, delivered to the loopback callback after the
+// user approves, is required alongside the secret before the API returns
+// the credential. An empty approvalCode behaves like PollSession.
+func (c *Client) PollSessionWithCode(ctx context.Context, id, secret, approvalCode string) (*Session, error) {
 	if id == "" {
 		return nil, errors.New("authclient: empty session id")
 	}
@@ -110,6 +119,9 @@ func (c *Client) PollSession(ctx context.Context, id, secret string) (*Session, 
 		return nil, errors.New("authclient: empty secret")
 	}
 	headers := map[string]string{"X-CLI-Secret": secret}
+	if approvalCode != "" {
+		headers["X-CLI-Approval-Code"] = approvalCode
+	}
 	var resp struct {
 		Data Session `json:"data"`
 	}
