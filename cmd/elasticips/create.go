@@ -3,6 +3,7 @@ package elasticips
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
@@ -81,7 +82,7 @@ func (o *CreateElasticIPOperation) run(cmd *cobra.Command, args []string) error 
 	}
 
 	if response.ElasticIP != nil && response.ElasticIP.Data != nil && !lsh.Debug {
-		fmt.Println(tui.SuccessStyle.Render("✓ Elastic IP allocation requested (provisioning asynchronously)."))
+		fmt.Fprintln(os.Stderr, tui.SuccessStyle.Render("✓ Elastic IP allocation requested (provisioning asynchronously)."))
 		ip := ElasticIP{ElasticIPData: *response.ElasticIP.Data}
 		utils.RenderStatic(ip.GetData())
 	}

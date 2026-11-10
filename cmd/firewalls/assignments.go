@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
@@ -179,7 +180,7 @@ func (o *CreateAssignmentOperation) run(cmd *cobra.Command, args []string) error
 	}
 
 	if !lsh.Debug {
-		fmt.Println(tui.SuccessStyle.Render("✓ Server assigned to firewall successfully!"))
+		fmt.Fprintln(os.Stderr, tui.SuccessStyle.Render("✓ Server assigned to firewall successfully!"))
 
 		var fs components.FirewallServer
 		if response.FirewallServer != nil {
