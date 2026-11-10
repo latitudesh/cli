@@ -14,6 +14,10 @@ import (
 	"github.com/latitudesh/lsh/internal/version"
 )
 
+// looksHeadless is a seam so tests can exercise both the loopback and the
+// secret-only login paths regardless of the host environment.
+var looksHeadless = browser.LooksHeadless
+
 const (
 	pollInterval   = 2 * time.Second
 	pollMaxBackoff = 5 * time.Second
@@ -30,15 +34,36 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	session, err := client.CreateSession(ctx, authclient.CreateSessionRequest{
+	headless := looksHeadless()
+
+	req := authclient.CreateSessionRequest{
 		ClientName:    "lsh",
 		ClientVersion: version.Version,
-	})
+	}
+
+	// A browser login binds the session to this machine with a loopback
+	// callback, so the approval code is delivered here and a forwarded
+	// approval link cannot hand the credential to someone else. A headless
+	// environment has no reachable loopback for the approver's browser, so
+	// it falls back to the secret-only poll.
+	var (
+		receiver *loopbackReceiver
+		err      error
+	)
+	if !headless {
+		receiver, err = startLoopbackReceiver()
+		if err != nil {
+			return fmt.Errorf("could not start the local login listener: %w", err)
+		}
+		defer receiver.close()
+		req.CallbackURL = receiver.callbackURL()
+	}
+
+	session, err := client.CreateSession(ctx, req)
 	if err != nil {
 		return fmt.Errorf("could not start login session: %w", err)
 	}
 
-	headless := browser.LooksHeadless()
 	printAuthorizePrompt(session, headless)
 
 	if !headless {
@@ -47,7 +72,16 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 		}
 	}
 
-	approved, err := pollUntilApproved(ctx, client, session.ID, session.Secret)
+	var (
+		codeCh <-chan string
+		errCh  <-chan error
+	)
+	if receiver != nil {
+		codeCh = receiver.resultCh
+		errCh = receiver.errCh
+	}
+
+	approved, err := pollUntilApproved(ctx, client, session.ID, session.Secret, codeCh, errCh)
 	if err != nil {
 		return err
 	}
@@ -95,20 +129,30 @@ func printAuthorizePrompt(session *authclient.Session, headless bool) {
 
 // pollUntilApproved retries GET /auth/cli_sessions/<id> until the
 // session is approved, terminally errored, or the deadline expires.
-func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secret string) (*authclient.Session, error) {
+//
+// For a callback-bound login, codeCh delivers the approval code once the
+// loopback callback fires. Until then the loop keeps polling (with no
+// code) so a cancelled or expired session is seen promptly instead of
+// blocking on the callback for the whole timeout; the API returns 401
+// only once the session is approved and still awaiting its code. A nil
+// codeCh is the secret-only (headless) flow. errCh reports a failure of the
+// local callback listener so login fails promptly instead of waiting out the
+// timeout for a callback that can no longer arrive.
+func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secret string, codeCh <-chan string, errCh <-chan error) (*authclient.Session, error) {
 	start := time.Now()
 	deadline := start.Add(loginTimeout)
 	interval := pollInterval
+
+	approvalCode := ""
+	awaitingCode := codeCh != nil
 
 	for {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		session, err := client.PollSession(ctx, id, secret)
+
+		session, err := client.PollSessionWithCode(ctx, id, secret, approvalCode)
 		if err == nil {
-			// A successful response means the server is healthy; reset the
-			// interval so a previous transient error doesn't keep us polling
-			// at the backed-off rate for the rest of the session.
 			interval = pollInterval
 			if session.Status == "approved" {
 				if session.APIKey != nil {
@@ -134,7 +178,12 @@ func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secre
 				case 410:
 					return nil, errors.New("login session has already been used; please run `lsh login` again")
 				case 401:
-					return nil, errors.New("login session secret rejected (this should not happen)")
+					// Once approved, a callback session returns 401 until the
+					// approval code arrives — keep waiting for it. Without a
+					// pending code the secret itself was rejected.
+					if !awaitingCode {
+						return nil, errors.New("login session secret rejected (this should not happen)")
+					}
 				default:
 					// transient — back off and retry until deadline
 				}
@@ -148,10 +197,23 @@ func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secre
 			return nil, errors.New("login session expired before approval")
 		}
 
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(interval):
+		if awaitingCode {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case approvalCode = <-codeCh:
+				awaitingCode = false
+				interval = pollInterval
+			case err := <-errCh:
+				return nil, fmt.Errorf("the local login listener failed: %w", err)
+			case <-time.After(interval):
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(interval):
+			}
 		}
 	}
 }

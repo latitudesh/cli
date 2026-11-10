@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -216,5 +217,56 @@ func TestListProjectsPaginates(t *testing.T) {
 	}
 	if len(requestedPages) < 2 {
 		t.Fatalf("expected the client to page through results, requested pages: %v", requestedPages)
+	}
+}
+
+func TestCreateSessionSendsCallbackURL(t *testing.T) {
+	c, stop := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(body), `"callback_url":"http://127.0.0.1:5000/callback?state=abc"`) {
+			t.Fatalf("callback_url not sent: %s", body)
+		}
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"data":{"id":"sid","secret":"shh"}}`))
+	})
+	defer stop()
+
+	_, err := c.CreateSession(context.Background(), CreateSessionRequest{
+		ClientName:  "lsh",
+		CallbackURL: "http://127.0.0.1:5000/callback?state=abc",
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+}
+
+func TestPollSessionWithCodeSendsApprovalHeader(t *testing.T) {
+	c, stop := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-CLI-Secret") != "shh" {
+			t.Fatalf("missing X-CLI-Secret")
+		}
+		if r.Header.Get("X-CLI-Approval-Code") != "the-code" {
+			t.Fatalf("missing X-CLI-Approval-Code, got %q", r.Header.Get("X-CLI-Approval-Code"))
+		}
+		w.Write([]byte(`{"data":{"status":"approved","api_key":{"id":"k","token":"ak","name":"lsh"}}}`))
+	})
+	defer stop()
+
+	if _, err := c.PollSessionWithCode(context.Background(), "sid", "shh", "the-code"); err != nil {
+		t.Fatalf("PollSessionWithCode: %v", err)
+	}
+}
+
+func TestPollSessionOmitsApprovalHeaderWhenEmpty(t *testing.T) {
+	c, stop := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := r.Header["X-Cli-Approval-Code"]; ok {
+			t.Fatalf("approval code header should be absent")
+		}
+		w.Write([]byte(`{"data":{"status":"pending"}}`))
+	})
+	defer stop()
+
+	if _, err := c.PollSession(context.Background(), "sid", "shh"); err != nil {
+		t.Fatalf("PollSession: %v", err)
 	}
 }
