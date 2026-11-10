@@ -3,6 +3,7 @@ package storage_objects
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
@@ -122,7 +123,7 @@ func (o *CreateBucketOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	if response.Object != nil && response.Object.Data != nil {
-		fmt.Println(tui.SuccessStyle.Render("✓ Bucket created successfully!"))
+		fmt.Fprintln(os.Stderr, tui.SuccessStyle.Render("✓ Bucket created successfully!"))
 
 		if !lsh.Debug {
 			bucket := Bucket{ObjectStorageData: *response.Object.Data}
