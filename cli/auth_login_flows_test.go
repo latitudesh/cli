@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -54,6 +56,17 @@ func TestLoginViaBrowserSavesProfile(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/auth/cli_sessions":
+			// When the CLI is not headless it binds a loopback callback and
+			// waits for the approval code there; stand in for the dashboard by
+			// redirecting the code to that callback.
+			var body struct {
+				CallbackURL string `json:"callback_url"`
+			}
+			raw, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(raw, &body)
+			if body.CallbackURL != "" {
+				go http.Get(body.CallbackURL + "&approval_code=the-code")
+			}
 			w.WriteHeader(http.StatusCreated)
 			w.Write([]byte(`{"data":{"id":"sid","secret":"shh","authorize_url":"https://example/auth","user_code":"WXYZ","expires_at":"2030-01-01T00:00:00Z"}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/auth/cli_sessions/sid":

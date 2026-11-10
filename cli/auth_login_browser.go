@@ -30,15 +30,36 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	session, err := client.CreateSession(ctx, authclient.CreateSessionRequest{
+	headless := browser.LooksHeadless()
+
+	req := authclient.CreateSessionRequest{
 		ClientName:    "lsh",
 		ClientVersion: version.Version,
-	})
+	}
+
+	// A browser login binds the session to this machine with a loopback
+	// callback, so the approval code is delivered here and a forwarded
+	// approval link cannot hand the credential to someone else. A headless
+	// environment has no reachable loopback for the approver's browser, so
+	// it falls back to the secret-only poll.
+	var (
+		receiver *loopbackReceiver
+		err      error
+	)
+	if !headless {
+		receiver, err = startLoopbackReceiver()
+		if err != nil {
+			return fmt.Errorf("could not start the local login listener: %w", err)
+		}
+		defer receiver.close()
+		req.CallbackURL = receiver.callbackURL()
+	}
+
+	session, err := client.CreateSession(ctx, req)
 	if err != nil {
 		return fmt.Errorf("could not start login session: %w", err)
 	}
 
-	headless := browser.LooksHeadless()
 	printAuthorizePrompt(session, headless)
 
 	if !headless {
@@ -47,7 +68,12 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 		}
 	}
 
-	approved, err := pollUntilApproved(ctx, client, session.ID, session.Secret)
+	approvalCode, err := awaitApprovalCode(ctx, receiver)
+	if err != nil {
+		return err
+	}
+
+	approved, err := pollUntilApproved(ctx, client, session.ID, session.Secret, approvalCode)
 	if err != nil {
 		return err
 	}
@@ -93,9 +119,28 @@ func printAuthorizePrompt(session *authclient.Session, headless bool) {
 	fmt.Println("Waiting for approval... press Ctrl+C to cancel.")
 }
 
+// awaitApprovalCode blocks until the loopback callback delivers the
+// approval code, or returns an empty code immediately for the headless
+// (callback-less) flow.
+func awaitApprovalCode(ctx context.Context, receiver *loopbackReceiver) (string, error) {
+	if receiver == nil {
+		return "", nil
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, loginTimeout)
+	defer cancel()
+
+	code, err := receiver.waitForCode(waitCtx)
+	if err != nil {
+		return "", fmt.Errorf("did not receive login approval: %w", err)
+	}
+	return code, nil
+}
+
 // pollUntilApproved retries GET /auth/cli_sessions/<id> until the
 // session is approved, terminally errored, or the deadline expires.
-func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secret string) (*authclient.Session, error) {
+// approvalCode is sent alongside the secret for callback-bound sessions.
+func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secret, approvalCode string) (*authclient.Session, error) {
 	start := time.Now()
 	deadline := start.Add(loginTimeout)
 	interval := pollInterval
@@ -104,7 +149,7 @@ func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secre
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		session, err := client.PollSession(ctx, id, secret)
+		session, err := client.PollSessionWithCode(ctx, id, secret, approvalCode)
 		if err == nil {
 			// A successful response means the server is healthy; reset the
 			// interval so a previous transient error doesn't keep us polling
