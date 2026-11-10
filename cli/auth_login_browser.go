@@ -72,12 +72,16 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 		}
 	}
 
-	var codeCh <-chan string
+	var (
+		codeCh <-chan string
+		errCh  <-chan error
+	)
 	if receiver != nil {
 		codeCh = receiver.resultCh
+		errCh = receiver.errCh
 	}
 
-	approved, err := pollUntilApproved(ctx, client, session.ID, session.Secret, codeCh)
+	approved, err := pollUntilApproved(ctx, client, session.ID, session.Secret, codeCh, errCh)
 	if err != nil {
 		return err
 	}
@@ -131,8 +135,10 @@ func printAuthorizePrompt(session *authclient.Session, headless bool) {
 // code) so a cancelled or expired session is seen promptly instead of
 // blocking on the callback for the whole timeout; the API returns 401
 // only once the session is approved and still awaiting its code. A nil
-// codeCh is the secret-only (headless) flow.
-func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secret string, codeCh <-chan string) (*authclient.Session, error) {
+// codeCh is the secret-only (headless) flow. errCh reports a failure of the
+// local callback listener so login fails promptly instead of waiting out the
+// timeout for a callback that can no longer arrive.
+func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secret string, codeCh <-chan string, errCh <-chan error) (*authclient.Session, error) {
 	start := time.Now()
 	deadline := start.Add(loginTimeout)
 	interval := pollInterval
@@ -198,6 +204,8 @@ func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secre
 			case approvalCode = <-codeCh:
 				awaitingCode = false
 				interval = pollInterval
+			case err := <-errCh:
+				return nil, fmt.Errorf("the local login listener failed: %w", err)
 			case <-time.After(interval):
 			}
 		} else {
