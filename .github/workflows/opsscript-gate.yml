@@ -1,0 +1,76 @@
+name: Installer compatibility
+
+on:
+  pull_request:
+    paths:
+      - install.sh
+      - .goreleaser.yaml
+      - .github/workflows/opsscript-gate.yml
+  push:
+    branches: [main]
+    paths:
+      - install.sh
+      - .goreleaser.yaml
+      - .github/workflows/opsscript-gate.yml
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: install.sh / ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:12-slim
+            id: debian-12-slim
+          - image: ubuntu:22.04
+            id: ubuntu-22-04
+          - image: ubuntu:24.04
+            id: ubuntu-24-04
+          - image: alpine:3.20
+            id: alpine-3-20
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Add installation postcondition
+        shell: bash
+        run: |
+          {
+            printf '#!/bin/bash\n(\n'
+            cat install.sh
+            printf '\n)\ninstaller_status=$?\n[ "$installer_status" -eq 0 ] || exit "$installer_status"\n'
+          } > installer-smoke.sh
+          cat >> installer-smoke.sh <<'EOF'
+
+          # An installer exit code alone does not prove the binary was installed.
+          test -x "$HOME/.lsh/lsh" || { echo 'lsh was not installed' >&2; exit 1; }
+          "$HOME/.lsh/lsh" --version
+          EOF
+
+      - name: Check installer compatibility
+        uses: Mresyzz/opsscript-gate@v0.9.4
+        with:
+          script-path: installer-smoke.sh
+          matrix: ${{ matrix.image }}
+          network: bridge
+          packages: |
+            bash
+            curl
+            ca-certificates
+            tar
+          output: reports/opsscript-gate-${{ matrix.id }}.json
+
+      - name: Upload compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opsscript-gate-${{ matrix.id }}
+          path: reports/
+          if-no-files-found: ignore
