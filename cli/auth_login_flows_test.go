@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -117,29 +118,13 @@ func TestLoginViaBrowserHeadless(t *testing.T) {
 	forceHeadless(t, true)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/auth/cli_sessions":
-			var body struct {
-				CallbackURL string `json:"callback_url"`
-			}
-			raw, _ := io.ReadAll(r.Body)
-			_ = json.Unmarshal(raw, &body)
-			if body.CallbackURL != "" {
-				t.Errorf("headless login must not send a callback_url, got %q", body.CallbackURL)
-			}
-			w.WriteHeader(http.StatusCreated)
-			w.Write([]byte(`{"data":{"id":"sid","secret":"shh","authorize_url":"https://example/auth","user_code":"WXYZ","expires_at":"2030-01-01T00:00:00Z"}}`))
-		case r.Method == http.MethodGet && r.URL.Path == "/auth/cli_sessions/sid":
-			w.Write([]byte(approvedBrowserProfile))
-		default:
-			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
-		}
+		t.Errorf("headless login must not call the API, got %s %s", r.Method, r.URL.Path)
 	}))
 	defer srv.Close()
 
 	client := authclient.New(srv.URL, "lsh-test", "2023-06-01")
-	if err := loginViaBrowser(context.Background(), client, ""); err != nil {
-		t.Fatalf("loginViaBrowser: %v", err)
+	err := loginViaBrowser(context.Background(), client, "")
+	if !errors.Is(err, errHeadlessLogin) {
+		t.Fatalf("expected errHeadlessLogin, got %v", err)
 	}
-	assertBrowserProfileSaved(t)
 }

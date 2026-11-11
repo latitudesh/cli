@@ -31,10 +31,16 @@ Visit the [releases page](https://github.com/latitudesh/cli/releases) and select
 
 ## [](https://docs.latitude.sh/docs/getting-started)Getting Started
 
-Log in into Latitude.sh. An API Key is required.
+Log in to Latitude.sh. On a machine with a browser, `lsh login` opens the dashboard to authorize the CLI:
 
 ```bash
-lsh login <API_KEY>
+lsh login
+```
+
+On a server, over SSH or in CI, create an API key at https://www.latitude.sh/dashboard/api-keys and pass it instead:
+
+```bash
+lsh login --with-token <API_KEY>
 ```
 
 The CLI automatically detects when you use `sudo` and loads your credentials from your user directory.
@@ -113,7 +119,7 @@ Mount volume to a server (requires sudo, auto-installs nvme-cli and connects):
 
 ```bash
 # First, login as normal user
-lsh login <API_KEY>
+lsh login --with-token <API_KEY>
 
 # Then mount with sudo (automatically uses your credentials)
 sudo lsh volume mount --id vol_abc123
@@ -128,7 +134,7 @@ sudo lsh volume mount --id vol_abc123
 
 **Important:**
 
-- Login as a **normal user** (without sudo): `lsh login <API_KEY>`
+- Login as a **normal user** (without sudo): `lsh login --with-token <API_KEY>`
 - The CLI automatically finds your credentials when you run commands with sudo
 - Volume mount needs sudo for nvme-cli installation and NVMe operations
 
@@ -187,7 +193,7 @@ If `sudo lsh volume mount` says "API key not found":
 
 ```bash
 # Make sure you've logged in as your normal user (not with sudo)
-lsh login <API_KEY>
+lsh login --with-token <API_KEY>
 
 # Then try mount again
 sudo lsh volume mount --id <VOLUME_ID>

@@ -14,9 +14,18 @@ import (
 	"github.com/latitudesh/lsh/internal/version"
 )
 
-// looksHeadless is a seam so tests can exercise both the loopback and the
-// secret-only login paths regardless of the host environment.
+// looksHeadless is a seam so tests can exercise both the browser and the
+// headless paths regardless of the host environment.
 var looksHeadless = browser.LooksHeadless
+
+// errHeadlessLogin is returned instead of starting a browser login on a
+// machine without a browser: the API only accepts logins that return to the
+// machine that started them, which a headless session cannot receive.
+var errHeadlessLogin = errors.New(`no browser available for login on this machine.
+
+Create an API key at https://www.latitude.sh/dashboard/api-keys and run:
+
+  lsh login --with-token <API_KEY>`)
 
 const (
 	pollInterval   = 2 * time.Second
@@ -34,54 +43,35 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	headless := looksHeadless()
+	if looksHeadless() {
+		return errHeadlessLogin
+	}
 
-	req := authclient.CreateSessionRequest{
+	// The loopback callback binds the session to this machine: the approval
+	// code is delivered here, so a forwarded approval link cannot hand the
+	// credential to someone else.
+	receiver, err := startLoopbackReceiver()
+	if err != nil {
+		return fmt.Errorf("could not start the local login listener: %w", err)
+	}
+	defer receiver.close()
+
+	session, err := client.CreateSession(ctx, authclient.CreateSessionRequest{
 		ClientName:    "lsh",
 		ClientVersion: version.Version,
-	}
-
-	// A browser login binds the session to this machine with a loopback
-	// callback, so the approval code is delivered here and a forwarded
-	// approval link cannot hand the credential to someone else. A headless
-	// environment has no reachable loopback for the approver's browser, so
-	// it falls back to the secret-only poll.
-	var (
-		receiver *loopbackReceiver
-		err      error
-	)
-	if !headless {
-		receiver, err = startLoopbackReceiver()
-		if err != nil {
-			return fmt.Errorf("could not start the local login listener: %w", err)
-		}
-		defer receiver.close()
-		req.CallbackURL = receiver.callbackURL()
-	}
-
-	session, err := client.CreateSession(ctx, req)
+		CallbackURL:   receiver.callbackURL(),
+	})
 	if err != nil {
 		return fmt.Errorf("could not start login session: %w", err)
 	}
 
-	printAuthorizePrompt(session, headless)
+	printAuthorizePrompt(session)
 
-	if !headless {
-		if err := browser.Open(session.AuthorizeURL); err != nil {
-			fmt.Fprintln(os.Stderr, "Could not open browser automatically; please open the URL above manually.")
-		}
+	if err := browser.Open(session.AuthorizeURL); err != nil {
+		fmt.Fprintln(os.Stderr, "Could not open browser automatically; please open the URL above manually.")
 	}
 
-	var (
-		codeCh <-chan string
-		errCh  <-chan error
-	)
-	if receiver != nil {
-		codeCh = receiver.resultCh
-		errCh = receiver.errCh
-	}
-
-	approved, err := pollUntilApproved(ctx, client, session.ID, session.Secret, codeCh, errCh)
+	approved, err := pollUntilApproved(ctx, client, session.ID, session.Secret, receiver.resultCh, receiver.errCh)
 	if err != nil {
 		return err
 	}
@@ -111,7 +101,7 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 	return nil
 }
 
-func printAuthorizePrompt(session *authclient.Session, headless bool) {
+func printAuthorizePrompt(session *authclient.Session) {
 	fmt.Println("Opening your browser to authorize this CLI...")
 	fmt.Println()
 	fmt.Println("  URL:")
@@ -119,10 +109,6 @@ func printAuthorizePrompt(session *authclient.Session, headless bool) {
 	fmt.Println()
 	fmt.Println("  Confirm this code matches what your browser shows:")
 	fmt.Printf("    %s\n", session.UserCode)
-	if headless {
-		fmt.Println()
-		fmt.Println("  (detected headless environment — open the URL above on a machine with a browser)")
-	}
 	fmt.Println()
 	fmt.Println("Waiting for approval... press Ctrl+C to cancel.")
 }
