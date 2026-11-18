@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cli"
 	"github.com/latitudesh/lsh/cmd/lsh"
@@ -51,25 +52,40 @@ func (o *ListVirtualMachineOperation) run(cmd *cobra.Command, args []string) err
 		filterTags = &joined
 	}
 
-	client := lsh.NewClient()
-	ctx := context.Background()
-
-	// The endpoint paginates and the SDK exposes a Next closure, so drive the
-	// shared pagination.Walk like the other list commands.
 	opts := pagination.Resolve()
+	vms, result, err := listVirtualMachines(context.Background(), lsh.NewClient(), filterProject, filterTags, opts)
+	if err != nil {
+		utils.PrintError(err)
+		return err
+	}
+	if opts.NoPaginate && result.HasMore {
+		pagination.PrintNextCursor(result.NextPage)
+	}
+
+	if !lsh.Debug {
+		utils.Render(vms.GetData())
+	}
+
+	return nil
+}
+
+// listVirtualMachines fetches as many pages as opts allows. The endpoint
+// paginates and the SDK exposes a Next closure, so it drives the shared
+// pagination.Walk like the other list commands. Split from run so it can be
+// exercised against a fake API.
+func listVirtualMachines(ctx context.Context, client *latitudeshgosdk.Latitudesh, filterProject, filterTags *string, opts pagination.Options) (VirtualMachines, pagination.Result, error) {
 	request := operations.IndexVirtualMachineRequest{
 		FilterProject: filterProject,
 		FilterTags:    filterTags,
 		PageSize:      &opts.PageSize,
 	}
 
+	vms := VirtualMachines{}
 	first, err := client.VirtualMachines.List(ctx, request, operations.WithRetries(lsh.RetryConfig()))
 	if err != nil {
-		utils.PrintError(err)
-		return err
+		return vms, pagination.Result{}, err
 	}
 
-	vms := VirtualMachines{}
 	result, err := pagination.Walk(first, opts,
 		func(r *operations.IndexVirtualMachineResponse) func() (*operations.IndexVirtualMachineResponse, error) {
 			return r.Next
@@ -89,17 +105,5 @@ func (o *ListVirtualMachineOperation) run(cmd *cobra.Command, args []string) err
 			return pagination.PageInfo{Added: n, Len: len(data), Unread: len(data) - n}
 		},
 	)
-	if err != nil {
-		utils.PrintError(err)
-		return err
-	}
-	if opts.NoPaginate && result.HasMore {
-		pagination.PrintNextCursor(result.NextPage)
-	}
-
-	if !lsh.Debug {
-		utils.Render(vms.GetData())
-	}
-
-	return nil
+	return vms, result, err
 }
