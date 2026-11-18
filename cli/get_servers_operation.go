@@ -145,9 +145,9 @@ func runOperationServersGetServers(cmd *cobra.Command, _ []string) error {
 	rows := make([]renderer.ResponseData, 0, len(resp.Servers.Data))
 	result, err := pagination.Walk(resp, page,
 		func(r *operations.GetServersResponse) func() (*operations.GetServersResponse, error) { return r.Next },
-		func(r *operations.GetServersResponse, limit int) int {
+		func(r *operations.GetServersResponse, limit int) (int, int) {
 			if r.Servers == nil {
-				return 0
+				return 0, 0
 			}
 			added := 0
 			for i := range r.Servers.Data {
@@ -161,7 +161,7 @@ func runOperationServersGetServers(cmd *cobra.Command, _ []string) error {
 				rows = append(rows, serverDataToRow(sd))
 				added++
 			}
-			return added
+			return added, len(r.Servers.Data)
 		},
 	)
 	if err != nil {

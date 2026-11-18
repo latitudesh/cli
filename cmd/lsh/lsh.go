@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"strings"
 
 	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/retry"
@@ -37,12 +38,46 @@ func LogDebugf(format string, v ...interface{}) {
 	log.Printf(format, v...)
 }
 
-func NewClient() *latitudeshgosdk.Latitudesh {
-	AuthorizationKey := viper.GetString("Authorization")
+// Defaults for the API host, mirroring the root --scheme, --hostname and
+// --base-path flags. They only matter when viper has no value at all (e.g.
+// in tests that reset it): the flags themselves carry the same defaults.
+const (
+	defaultScheme   = "https"
+	defaultHostname = "api.latitude.sh"
+)
 
-	return latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(AuthorizationKey),
-	)
+// ServerURL is the API base URL every request must be sent to, built from
+// the root --scheme, --hostname and --base-path flags (viper keys "scheme",
+// "hostname" and "base_path"). It never ends with a slash, so callers can
+// append a path directly. The SDK, the login flow and the hand-written
+// HTTP calls all go through here: an override must reach every request or
+// a dev pointing the CLI at staging silently hits production.
+func ServerURL() string {
+	scheme := viper.GetString("scheme")
+	if scheme == "" {
+		scheme = defaultScheme
+	}
+	hostname := viper.GetString("hostname")
+	if hostname == "" {
+		hostname = defaultHostname
+	}
+	u := scheme + "://" + hostname
+	if basePath := strings.Trim(viper.GetString("base_path"), "/"); basePath != "" {
+		u += "/" + basePath
+	}
+	return u
+}
+
+// NewClient builds the SDK client with the stored token and the configured
+// server URL. Extra options (e.g. a custom HTTP client) are applied after
+// the defaults, so they can override them.
+func NewClient(opts ...latitudeshgosdk.SDKOption) *latitudeshgosdk.Latitudesh {
+	all := append([]latitudeshgosdk.SDKOption{
+		latitudeshgosdk.WithSecurity(viper.GetString("Authorization")),
+		latitudeshgosdk.WithServerURL(ServerURL()),
+	}, opts...)
+
+	return latitudeshgosdk.New(all...)
 }
 
 func NewContext() context.Context {

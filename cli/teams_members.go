@@ -145,9 +145,9 @@ func runTeamMembersList(_ *cobra.Command, _ []string) error {
 		func(r *operations.GetTeamMembersResponse) func() (*operations.GetTeamMembersResponse, error) {
 			return r.Next
 		},
-		func(r *operations.GetTeamMembersResponse, limit int) int {
+		func(r *operations.GetTeamMembersResponse, limit int) (int, int) {
 			if r.TeamMembers == nil {
-				return 0
+				return 0, 0
 			}
 			data := r.TeamMembers.Data
 			n := len(data)
@@ -157,7 +157,7 @@ func runTeamMembersList(_ *cobra.Command, _ []string) error {
 			for i := 0; i < n; i++ {
 				rows = append(rows, teamMemberToRow(&data[i]))
 			}
-			return n
+			return n, len(data)
 		},
 	)
 	if err != nil {

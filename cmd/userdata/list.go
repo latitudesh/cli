@@ -54,9 +54,9 @@ func (o *ListUserDataOperation) run(cmd *cobra.Command, args []string) error {
 		func(r *operations.GetUsersDataResponse) func() (*operations.GetUsersDataResponse, error) {
 			return r.Next
 		},
-		func(r *operations.GetUsersDataResponse, limit int) int {
+		func(r *operations.GetUsersDataResponse, limit int) (int, int) {
 			if r.UserData == nil {
-				return 0
+				return 0, 0
 			}
 			added := 0
 			for i := range r.UserData.Data {
@@ -66,7 +66,7 @@ func (o *ListUserDataOperation) run(cmd *cobra.Command, args []string) error {
 				list.Data = append(list.Data, &UserData{UserDataProperties: r.UserData.Data[i]})
 				added++
 			}
-			return added
+			return added, len(r.UserData.Data)
 		},
 	)
 	if err != nil {

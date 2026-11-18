@@ -21,7 +21,6 @@ import (
 	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 func makeOperationGroupTeamsCmd() (*cobra.Command, error) {
@@ -322,10 +321,7 @@ func runTeamsUpdate(cmd *cobra.Command, args []string) error {
 	// "unwritable_attribute". Strip it from the wire until the spec drops
 	// currency from the PATCH body and the SDK is regenerated.
 	httpClient := &http.Client{Transport: stripTeamPatchCurrency{base: http.DefaultTransport}}
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(viper.GetString("Authorization")),
-		latitudeshgosdk.WithClient(httpClient),
-	)
+	client := lsh.NewClient(latitudeshgosdk.WithClient(httpClient))
 	ctx := context.Background()
 
 	resp, err := client.Teams.Update(ctx, teamID, body)

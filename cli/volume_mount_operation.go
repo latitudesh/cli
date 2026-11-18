@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
@@ -491,9 +490,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 
 	// Initialize the new SDK client
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient()
 
 	// Step 1: Fetch volume storage details to get connector_id (subsystem NQN)
 	subsystemNQN, _ := cmd.Flags().GetString("subsystem-nqn")
