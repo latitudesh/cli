@@ -6,9 +6,12 @@ import (
 	"fmt"
 
 	sdk "github.com/latitudesh/latitudesh-go-sdk"
-	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 )
+
+// VirtualMachineRunning is the status of a provisioned, powered-on virtual
+// machine. Like the server statuses, the SDK reports it as a plain string.
+const VirtualMachineRunning = "Running"
 
 // ForVirtualMachineState polls GET /virtual_machines/{id} until the VM's status
 // is one of want (success), o.Timeout elapses (ErrTimeout), or the user cancels
@@ -22,10 +25,10 @@ func ForVirtualMachineState(
 	ctx context.Context,
 	client *sdk.Latitudesh,
 	vmID string,
-	want []components.VirtualMachineAttributesStatus,
+	want []string,
 	o Options,
 	opts ...operations.Option,
-) (components.VirtualMachineAttributesStatus, error) {
+) (string, error) {
 	if o.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, o.Timeout)
@@ -33,12 +36,12 @@ func ForVirtualMachineState(
 	}
 
 	var (
-		last    components.VirtualMachineAttributesStatus
+		last    string
 		lastErr error
 	)
 
 	err := Poll(ctx, DefaultBackoff(), func(ctx context.Context) (bool, error) {
-		resp, err := client.VirtualMachines.Get(ctx, vmID, opts...)
+		resp, err := client.VirtualMachines.Get(ctx, vmID, nil, opts...)
 		if err != nil {
 			if isTerminalAPIError(err) {
 				return false, err
@@ -63,14 +66,14 @@ func ForVirtualMachineState(
 
 // virtualMachineStatus extracts the status from a ShowVirtualMachine response,
 // tolerating any nil link in the data → attributes → status chain.
-func virtualMachineStatus(resp *operations.ShowVirtualMachineResponse) *components.VirtualMachineAttributesStatus {
+func virtualMachineStatus(resp *operations.ShowVirtualMachineResponse) *string {
 	if resp == nil || resp.VirtualMachine == nil || resp.VirtualMachine.Data == nil || resp.VirtualMachine.Data.Attributes == nil {
 		return nil
 	}
 	return resp.VirtualMachine.Data.Attributes.Status
 }
 
-func containsVMStatus(set []components.VirtualMachineAttributesStatus, s components.VirtualMachineAttributesStatus) bool {
+func containsVMStatus(set []string, s string) bool {
 	for _, v := range set {
 		if v == s {
 			return true

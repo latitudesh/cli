@@ -59,7 +59,7 @@ func (o *UpdateSSHKeyOperation) run(cmd *cobra.Command, args []string) error {
 
 	request := operations.PutSSHKeySSHKeysRequestBody{
 		Data: operations.PutSSHKeySSHKeysData{
-			ID:         &sshKeyID,
+			ID:         sshKeyID,
 			Type:       operations.PutSSHKeySSHKeysTypeSSHKeys,
 			Attributes: attributes,
 		},

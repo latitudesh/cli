@@ -71,8 +71,8 @@ func TestBuildCreateRequest(t *testing.T) {
 	if request.Data.Attributes.ProjectID != "my-project" {
 		t.Errorf("project_id = %q, want my-project", request.Data.Attributes.ProjectID)
 	}
-	if request.Data.Attributes.ServerID != "sv_x" {
-		t.Errorf("server_id = %q, want sv_x", request.Data.Attributes.ServerID)
+	if request.Data.Attributes.ServerID == nil || *request.Data.Attributes.ServerID != "sv_x" {
+		t.Errorf("server_id = %v, want sv_x", request.Data.Attributes.ServerID)
 	}
 }
 

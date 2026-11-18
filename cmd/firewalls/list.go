@@ -50,7 +50,7 @@ func (o *ListFirewallsOperation) run(cmd *cobra.Command, args []string) error {
 	// page[size]/page[number] (verified against the API on 2026-11-18), so this
 	// list does not go through pagination.Walk: the SDK Next closure would
 	// refetch the same full response forever.
-	response, err := client.Firewalls.List(ctx, filterProject, nil, nil, operations.WithRetries(lsh.RetryConfig()))
+	response, err := client.Firewalls.List(ctx, filterProject, nil, nil, nil, operations.WithRetries(lsh.RetryConfig()))
 	if err != nil {
 		utils.PrintError(err)
 		return err

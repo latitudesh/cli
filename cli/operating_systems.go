@@ -78,7 +78,7 @@ func runOperatingSystemsList(_ *cobra.Command, _ []string) error {
 	pageSize := page.PageSize
 	pageNumber := int64(1)
 
-	resp, err := client.OperatingSystems.ListPlans(ctx, &pageSize, &pageNumber)
+	resp, err := client.OperatingSystems.ListPlans(ctx, &pageSize, &pageNumber, nil)
 	if err != nil {
 		stopSpinner()
 		utils.PrintError(err)

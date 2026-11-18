@@ -49,8 +49,8 @@ func (o *CreateSSHKeyOperation) run(cmd *cobra.Command, args []string) error {
 		Data: operations.PostSSHKeySSHKeysData{
 			Type: operations.PostSSHKeySSHKeysTypeSSHKeys,
 			Attributes: &operations.PostSSHKeySSHKeysAttributes{
-				Name:      &name,
-				PublicKey: &publicKey,
+				Name:      name,
+				PublicKey: publicKey,
 			},
 		},
 	}
