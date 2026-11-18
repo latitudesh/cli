@@ -92,9 +92,9 @@ func runRegionsList(_ *cobra.Command, _ []string) error {
 	rows := make([]renderer.ResponseData, 0, len(resp.Regions.Data))
 	result, err := pagination.Walk(resp, page,
 		func(r *operations.GetRegionsResponse) func() (*operations.GetRegionsResponse, error) { return r.Next },
-		func(r *operations.GetRegionsResponse, limit int) (int, int) {
+		func(r *operations.GetRegionsResponse, limit int) pagination.PageInfo {
 			if r.Regions == nil {
-				return 0, 0
+				return pagination.PageInfo{}
 			}
 			data := r.Regions.Data
 			n := len(data)
@@ -104,7 +104,7 @@ func runRegionsList(_ *cobra.Command, _ []string) error {
 			for i := 0; i < n; i++ {
 				rows = append(rows, regionsDataToRow(&data[i]))
 			}
-			return n, len(data)
+			return pagination.PageInfo{Added: n, Len: len(data), Unread: len(data) - n}
 		},
 	)
 	if err != nil {

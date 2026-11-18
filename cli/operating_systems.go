@@ -95,9 +95,9 @@ func runOperatingSystemsList(_ *cobra.Command, _ []string) error {
 		func(r *operations.GetPlansOperatingSystemResponse) func() (*operations.GetPlansOperatingSystemResponse, error) {
 			return r.Next
 		},
-		func(r *operations.GetPlansOperatingSystemResponse, limit int) (int, int) {
+		func(r *operations.GetPlansOperatingSystemResponse, limit int) pagination.PageInfo {
 			if r.OperatingSystems == nil {
-				return 0, 0
+				return pagination.PageInfo{}
 			}
 			data := r.OperatingSystems.Data
 			n := len(data)
@@ -107,7 +107,7 @@ func runOperatingSystemsList(_ *cobra.Command, _ []string) error {
 			for i := 0; i < n; i++ {
 				rows = append(rows, operatingSystemToRow(&data[i]))
 			}
-			return n, len(data)
+			return pagination.PageInfo{Added: n, Len: len(data), Unread: len(data) - n}
 		},
 	)
 	if err != nil {

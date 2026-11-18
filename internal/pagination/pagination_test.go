@@ -109,24 +109,26 @@ func collect(first *fakePage, opts Options) ([]int, Result, error) {
 }
 
 // collectWhere walks the pages keeping only the items that pass keep, the way
-// `servers list --operating_system` filters rows client-side.
+// `servers list --operating_system` filters rows client-side. Once the cap is
+// reached it keeps scanning so Unread counts only the matches left behind.
 func collectWhere(first *fakePage, opts Options, keep func(int) bool) ([]int, Result, error) {
 	var got []int
 	res, err := Walk(first, opts,
 		func(p *fakePage) func() (*fakePage, error) { return p.next },
-		func(p *fakePage, limit int) (int, int) {
-			added := 0
+		func(p *fakePage, limit int) PageInfo {
+			info := PageInfo{Len: len(p.items)}
 			for _, item := range p.items {
-				if limit >= 0 && added >= limit {
-					break
-				}
 				if !keep(item) {
 					continue
 				}
+				if limit >= 0 && info.Added >= limit {
+					info.Unread++
+					continue
+				}
 				got = append(got, item)
-				added++
+				info.Added++
 			}
-			return added, len(p.items)
+			return info
 		},
 	)
 	return got, res, err
@@ -365,6 +367,43 @@ func TestWalkNoPaginateFilteredShortPageHasNoMore(t *testing.T) {
 	}
 	if res.HasMore {
 		t.Fatalf("expected HasMore=false for a short page filtered client-side, got %+v", res)
+	}
+}
+
+func TestWalkMaxItemsFilteredExactCapOnShortPageHasNoMore(t *testing.T) {
+	calls := 0
+	first := sdkStylePages([]int{1, 2}, 100, &calls)
+
+	// The only match is the last row of a short page and the cap equals the
+	// match count: the filtered-out row must not count as left behind.
+	got, res, err := collectWhere(first, Options{PageSize: 100, MaxItems: 1, NoPaginate: true},
+		func(item int) bool { return item%2 == 0 })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 || calls != 0 {
+		t.Fatalf("expected 1 item and no follow-up fetch, got %d items, %d calls", len(got), calls)
+	}
+	if res.HasMore {
+		t.Fatalf("expected HasMore=false when the cap matches the filtered rows of a short page, got %+v", res)
+	}
+}
+
+func TestWalkMaxItemsFilteredCapWithMatchesLeftHasMore(t *testing.T) {
+	calls := 0
+	first := sdkStylePages([]int{2, 4, 6}, 100, &calls)
+
+	// Two matches remain after the cap on a short page: they were left behind.
+	got, res, err := collectWhere(first, Options{PageSize: 100, MaxItems: 1},
+		func(item int) bool { return item%2 == 0 })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(got))
+	}
+	if !res.HasMore {
+		t.Fatalf("expected HasMore=true when matches were left behind by the cap, got %+v", res)
 	}
 }
 

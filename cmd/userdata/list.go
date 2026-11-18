@@ -54,19 +54,19 @@ func (o *ListUserDataOperation) run(cmd *cobra.Command, args []string) error {
 		func(r *operations.GetUsersDataResponse) func() (*operations.GetUsersDataResponse, error) {
 			return r.Next
 		},
-		func(r *operations.GetUsersDataResponse, limit int) (int, int) {
+		func(r *operations.GetUsersDataResponse, limit int) pagination.PageInfo {
 			if r.UserData == nil {
-				return 0, 0
+				return pagination.PageInfo{}
 			}
-			added := 0
-			for i := range r.UserData.Data {
-				if limit >= 0 && added >= limit {
-					break
-				}
-				list.Data = append(list.Data, &UserData{UserDataProperties: r.UserData.Data[i]})
-				added++
+			data := r.UserData.Data
+			n := len(data)
+			if limit >= 0 && n > limit {
+				n = limit
 			}
-			return added, len(r.UserData.Data)
+			for i := 0; i < n; i++ {
+				list.Data = append(list.Data, &UserData{UserDataProperties: data[i]})
+			}
+			return pagination.PageInfo{Added: n, Len: len(data), Unread: len(data) - n}
 		},
 	)
 	if err != nil {

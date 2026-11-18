@@ -68,15 +68,26 @@ type Result struct {
 	NextPage int64
 }
 
+// PageInfo describes how a Walk callback consumed one API page.
+type PageInfo struct {
+	// Added is the number of rows appended to the result from this page.
+	Added int
+	// Len is the number of rows the API returned for the page, before any
+	// client-side filtering or trimming.
+	Len int
+	// Unread is the number of rows that would have been appended but were left
+	// out because the item cap was reached. Rows dropped by a client-side
+	// filter are not unread: they were examined and rejected.
+	Unread int
+}
+
 // Walk drives pagination over an SDK list response.
 //
 //   - first is the already-fetched first page (may be nil).
 //   - next returns the response's Next closure, or nil when there are no more
 //     pages.
 //   - onPage appends up to limit rows from a page (limit < 0 means no limit)
-//     and returns how many it appended (added) and how many rows the API
-//     returned for that page (pageLen), before any client-side filtering or
-//     trimming.
+//     and describes what it did with the page (see PageInfo).
 //
 // Walk honors NoPaginate (stop after the first page) and MaxItems (stop once
 // the running total reaches the cap, trimming the final page). It assumes the
@@ -93,7 +104,7 @@ func Walk[R any](
 	first *R,
 	opts Options,
 	next func(*R) func() (*R, error),
-	onPage func(page *R, limit int) (added, pageLen int),
+	onPage func(page *R, limit int) PageInfo,
 ) (Result, error) {
 	if first == nil {
 		return Result{}, nil
@@ -109,8 +120,8 @@ func Walk[R any](
 			limit = int(opts.MaxItems) - total
 		}
 
-		added, pageLen := onPage(page, limit)
-		total += added
+		info := onPage(page, limit)
+		total += info.Added
 		nextFn := next(page)
 
 		switch {
@@ -118,7 +129,7 @@ func Walk[R any](
 			// Stopping without fetching further pages (--no-paginate, or the
 			// item cap was reached): report where to resume and whether
 			// anything was left behind.
-			more := nextFn != nil && leftBehind(opts, added, pageLen, limit)
+			more := nextFn != nil && leftBehind(opts, info)
 			return Result{HasMore: more, NextPage: pageNum + 1}, nil
 		case nextFn == nil:
 			return Result{HasMore: false}, nil
@@ -139,18 +150,17 @@ func Walk[R any](
 }
 
 // leftBehind reports whether a page Walk stopped on still hides results: rows
-// the item cap trimmed off it, or later pages. A page shorter than page[size]
-// is the last one (the SDK's Next would return nil for it), so a short page
-// that was not trimmed means nothing was left behind. Client-side filters make
-// added smaller than pageLen without trimming anything, which is why the API
-// page length, not the number of rows kept, decides whether a page is short.
-func leftBehind(opts Options, added, pageLen, limit int) bool {
-	if pageLen == 0 {
+// the item cap left unread on it, or later pages. A page shorter than
+// page[size] is the last one (the SDK's Next would return nil for it), so a
+// short page with nothing unread means nothing was left behind. The API page
+// length, not the number of rows kept, decides whether a page is short, so
+// client-side filters do not make a full page look like the last one.
+func leftBehind(opts Options, info PageInfo) bool {
+	if info.Len == 0 {
 		return false
 	}
-	trimmed := limit >= 0 && added >= limit && added < pageLen
-	short := opts.PageSize > 0 && int64(pageLen) < opts.PageSize
-	return trimmed || !short
+	short := opts.PageSize > 0 && int64(info.Len) < opts.PageSize
+	return info.Unread > 0 || !short
 }
 
 // PrintNextCursor writes a one-line hint to stderr telling the user where to
