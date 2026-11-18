@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/output"
@@ -80,9 +79,7 @@ func (o *VolumeGetOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient()
 
 	// NOTE: The SDK doesn't seem to have a GetStorageVolume (singular) method yet
 	// For now, use list and filter by ID

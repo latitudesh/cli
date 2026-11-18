@@ -158,9 +158,9 @@ func runIPsList(cmd *cobra.Command, _ []string) error {
 	rows := make([]renderer.ResponseData, 0, len(resp.IPAddresses.Data))
 	result, err := pagination.Walk(resp, page,
 		func(r *operations.GetIpsResponse) func() (*operations.GetIpsResponse, error) { return r.Next },
-		func(r *operations.GetIpsResponse, limit int) int {
+		func(r *operations.GetIpsResponse, limit int) pagination.PageInfo {
 			if r.IPAddresses == nil {
-				return 0
+				return pagination.PageInfo{}
 			}
 			data := r.IPAddresses.Data
 			n := len(data)
@@ -170,7 +170,7 @@ func runIPsList(cmd *cobra.Command, _ []string) error {
 			for i := 0; i < n; i++ {
 				rows = append(rows, ipToRow(&data[i]))
 			}
-			return n
+			return pagination.PageInfo{Added: n, Len: len(data), Unread: len(data) - n}
 		},
 	)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/output/table"
 	"github.com/latitudesh/lsh/internal/renderer"
 	"github.com/spf13/cobra"
@@ -454,7 +455,7 @@ func (r flatRow) TableRow() table.Row {
 }
 
 func fetchPlans(ctx context.Context, token string) (*plansResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.latitude.sh/plans", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, lsh.ServerURL()+"/plans", nil)
 	if err != nil {
 		return nil, err
 	}

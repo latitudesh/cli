@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
@@ -74,6 +75,10 @@ func (o *ListAssignmentsOperation) run(cmd *cobra.Command, args []string) error 
 
 	assignments := FirewallAssignments{}
 
+	// Both assignment endpoints return every assignment in one response and
+	// ignore page[size]/page[number] (verified against the API on 2026-11-18),
+	// so this list does not go through pagination.Walk: the SDK Next closure
+	// would refetch the same full response forever.
 	if firewallID != "" {
 		response, err := client.Firewalls.ListAssignments(ctx, firewallID, nil, nil, operations.WithRetries(lsh.RetryConfig()))
 		if err != nil {
@@ -179,7 +184,7 @@ func (o *CreateAssignmentOperation) run(cmd *cobra.Command, args []string) error
 	}
 
 	if !lsh.Debug {
-		fmt.Println(tui.SuccessStyle.Render("✓ Server assigned to firewall successfully!"))
+		fmt.Fprintln(os.Stderr, tui.SuccessStyle.Render("✓ Server assigned to firewall successfully!"))
 
 		var fs components.FirewallServer
 		if response.FirewallServer != nil {

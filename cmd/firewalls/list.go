@@ -46,6 +46,10 @@ func (o *ListFirewallsOperation) run(cmd *cobra.Command, args []string) error {
 		filterProject = &value
 	}
 
+	// GET /firewalls returns every firewall in one response and ignores
+	// page[size]/page[number] (verified against the API on 2026-11-18), so this
+	// list does not go through pagination.Walk: the SDK Next closure would
+	// refetch the same full response forever.
 	response, err := client.Firewalls.List(ctx, filterProject, nil, nil, operations.WithRetries(lsh.RetryConfig()))
 	if err != nil {
 		utils.PrintError(err)

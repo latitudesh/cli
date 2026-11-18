@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/spf13/cobra"
@@ -79,9 +78,7 @@ func (o *VolumeDeleteOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient()
 
 	// Confirm deletion
 	fmt.Fprintf(os.Stdout, "⚠️  Warning: You are about to delete volume storage: %s\n", volumeID)

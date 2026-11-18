@@ -145,23 +145,25 @@ func runOperationServersGetServers(cmd *cobra.Command, _ []string) error {
 	rows := make([]renderer.ResponseData, 0, len(resp.Servers.Data))
 	result, err := pagination.Walk(resp, page,
 		func(r *operations.GetServersResponse) func() (*operations.GetServersResponse, error) { return r.Next },
-		func(r *operations.GetServersResponse, limit int) int {
+		func(r *operations.GetServersResponse, limit int) pagination.PageInfo {
 			if r.Servers == nil {
-				return 0
+				return pagination.PageInfo{}
 			}
-			added := 0
+			info := pagination.PageInfo{Len: len(r.Servers.Data)}
 			for i := range r.Servers.Data {
-				if limit >= 0 && added >= limit {
-					break
-				}
 				sd := &r.Servers.Data[i]
 				if !serverMatchesOS(sd, osFilter) {
 					continue
 				}
+				if limit >= 0 && info.Added >= limit {
+					// Keep scanning so Unread counts only matches left behind.
+					info.Unread++
+					continue
+				}
 				rows = append(rows, serverDataToRow(sd))
-				added++
+				info.Added++
 			}
-			return added
+			return info
 		},
 	)
 	if err != nil {

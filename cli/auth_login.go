@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/authclient"
 	"github.com/latitudesh/lsh/internal/config"
 	"github.com/latitudesh/lsh/internal/version"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // defaultAPIVersion resolves the API version sent to the API, honoring
@@ -76,20 +76,12 @@ func runOperationLogin(cmd *cobra.Command, args []string) error {
 	return loginViaBrowser(ctx, client, profileName)
 }
 
-// newAuthClient builds an authclient using the current hostname/scheme
-// from viper. This is the same configuration the generated SDK uses,
-// so dev overrides (--hostname / --scheme) flow through naturally.
+// newAuthClient builds an authclient against the same server URL the SDK
+// client uses (lsh.ServerURL), so --hostname / --scheme / --base-path
+// overrides reach the login flow too.
 func newAuthClient() *authclient.Client {
-	hostname := viper.GetString("hostname")
-	if hostname == "" {
-		hostname = "api.latitude.sh"
-	}
-	scheme := viper.GetString("scheme")
-	if scheme == "" {
-		scheme = "https"
-	}
 	ua := fmt.Sprintf("lsh/%s", version.Version)
-	return authclient.New(scheme+"://"+hostname, ua, defaultAPIVersion())
+	return authclient.New(lsh.ServerURL(), ua, defaultAPIVersion())
 }
 
 // saveProfile resolves the profile name (override > team slug > "default")
