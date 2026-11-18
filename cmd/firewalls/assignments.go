@@ -6,11 +6,9 @@ import (
 	"net/http"
 	"os"
 
-	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
-	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/tui"
 	"github.com/latitudesh/lsh/internal/utils"
 	cobra "github.com/spf13/cobra"
@@ -74,20 +72,40 @@ func (o *ListAssignmentsOperation) run(cmd *cobra.Command, args []string) error 
 	ctx := context.Background()
 
 	firewallID, _ := cmd.Flags().GetString("firewall")
-	var filterServer *string
-	if firewallID == "" && cmd.Flags().Changed("server") {
-		value, _ := cmd.Flags().GetString("server")
-		filterServer = &value
-	}
 
-	opts := pagination.Resolve()
-	assignments, result, err := listAssignments(ctx, client, firewallID, filterServer, opts)
-	if err != nil {
-		utils.PrintError(err)
-		return err
-	}
-	if opts.NoPaginate && result.HasMore {
-		pagination.PrintNextCursor(result.NextPage)
+	assignments := FirewallAssignments{}
+
+	// Both assignment endpoints return every assignment in one response and
+	// ignore page[size]/page[number] (verified against the API on 2026-11-18),
+	// so this list does not go through pagination.Walk: the SDK Next closure
+	// would refetch the same full response forever.
+	if firewallID != "" {
+		response, err := client.Firewalls.ListAssignments(ctx, firewallID, nil, nil, operations.WithRetries(lsh.RetryConfig()))
+		if err != nil {
+			utils.PrintError(err)
+			return err
+		}
+		if response.FirewallAssignments != nil {
+			for i := range response.FirewallAssignments.Data {
+				assignments.Data = append(assignments.Data, &FirewallAssignment{FirewallAssignmentData: response.FirewallAssignments.Data[i]})
+			}
+		}
+	} else {
+		var filterServer *string
+		if cmd.Flags().Changed("server") {
+			value, _ := cmd.Flags().GetString("server")
+			filterServer = &value
+		}
+		response, err := client.Firewalls.GetAllFirewallAssignments(ctx, filterServer, nil, nil, operations.WithRetries(lsh.RetryConfig()))
+		if err != nil {
+			utils.PrintError(err)
+			return err
+		}
+		if response.FirewallAssignments != nil {
+			for i := range response.FirewallAssignments.Data {
+				assignments.Data = append(assignments.Data, &FirewallAssignment{FirewallAssignmentData: response.FirewallAssignments.Data[i]})
+			}
+		}
 	}
 
 	if !lsh.Debug {
@@ -95,59 +113,6 @@ func (o *ListAssignmentsOperation) run(cmd *cobra.Command, args []string) error 
 	}
 
 	return nil
-}
-
-// listAssignments walks every page of the firewall assignments (the API
-// returns 20 per page by default), honoring --page-size, --max-items and
-// --no-paginate. With a firewall ID it lists that firewall's assignments,
-// otherwise every assignment in the team, optionally filtered by server.
-func listAssignments(ctx context.Context, client *latitudeshgosdk.Latitudesh, firewallID string, filterServer *string, opts pagination.Options) (FirewallAssignments, pagination.Result, error) {
-	assignments := FirewallAssignments{}
-	appendPage := func(page *components.FirewallAssignments, limit int) (int, int) {
-		if page == nil {
-			return 0, 0
-		}
-		added := 0
-		for i := range page.Data {
-			if limit >= 0 && added >= limit {
-				break
-			}
-			assignments.Data = append(assignments.Data, &FirewallAssignment{FirewallAssignmentData: page.Data[i]})
-			added++
-		}
-		return added, len(page.Data)
-	}
-	pageNumber := int64(1)
-
-	if firewallID != "" {
-		first, err := client.Firewalls.ListAssignments(ctx, firewallID, &opts.PageSize, &pageNumber, operations.WithRetries(lsh.RetryConfig()))
-		if err != nil {
-			return assignments, pagination.Result{}, err
-		}
-		result, err := pagination.Walk(first, opts,
-			func(r *operations.GetFirewallAssignmentsResponse) func() (*operations.GetFirewallAssignmentsResponse, error) {
-				return r.Next
-			},
-			func(r *operations.GetFirewallAssignmentsResponse, limit int) (int, int) {
-				return appendPage(r.FirewallAssignments, limit)
-			},
-		)
-		return assignments, result, err
-	}
-
-	first, err := client.Firewalls.GetAllFirewallAssignments(ctx, filterServer, &opts.PageSize, &pageNumber, operations.WithRetries(lsh.RetryConfig()))
-	if err != nil {
-		return assignments, pagination.Result{}, err
-	}
-	result, err := pagination.Walk(first, opts,
-		func(r *operations.GetAllFirewallAssignmentsResponse) func() (*operations.GetAllFirewallAssignmentsResponse, error) {
-			return r.Next
-		},
-		func(r *operations.GetAllFirewallAssignmentsResponse, limit int) (int, int) {
-			return appendPage(r.FirewallAssignments, limit)
-		},
-	)
-	return assignments, result, err
 }
 
 // ----------------------------------------------------------------------------

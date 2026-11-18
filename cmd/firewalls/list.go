@@ -3,11 +3,9 @@ package firewalls
 import (
 	"context"
 
-	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cli"
 	"github.com/latitudesh/lsh/cmd/lsh"
-	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/utils"
 	cobra "github.com/spf13/cobra"
 )
@@ -48,14 +46,21 @@ func (o *ListFirewallsOperation) run(cmd *cobra.Command, args []string) error {
 		filterProject = &value
 	}
 
-	opts := pagination.Resolve()
-	firewalls, result, err := listFirewalls(ctx, client, filterProject, opts)
+	// GET /firewalls returns every firewall in one response and ignores
+	// page[size]/page[number] (verified against the API on 2026-11-18), so this
+	// list does not go through pagination.Walk: the SDK Next closure would
+	// refetch the same full response forever.
+	response, err := client.Firewalls.List(ctx, filterProject, nil, nil, operations.WithRetries(lsh.RetryConfig()))
 	if err != nil {
 		utils.PrintError(err)
 		return err
 	}
-	if opts.NoPaginate && result.HasMore {
-		pagination.PrintNextCursor(result.NextPage)
+
+	firewalls := Firewalls{}
+	if response.Firewalls != nil {
+		for i := range response.Firewalls.Data {
+			firewalls.Data = append(firewalls.Data, &Firewall{FirewallData: response.Firewalls.Data[i]})
+		}
 	}
 
 	if !lsh.Debug {
@@ -63,35 +68,4 @@ func (o *ListFirewallsOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-// listFirewalls walks every page of GET /firewalls (the API returns 20 per
-// page by default), honoring --page-size, --max-items and --no-paginate.
-func listFirewalls(ctx context.Context, client *latitudeshgosdk.Latitudesh, filterProject *string, opts pagination.Options) (Firewalls, pagination.Result, error) {
-	firewalls := Firewalls{}
-	pageNumber := int64(1)
-	first, err := client.Firewalls.List(ctx, filterProject, &opts.PageSize, &pageNumber, operations.WithRetries(lsh.RetryConfig()))
-	if err != nil {
-		return firewalls, pagination.Result{}, err
-	}
-	result, err := pagination.Walk(first, opts,
-		func(r *operations.ListFirewallsResponse) func() (*operations.ListFirewallsResponse, error) {
-			return r.Next
-		},
-		func(r *operations.ListFirewallsResponse, limit int) (int, int) {
-			if r.Firewalls == nil {
-				return 0, 0
-			}
-			added := 0
-			for i := range r.Firewalls.Data {
-				if limit >= 0 && added >= limit {
-					break
-				}
-				firewalls.Data = append(firewalls.Data, &Firewall{FirewallData: r.Firewalls.Data[i]})
-				added++
-			}
-			return added, len(r.Firewalls.Data)
-		},
-	)
-	return firewalls, result, err
 }
