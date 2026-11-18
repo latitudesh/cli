@@ -7,6 +7,7 @@ import (
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cli"
 	"github.com/latitudesh/lsh/cmd/lsh"
+	"github.com/latitudesh/lsh/internal/pagination"
 	"github.com/latitudesh/lsh/internal/utils"
 	cobra "github.com/spf13/cobra"
 )
@@ -53,18 +54,47 @@ func (o *ListVirtualMachineOperation) run(cmd *cobra.Command, args []string) err
 	client := lsh.NewClient()
 	ctx := context.Background()
 
-	response, err := client.VirtualMachines.List(ctx, filterProject, filterTags, nil, operations.WithRetries(lsh.RetryConfig()))
+	// The endpoint paginates and the SDK exposes a Next closure, so drive the
+	// shared pagination.Walk like the other list commands.
+	opts := pagination.Resolve()
+	request := operations.IndexVirtualMachineRequest{
+		FilterProject: filterProject,
+		FilterTags:    filterTags,
+		PageSize:      &opts.PageSize,
+	}
+
+	first, err := client.VirtualMachines.List(ctx, request, operations.WithRetries(lsh.RetryConfig()))
 	if err != nil {
 		utils.PrintError(err)
 		return err
 	}
 
 	vms := VirtualMachines{}
-	if response.VirtualMachines != nil {
-		data := response.VirtualMachines.Data
-		for i := range data {
-			vms.Data = append(vms.Data, &VirtualMachine{VirtualMachineAttributes: data[i]})
-		}
+	result, err := pagination.Walk(first, opts,
+		func(r *operations.IndexVirtualMachineResponse) func() (*operations.IndexVirtualMachineResponse, error) {
+			return r.Next
+		},
+		func(r *operations.IndexVirtualMachineResponse, limit int) pagination.PageInfo {
+			if r.VirtualMachines == nil {
+				return pagination.PageInfo{}
+			}
+			data := r.VirtualMachines.Data
+			n := len(data)
+			if limit >= 0 && n > limit {
+				n = limit
+			}
+			for i := 0; i < n; i++ {
+				vms.Data = append(vms.Data, &VirtualMachine{VirtualMachineAttributes: data[i]})
+			}
+			return pagination.PageInfo{Added: n, Len: len(data), Unread: len(data) - n}
+		},
+	)
+	if err != nil {
+		utils.PrintError(err)
+		return err
+	}
+	if opts.NoPaginate && result.HasMore {
+		pagination.PrintNextCursor(result.NextPage)
 	}
 
 	if !lsh.Debug {

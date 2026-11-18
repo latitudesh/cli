@@ -24,7 +24,7 @@ const filesystemFixture = `{
 // TestFilesystemPayloadDecoding pins the SDK's typed create/update envelope to
 // the shape the live API returns, and asserts the rendered row.
 func TestFilesystemPayloadDecoding(t *testing.T) {
-	var body operations.PostStorageFilesystemsResponseBody
+	var body operations.CreateFilesystemResponseBody
 	if err := json.Unmarshal([]byte(filesystemFixture), &body); err != nil {
 		t.Fatalf("could not unmarshal filesystem fixture: %v", err)
 	}

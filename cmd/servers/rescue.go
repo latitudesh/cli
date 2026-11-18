@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/utils"
@@ -57,8 +56,8 @@ func runRescueMode(cmd *cobra.Command, args []string) error {
 	// dashboard. stderr keeps stdout clean for structured output.
 	fmt.Fprintln(os.Stderr, "Note: rescue login credentials are available on the server's page in the dashboard.")
 
-	want := []components.ServerDataStatus{components.ServerDataStatusRescueMode}
-	fail := []components.ServerDataStatus{components.ServerDataStatusFailedDeployment}
+	want := []string{wait.ServerRescueMode}
+	fail := []string{wait.ServerFailedDeployment}
 	// Idempotent wait: a server already in the target state is already done —
 	// requiring a transition here would hang until timeout.
 	return waitForServerState(cmd, serverID, want, fail, false)
@@ -104,11 +103,11 @@ func runExitRescueMode(cmd *cobra.Command, args []string) error {
 	}
 
 	// Leaving rescue mode reboots into the installed OS; it settles on/off.
-	want := []components.ServerDataStatus{
-		components.ServerDataStatusOn,
-		components.ServerDataStatusOff,
+	want := []string{
+		wait.ServerOn,
+		wait.ServerOff,
 	}
-	fail := []components.ServerDataStatus{components.ServerDataStatusFailedDeployment}
+	fail := []string{wait.ServerFailedDeployment}
 	// Idempotent wait: a server already in the target state is already done —
 	// requiring a transition here would hang until timeout.
 	return waitForServerState(cmd, serverID, want, fail, false)

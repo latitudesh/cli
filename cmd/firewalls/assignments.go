@@ -96,7 +96,7 @@ func (o *ListAssignmentsOperation) run(cmd *cobra.Command, args []string) error 
 			value, _ := cmd.Flags().GetString("server")
 			filterServer = &value
 		}
-		response, err := client.Firewalls.GetAllFirewallAssignments(ctx, filterServer, nil, nil, operations.WithRetries(lsh.RetryConfig()))
+		response, err := client.Firewalls.GetAllFirewallAssignments(ctx, filterServer, nil, nil, nil, operations.WithRetries(lsh.RetryConfig()))
 		if err != nil {
 			utils.PrintError(err)
 			return err
@@ -154,7 +154,7 @@ func buildCreateAssignmentRequest(cmd *cobra.Command) (firewallID string, body o
 		Data: operations.CreateFirewallAssignmentFirewallsAssignmentsData{
 			Type: operations.CreateFirewallAssignmentFirewallsAssignmentsTypeFirewallAssignments,
 			Attributes: &operations.CreateFirewallAssignmentFirewallsAssignmentsAttributes{
-				ServerID: serverID,
+				ServerID: &serverID,
 			},
 		},
 	}
@@ -186,22 +186,21 @@ func (o *CreateAssignmentOperation) run(cmd *cobra.Command, args []string) error
 	if !lsh.Debug {
 		fmt.Fprintln(os.Stderr, tui.SuccessStyle.Render("✓ Server assigned to firewall successfully!"))
 
-		var fs components.FirewallServer
-		if response.FirewallServer != nil {
-			fs = *response.FirewallServer
+		var fs components.FirewallServerData
+		if response.FirewallServer != nil && response.FirewallServer.Data != nil {
+			fs = *response.FirewallServer.Data
 		}
-		// The API returns the assignment in a JSON:API data envelope that the
-		// current SDK model does not map (its fields come back empty). Fall back
-		// to the request inputs so the confirmation shows the association that
-		// was created instead of a blank row.
+		// Fall back to the request inputs when the API returns an empty
+		// envelope, so the confirmation shows the association that was
+		// created instead of a blank row.
 		if fs.Attributes == nil || getStr(fs.Attributes.FirewallID) == "" {
 			serverID, _ := cmd.Flags().GetString("server")
 			fs.Attributes = &components.FirewallServerAttributes{
 				FirewallID: &firewallID,
-				ServerID:   &serverID,
+				Server:     &components.FirewallServerServer{ID: &serverID},
 			}
 		}
-		assignment := FirewallServerAssignment{FirewallServer: fs}
+		assignment := FirewallServerAssignment{FirewallServerData: fs}
 		utils.RenderStatic(assignment.GetData())
 	}
 
