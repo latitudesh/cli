@@ -3,6 +3,9 @@ package s3
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +14,7 @@ import (
 	"github.com/latitudesh/lsh/internal/config"
 	"github.com/latitudesh/lsh/internal/exitcode"
 	"github.com/latitudesh/lsh/internal/objectstorage"
+	"github.com/spf13/viper"
 )
 
 func TestParseBucketSpec(t *testing.T) {
@@ -453,5 +457,76 @@ func TestMatchSavedFiltersLikeMatchAPI(t *testing.T) {
 		if got := c.filter.matchSaved(c.key); got != c.want {
 			t.Errorf("%s: matchSaved = %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// TestTeamProjectsIncludesProjectsWithoutBuckets: the team-wide key listing
+// enumerates the team's projects, not only the ones that currently own a
+// bucket, and still keeps a project that only shows up as a bucket owner.
+func TestTeamProjectsIncludesProjectsWithoutBuckets(t *testing.T) {
+	f := newFakeAPI(t)
+	f.projects = `{"data":[
+		{"id":"proj_empty","type":"projects","attributes":{"slug":"empty","name":"Empty"}},
+		{"id":"proj_a","type":"projects","attributes":{"slug":"alpha","name":"Alpha"}}]}`
+	f.buckets = `{"data":[
+		{"id":"bkt_1","type":"object_storages","attributes":{"name":"b1","project":{"id":"proj_a","slug":"alpha"}}},
+		{"id":"bkt_2","type":"object_storages","attributes":{"name":"b2","project":{"id":"proj_legacy","slug":"legacy"}}}]}`
+	r := &objectstorage.Resolver{API: f.client().sdk}
+
+	projects, slugs, err := teamProjects(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"proj_a", "proj_empty", "proj_legacy"}; !reflect.DeepEqual(projects, want) {
+		t.Errorf("projects = %v, want %v", projects, want)
+	}
+	for id, slug := range map[string]string{"proj_empty": "empty", "proj_a": "alpha", "proj_legacy": "legacy"} {
+		if slugs[id] != slug {
+			t.Errorf("slug of %s = %q, want %q", id, slugs[id], slug)
+		}
+	}
+}
+
+// TestRotateDeleteOldFailureExitsPartial: the new key is created and saved,
+// but a --delete-old that could not be completed is reported through the
+// exit status instead of a warning a script would never see.
+func TestRotateDeleteOldFailureExitsPartial(t *testing.T) {
+	f := newFakeAPI(t)
+	f.deleteStatus = http.StatusNotFound
+	home := withTempProfile(t, map[string]config.StoredAccessKey{
+		"ops": {AccessKeyID: "OPSKEYID000000000001", SecretAccessKey: "old-secret", StorageClass: "standard", ProjectID: "proj_a", Scope: config.ScopeFullAccess, Username: "ops@example.com"},
+	})
+	u, err := url.Parse(f.srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev := map[string]string{}
+	for k, v := range map[string]string{"hostname": u.Host, "scheme": "http", "Authorization": "tok"} {
+		prev[k] = viper.GetString(k)
+		viper.Set(k, v)
+	}
+	t.Cleanup(func() {
+		for k, v := range prev {
+			viper.Set(k, v)
+		}
+	})
+
+	group := NewGroupCmd()
+	group.AddCommand(NewAccessKeysCmd())
+	Finalize(group)
+	group.SetArgs([]string{"access-keys", "rotate", "ops", "--delete-old", "--yes"})
+	var execErr error
+	stdout, stderr := rmCaptureOutput(t, func() { execErr = group.Execute() })
+	if exitcode.Of(execErr) != exitcode.Partial {
+		t.Fatalf("exit code = %d (%v), want %d\nstdout=%s\nstderr=%s", exitcode.Of(execErr), execErr, exitcode.Partial, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "rotate: OPSKEYID000000000001 -> WASABIKEYID") {
+		t.Errorf("the rotation itself must be reported on stdout:\n%s", stdout)
+	}
+	if !strings.Contains(stderr, "still live") || !strings.Contains(stderr, "access-keys delete OPSKEYID000000000001") {
+		t.Errorf("stderr must say the old key is still live and how to delete it:\n%s", stderr)
+	}
+	if raw := readConfigRaw(t, home); !strings.Contains(raw, "WASABIKEYID") || strings.Contains(raw, "OPSKEYID000000000001") {
+		t.Errorf("the new key must replace the old one in the profile:\n%s", raw)
 	}
 }

@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 	"testing"
@@ -250,5 +251,26 @@ func TestConfigureFlagsParse(t *testing.T) {
 		if _, err := parse(bad...); err == nil || exitcode.Of(err) != exitcode.Usage {
 			t.Errorf("%v must be a usage error, got %v", bad, err)
 		}
+	}
+}
+
+// TestConfigureUnsavedFailsAfterRecovery: when the key could not be stored,
+// configure prints the recovery copy and still exits non-zero, because the
+// credential the run promised is not in the profile.
+func TestConfigureUnsavedFailsAfterRecovery(t *testing.T) {
+	cmd := NewConfigureCmd()
+	st := &configureState{Name: "key-brave-otter-std", StorageClass: "standard", Scope: config.ScopeFullAccess, ProjectID: "proj_a"}
+	created := &createdAccessKey{Name: st.Name, AccessKeyID: "AKIDEXAMPLE", SecretAccessKey: "secret-value"}
+
+	var err error
+	stdout, stderr := rmCaptureOutput(t, func() { err = configureUnsaved(cmd, st, created, errors.New("read-only file system")) })
+	if exitcode.Of(err) != exitcode.Generic {
+		t.Fatalf("exit code = %d (%v), want %d", exitcode.Of(err), err, exitcode.Generic)
+	}
+	if !strings.Contains(stdout, "secret-value") {
+		t.Errorf("the recovery copy must still be printed:\n%s", stdout)
+	}
+	if !strings.Contains(stderr, "not saved in the profile") || !strings.Contains(stderr, "read-only file system") {
+		t.Errorf("stderr must name the save failure:\n%s", stderr)
 	}
 }

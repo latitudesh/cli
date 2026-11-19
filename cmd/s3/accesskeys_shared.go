@@ -495,30 +495,43 @@ func resolveProjectID(ctx context.Context, r *objectstorage.Resolver, project st
 	return project
 }
 
-// teamProjects returns the distinct projects (IDs, with a slug lookup for
-// display) that own buckets in the team, or the one given as filter.
+// teamProjects returns the team's projects (IDs, with a slug lookup for
+// display): every project the API lists, plus any that only shows up as a
+// bucket owner. A project can hold a full-access key before its first bucket
+// exists or after its last one is deleted, so deriving the list from buckets
+// alone would skip live credentials.
 func teamProjects(ctx context.Context, r *objectstorage.Resolver) ([]string, map[string]string, error) {
+	seen := map[string]bool{}
+	slugs := map[string]string{}
+	var out []string
+	add := func(ref, slug string) {
+		if ref == "" || seen[ref] {
+			return
+		}
+		seen[ref] = true
+		out = append(out, ref)
+		if slug != "" {
+			slugs[ref] = slug
+		}
+	}
+	projects, err := listTeamProjects(ctx, r.API)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, p := range projects {
+		add(p.ID, p.Slug)
+	}
 	list, err := r.ListBuckets(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	seen := map[string]bool{}
-	slugs := map[string]string{}
-	var out []string
 	for _, d := range list {
 		b := objectstorage.BucketFromData(d)
 		ref := b.ProjectID
 		if ref == "" {
 			ref = b.ProjectSlug
 		}
-		if ref == "" || seen[ref] {
-			continue
-		}
-		seen[ref] = true
-		out = append(out, ref)
-		if b.ProjectSlug != "" {
-			slugs[ref] = b.ProjectSlug
-		}
+		add(ref, b.ProjectSlug)
 	}
 	sort.Strings(out)
 	return out, slugs, nil

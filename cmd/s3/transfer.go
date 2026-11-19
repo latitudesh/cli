@@ -3,9 +3,12 @@ package s3
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"mime"
 	"net/http"
 	"os"
@@ -192,6 +195,30 @@ func classifyOperands(srcArg, dstArg string, move, sync bool) (objectstorage.Ref
 func sameEndpoint(a, b *objectstorage.Bucket) bool {
 	norm := func(s string) string { return strings.ToLower(strings.TrimSuffix(strings.TrimSpace(s), "/")) }
 	return norm(a.Endpoint) == norm(b.Endpoint)
+}
+
+// checkNestedPrefixes rejects a recursive transfer between two prefixes of
+// the same bucket when one contains the other. The plan is enumerated up
+// front but every object is read when its turn comes, so with nested prefixes
+// an earlier item can overwrite an object a later item still has to read:
+// `move s3://b/p/ s3://b/p/back/ --recursive` first copies p/a over p/back/a
+// and then moves that overwritten value to p/back/back/a, and the original
+// p/back/a is gone. Identical prefixes are left to the per-object check.
+func checkNestedPrefixes(src, dst endpoint) error {
+	if !src.remote() || !dst.remote() {
+		return nil
+	}
+	if !sameEndpoint(src.Sess.Bucket, dst.Sess.Bucket) || src.Sess.Bucket.BucketName != dst.Sess.Bucket.BucketName {
+		return nil
+	}
+	a, b := objectstorage.NormalizePrefix(src.Ref.Key), objectstorage.NormalizePrefix(dst.Ref.Key)
+	if a == b {
+		return nil
+	}
+	if strings.HasPrefix(b, a) || strings.HasPrefix(a, b) {
+		return objectstorage.ErrUsagef("%s and %s are nested prefixes of the same bucket, so a recursive transfer would overwrite objects before they are read; use a prefix outside the other, or another bucket", src.Ref, dst.Ref)
+	}
+	return nil
 }
 
 // checkCrossEndpoint rejects server-side copies between different endpoints.
@@ -409,6 +436,9 @@ func buildPlan(ctx context.Context, src, dst endpoint, opts *transferOptions) (*
 // prefixes and every relative path is mirrored.
 func buildRecursivePlan(ctx context.Context, plan *transferPlan, op string, opts *transferOptions) (*transferPlan, error) {
 	src, dst := plan.Src, plan.Dst
+	if err := checkNestedPrefixes(src, dst); err != nil {
+		return nil, err
+	}
 	entries, err := enumerate(ctx, src, opts.FollowSymlinks)
 	if err != nil {
 		return nil, err
@@ -1163,11 +1193,11 @@ func download(ctx context.Context, src endpoint, item transferItem, opts *transf
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return localErr(err)
 	}
-	tmp := filepath.Join(dir, "."+filepath.Base(item.DstPath)+partialSuffix)
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	f, err := createPartial(item.DstPath)
 	if err != nil {
 		return localErr(err)
 	}
+	tmp := f.Name()
 	var dst io.Writer = f
 	if meter != nil {
 		dst = &countingWriter{w: f, p: meter}
@@ -1189,6 +1219,36 @@ func download(ctx context.Context, src endpoint, item transferItem, opts *transf
 		_ = os.Chtimes(item.DstPath, info.LastModified, info.LastModified)
 	}
 	return nil
+}
+
+// createPartial opens the temporary file a download is written to before it
+// is renamed over dstPath. The name carries a random suffix and the file is
+// created exclusively, so a link planted at a predictable name in a shared
+// directory is never followed and two downloads of the same name never share
+// a file. The mode is the usual 0644 under the umask, except that a
+// destination that already exists keeps its own permissions so the rename
+// does not widen them.
+func createPartial(dstPath string) (*os.File, error) {
+	dir, base := filepath.Dir(dstPath), filepath.Base(dstPath)
+	mode := os.FileMode(0o644)
+	if st, err := os.Lstat(dstPath); err == nil && st.Mode().IsRegular() {
+		mode = st.Mode().Perm()
+	}
+	for attempt := 0; attempt < 100; attempt++ {
+		var rnd [6]byte
+		if _, err := rand.Read(rnd[:]); err != nil {
+			return nil, err
+		}
+		name := filepath.Join(dir, "."+base+"."+hex.EncodeToString(rnd[:])+partialSuffix)
+		f, err := os.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+		if err == nil {
+			return f, nil
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return nil, err
+		}
+	}
+	return nil, fmt.Errorf("could not create a temporary file next to %s", dstPath)
 }
 
 // deleteOne removes a destination entry (sync --delete).

@@ -148,7 +148,10 @@ func rmParseArgs(arg string, opts rmOptions) (objectstorage.Ref, error) {
 	if err != nil {
 		return ref, err
 	}
-	ref.Key = objectstorage.NormalizePrefix(strings.TrimLeft(ref.Key, "/"))
+	// The key is kept literally: `s3://bucket//logs/` names the prefix
+	// "/logs/", a different set of objects from "logs/", and list and copy
+	// address it that way too.
+	ref.Key = objectstorage.NormalizePrefix(ref.Key)
 	if ref.Key == "" && !opts.All {
 		return ref, objectstorage.ErrUsagef("refusing to delete every object in s3://%s without --all", ref.Bucket)
 	}

@@ -36,7 +36,10 @@ The secret is returned once by the API and cannot be retrieved again:
     --save-as name) and does not print the secret (add --show-secret to print
     it too); a name already holding another key gets a -2, -3… suffix;
   - -o json|yaml|csv includes secret_access_key only when -o was passed
-    explicitly or with --show-secret (never because of LSH_OUTPUT/config).
+    explicitly or with --show-secret (never because of LSH_OUTPUT/config);
+    when the format comes from LSH_OUTPUT/config and neither --save nor
+    --show-secret is given, the key is not created (exit 2) rather than
+    created with a secret nobody can see.
 
 --like <saved-name> copies class, site, project and scope from a saved key so a
 new bucket can be added to an existing scope (the API has no key update).`,
@@ -480,6 +483,13 @@ func runAccessKeysCreate(cmd *cobra.Command, _ []string) error {
 	}
 
 	decision := decideSecretDisplay(isHuman(), o.Save, o.ShowSecret, outputExplicit(cmd))
+	// Without --save the secret's only way out is the output, and structured
+	// output that was not asked for explicitly (LSH_OUTPUT, the config file)
+	// never carries it. Creating the key anyway would leave a live credential
+	// whose secret nobody saw, so refuse before the API call instead.
+	if !o.Save && !decision.Show {
+		return printErr(exitcode.Errorf(exitcode.Usage, "the secret would have nowhere to go: structured output came from LSH_OUTPUT or the config file, which never includes it, and --save was not given; pass --save, --show-secret, or -o json explicitly"))
+	}
 
 	if dryRun() {
 		k := &createdAccessKey{

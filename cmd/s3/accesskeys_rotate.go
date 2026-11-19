@@ -27,7 +27,8 @@ and saved under the same name, replacing the old one on this machine.
 
 The old key keeps working until it is deleted: pass --delete-old to delete it
 right away (after confirmation), or delete it later once every consumer has
-the new secret.`,
+the new secret. When --delete-old cannot be completed the new key stays saved
+and the command exits 6, so scripts notice the old credential is still live.`,
 		Example: `  lsh s3 access-keys rotate ci-deploy
   lsh s3 access-keys rotate ci-deploy --delete-old --yes
   lsh s3 access-keys rotate ci-deploy --name ci-deploy-2026q4`,
@@ -220,6 +221,10 @@ func runAccessKeysRotate(cmd *cobra.Command, args []string) error {
 	}
 	objectstorage.Hintf("new key %s saved as %q in profile %s (replacing %s)", created.AccessKeyID, savedName, profileName, old.AccessKeyID)
 
+	// A revocation that was asked for and did not happen is reported through
+	// the exit status: the new key is saved either way, but a script checking
+	// the status must learn that the old credential is still live.
+	var deleteErr error
 	if deleteOld {
 		username := old.Username
 		if username == "" {
@@ -234,13 +239,13 @@ func runAccessKeysRotate(cmd *cobra.Command, args []string) error {
 		}
 		switch {
 		case username == "":
-			objectstorage.Warnf("could not find the username of the old key %s on the API; delete it later with: %s", old.AccessKeyID, deleteHint)
+			deleteErr = exitcode.Errorf(exitcode.Partial, "rotated, but the old key %s was not deleted: its username was not found on the API; delete it with: %s", old.AccessKeyID, deleteHint)
 		default:
 			err := objectstorage.ConfirmOrRefuse(cmd, yes, fmt.Sprintf("Delete the old access key %s now? Anything still using it stops working", old.AccessKeyID))
 			if err != nil {
 				objectstorage.Warnf("old key %s kept; delete it later with: %s", old.AccessKeyID, deleteHint)
 			} else if err := api.delete(ctx, username, req.StorageClass, req.Project, req.Site); err != nil {
-				objectstorage.Warnf("could not delete the old key %s: %v — delete it later with: %s", old.AccessKeyID, err, deleteHint)
+				deleteErr = exitcode.Errorf(exitcode.Partial, "rotated, but the old key %s is still live: it could not be deleted (%v); delete it with: %s", old.AccessKeyID, err, deleteHint)
 			} else {
 				res.OldDeleted = true
 			}
@@ -254,10 +259,10 @@ func runAccessKeysRotate(cmd *cobra.Command, args []string) error {
 		if res.OldDeleted {
 			fmt.Printf("delete_access_key: %s\n", old.AccessKeyID)
 		}
-		return nil
+		return printErr(deleteErr)
 	}
 	render([]renderer.ResponseData{res})
-	return nil
+	return printErr(deleteErr)
 }
 
 // rotateScopedBuckets rebuilds the plan's bucket list from the request. Rotate

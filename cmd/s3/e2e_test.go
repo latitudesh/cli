@@ -566,18 +566,24 @@ func TestBinaryNoSecretContract(t *testing.T) {
 		t.Errorf("fake API saw created keys %v, want [k1]", got)
 	}
 
-	// 2. LSH_OUTPUT=json without -o: structured output does not embed the
-	// secret and stderr tells how to get it.
+	// 2. LSH_OUTPUT=json without -o: structured output never embeds the
+	// secret and nothing saves it, so the key is not created at all (exit 2)
+	// and stderr says how to give the secret a destination.
 	r = run(e2eEnv(home, "LSH_OUTPUT=json"), createArgs...)
-	if r.code != 0 {
-		t.Fatalf("create (LSH_OUTPUT=json): exit %d\nstdout=%s\nstderr=%s", r.code, r.stdout, r.stderr)
+	if r.code != 2 {
+		t.Fatalf("create (LSH_OUTPUT=json): exit %d, want 2\nstdout=%s\nstderr=%s", r.code, r.stdout, r.stderr)
 	}
 	noSecret("create (LSH_OUTPUT=json)", r)
-	if _, present := jsonField(t, r.stdout, "secret_access_key"); present {
-		t.Errorf("create (LSH_OUTPUT=json): secret_access_key present in JSON:\n%s", r.stdout)
+	if strings.TrimSpace(r.stdout) != "" {
+		t.Errorf("create (LSH_OUTPUT=json): nothing expected on stdout:\n%s", r.stdout)
 	}
-	if !strings.Contains(r.stderr, "--show-secret") || !strings.Contains(r.stderr, "-o json") {
-		t.Errorf("create (LSH_OUTPUT=json): stderr must point at --show-secret / -o json:\n%s", r.stderr)
+	for _, want := range []string{"--save", "--show-secret", "-o json"} {
+		if !strings.Contains(r.stderr, want) {
+			t.Errorf("create (LSH_OUTPUT=json): stderr must point at %s:\n%s", want, r.stderr)
+		}
+	}
+	if got := api.Created(); len(got) != 1 {
+		t.Errorf("create (LSH_OUTPUT=json): no key may be created, fake API saw %v", got)
 	}
 
 	// 3. Explicit -o json embeds the secret.
@@ -601,20 +607,25 @@ func TestBinaryNoSecretContract(t *testing.T) {
 		t.Errorf("create (--json): secret_access_key=%q, want %q:\n%s", got, e2eSecret, r.stdout)
 	}
 
-	// 5. "json": true in the config file is not an explicit request.
+	// 5. "json": true in the config file is not an explicit request either:
+	// same refusal, no key created.
 	{
 		jsonHome := t.TempDir()
 		writeE2EConfig(t, jsonHome, true)
+		before := len(api.Created())
 		r = run(e2eEnv(jsonHome), createArgs...)
-		if r.code != 0 {
-			t.Fatalf("create (config json=true): exit %d\nstdout=%s\nstderr=%s", r.code, r.stdout, r.stderr)
+		if r.code != 2 {
+			t.Fatalf("create (config json=true): exit %d, want 2\nstdout=%s\nstderr=%s", r.code, r.stdout, r.stderr)
 		}
 		noSecret("create (config json=true)", r)
-		if _, present := jsonField(t, r.stdout, "secret_access_key"); present {
-			t.Errorf("create (config json=true): secret_access_key present in JSON:\n%s", r.stdout)
+		if strings.TrimSpace(r.stdout) != "" {
+			t.Errorf("create (config json=true): nothing expected on stdout:\n%s", r.stdout)
 		}
-		if !strings.Contains(r.stderr, "--show-secret") {
-			t.Errorf("create (config json=true): stderr must point at --show-secret:\n%s", r.stderr)
+		if !strings.Contains(r.stderr, "--show-secret") || !strings.Contains(r.stderr, "--save") {
+			t.Errorf("create (config json=true): stderr must point at --save / --show-secret:\n%s", r.stderr)
+		}
+		if got := api.Created(); len(got) != before {
+			t.Errorf("create (config json=true): no key may be created, fake API saw %v", got)
 		}
 	}
 

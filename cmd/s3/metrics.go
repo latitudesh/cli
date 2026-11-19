@@ -319,6 +319,11 @@ func runMetrics(cmd *cobra.Command, args []string) error {
 		// --all-projects needs the team-wide listing.
 		if s, err := objectstorage.RawBucketSitesForProject(ctx, "", r.Project); err == nil {
 			sites = s
+		} else if r.SiteFilter != "" {
+			// The filter depends entirely on that lookup (the SDK model drops
+			// the slug): without it every bucket would be dropped and the
+			// report would come back empty with exit 0.
+			return printErr(exitcode.Errorf(exitcode.Generic, "--site %s needs the sites of the listed buckets, which could not be fetched: %v", r.SiteFilter, err))
 		} else {
 			lsh.LogDebugf("metrics: could not fetch bucket sites: %v", err)
 		}

@@ -16,6 +16,7 @@ import (
 	"github.com/latitudesh/lsh/internal/objectstorage"
 	"github.com/latitudesh/lsh/internal/objectstorage/s3test"
 	"github.com/latitudesh/lsh/internal/renderer"
+	"github.com/spf13/viper"
 )
 
 const lsTestBucket = "backups-7f3a"
@@ -482,4 +483,35 @@ func entryBucketNames(data []components.ObjectStorageData) []string {
 		out = append(out, objectstorage.BucketFromData(d).Name)
 	}
 	return out
+}
+
+// TestLsStreamWithQueryRefused: --query runs over the whole document and
+// --stream writes NDJSON lines as they arrive, so the pair is refused before
+// anything is listed instead of silently returning unfiltered lines.
+func TestLsStreamWithQueryRefused(t *testing.T) {
+	srv := s3test.New()
+	defer srv.Close()
+	srv.CreateBucket("logs-7f3a")
+	t.Setenv(objectstorage.EnvAccessKeyID, "AK")
+	t.Setenv(objectstorage.EnvSecretAccessKey, "SK")
+	prevOutput, prevQuery := viper.GetString("output"), viper.GetString("query")
+	viper.Set("output", "json")
+	viper.Set("query", "[0].key")
+	t.Cleanup(func() { viper.Set("output", prevOutput); viper.Set("query", prevQuery) })
+
+	group := NewGroupCmd()
+	group.AddCommand(NewLsCmd())
+	Finalize(group)
+	group.SetArgs([]string{"ls", "s3://logs-7f3a/", "--stream", "--endpoint-url", srv.URL()})
+	var err error
+	stdout, stderr := rmCaptureOutput(t, func() { err = group.Execute() })
+	if exitcode.Of(err) != exitcode.Usage || !strings.Contains(stderr, "--stream cannot be combined with --query") {
+		t.Errorf("err = %v\nstderr = %s", err, stderr)
+	}
+	if stdout != "" {
+		t.Errorf("nothing may be written to stdout: %q", stdout)
+	}
+	if n := len(srv.Requests()); n != 0 {
+		t.Errorf("the refusal must come before any request, got %d", n)
+	}
 }

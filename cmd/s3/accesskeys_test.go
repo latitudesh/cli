@@ -32,6 +32,8 @@ type fakeAPI struct {
 	buckets string
 	// deleteStatus is returned by DELETE (204 by default).
 	deleteStatus int
+	// projects is the GET /projects document.
+	projects string
 }
 
 type fakeRequest struct {
@@ -108,6 +110,12 @@ func (f *fakeAPI) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		io.WriteString(w, f.buckets)
+	case r.Method == http.MethodGet && r.URL.Path == "/projects":
+		if f.projects == "" {
+			io.WriteString(w, `{"data":[]}`)
+			return
+		}
+		io.WriteString(w, f.projects)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		io.WriteString(w, `{"errors":[{"status":"404","title":"Not Found"}]}`)

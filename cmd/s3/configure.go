@@ -252,8 +252,8 @@ type cfgProjectChoice struct {
 	Name string
 }
 
-// configureListProjects fetches the team's projects (all pages, capped).
-func configureListProjects(ctx context.Context, api *sdk.Latitudesh) ([]cfgProjectChoice, error) {
+// listTeamProjects fetches the team's projects (all pages, capped).
+func listTeamProjects(ctx context.Context, api *sdk.Latitudesh) ([]cfgProjectChoice, error) {
 	size := int64(100)
 	resp, err := api.Projects.List(ctx, operations.GetProjectsRequest{PageSize: &size}, operations.WithRetries(lsh.RetryConfig()))
 	if err != nil {
@@ -305,7 +305,7 @@ func cfgResolveProjectID(ctx context.Context, api *sdk.Latitudesh, token string)
 	if token == "" || strings.HasPrefix(token, "proj_") || api == nil {
 		return token
 	}
-	projects, err := configureListProjects(ctx, api)
+	projects, err := listTeamProjects(ctx, api)
 	if err != nil {
 		return token
 	}
@@ -451,7 +451,7 @@ func runConfigure(cmd *cobra.Command, _ []string) error {
 			if !canPrompt {
 				return printErr(configureNeedsPrompt("the project (--project or LSH_PROJECT)"))
 			}
-			projects, err := configureListProjects(ctx, api)
+			projects, err := listTeamProjects(ctx, api)
 			if err != nil {
 				return printErr(err)
 			}
@@ -622,10 +622,10 @@ func runConfigure(cmd *cobra.Command, _ []string) error {
 					"access key %q was created but could not be saved: %v — it was deleted again, so nothing was left behind; retry once the profile is writable", st.Name, err))
 			}
 			objectstorage.Warnf("access key %q could not be saved (%v) nor deleted again, so its secret is shown below", st.Name, err)
-			return configurePrintSecret(cmd, st, created)
+			return configureUnsaved(cmd, st, created, err)
 		}
 		objectstorage.Warnf("access key %q was created but could not be saved: %v", st.Name, err)
-		return configurePrintSecret(cmd, st, created)
+		return configureUnsaved(cmd, st, created, err)
 	}
 	plan.Profile, plan.SavedAs = profileName, savedAs
 	path, _ := config.Path()
@@ -813,6 +813,16 @@ func configurePrintSecret(cmd *cobra.Command, st *configureState, created *creat
 	}
 	render([]renderer.ResponseData{res})
 	return nil
+}
+
+// configureUnsaved prints the recovery copy of a key that could not be stored
+// and then fails. The default run of configure promises a saved credential, so
+// exit 0 here would tell a script the profile is ready when it is not.
+func configureUnsaved(cmd *cobra.Command, st *configureState, created *createdAccessKey, saveErr error) error {
+	if err := configurePrintSecret(cmd, st, created); err != nil {
+		return err
+	}
+	return printErr(exitcode.Errorf(exitcode.Generic, "access key %q was created but not saved in the profile: %v", st.Name, saveErr))
 }
 
 func cfgSiteSuffix(site string) string {

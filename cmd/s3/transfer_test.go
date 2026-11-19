@@ -1192,3 +1192,109 @@ func TestNeedsStreamedCopy(t *testing.T) {
 		t.Error("only remote -> remote copies use CopyObject")
 	}
 }
+
+// TestNestedPrefixesRefused: a recursive cp/mv/sync between nested prefixes
+// of one bucket is refused up front, because an earlier item would overwrite
+// an object a later item still has to read.
+func TestNestedPrefixesRefused(t *testing.T) {
+	srv := s3test.New()
+	defer srv.Close()
+	srv.CreateBucket("bucket-a")
+	srv.CreateBucket("bucket-b")
+	a, b := newTestSession(t, srv, "bucket-a"), newTestSession(t, srv, "bucket-b")
+	srv.AddObject("bucket-a", "p/a", []byte("original a"), "text/plain")
+	srv.AddObject("bucket-a", "p/back/a", []byte("original back/a"), "text/plain")
+
+	opts := baseOpts()
+	opts.Recursive = true
+	opts.Move = true
+	ctx := context.Background()
+	for _, tc := range []struct{ name, src, dst string }{
+		{"destination inside source", "p/", "p/back/"},
+		{"source inside destination", "p/back/", "p/"},
+		{"bucket root into a prefix", "", "archive/"},
+	} {
+		_, err := buildPlan(ctx, remoteEP(a, tc.src), remoteEP(a, tc.dst), opts)
+		if exitcode.Of(err) != exitcode.Usage || !strings.Contains(err.Error(), "nested prefixes") {
+			t.Errorf("%s: err = %v", tc.name, err)
+		}
+		_, err = buildSyncPlan(ctx, remoteEP(a, tc.src), remoteEP(a, tc.dst), opts, syncOptions{})
+		if exitcode.Of(err) != exitcode.Usage {
+			t.Errorf("sync %s: err = %v", tc.name, err)
+		}
+	}
+	if got := srv.Object("bucket-a", "p/back/a"); got == nil || string(got.Data) != "original back/a" || srv.Object("bucket-a", "p/a") == nil {
+		t.Errorf("a refused plan must not touch objects: %v", srv.Keys("bucket-a"))
+	}
+	// The same shape across two buckets of one endpoint, or between sibling
+	// prefixes, is a normal transfer.
+	if _, err := buildPlan(ctx, remoteEP(a, "p/"), remoteEP(b, "p/back/"), opts); err != nil {
+		t.Errorf("other bucket: %v", err)
+	}
+	if _, err := buildPlan(ctx, remoteEP(a, "p/"), remoteEP(a, "q/"), opts); err != nil {
+		t.Errorf("sibling prefix: %v", err)
+	}
+}
+
+// TestDownloadUsesUniquePrivatePartial: the temporary file of a download is
+// created exclusively under a random name, so a link planted at the old
+// predictable name is never followed, and an existing private destination
+// keeps its own mode.
+func TestDownloadUsesUniquePrivatePartial(t *testing.T) {
+	srv := s3test.New()
+	defer srv.Close()
+	srv.CreateBucket("bucket-a")
+	sess := newTestSession(t, srv, "bucket-a")
+	srv.AddObject("bucket-a", "dir/report.txt", []byte("fresh"), "text/plain")
+
+	dir := t.TempDir()
+	victim := filepath.Join(dir, "victim.txt")
+	writeFile(t, victim, "do not touch")
+	planted := filepath.Join(dir, ".report.txt"+partialSuffix)
+	if err := os.Symlink(victim, planted); err != nil {
+		t.Skipf("symlink: %v", err)
+	}
+	dst := filepath.Join(dir, "report.txt")
+	if err := os.WriteFile(dst, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, _, err := run(t, remoteEP(sess, "dir/report.txt"), localEP(dst), baseOpts()); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(dst); string(got) != "fresh" {
+		t.Errorf("destination = %q", got)
+	}
+	if got, _ := os.ReadFile(victim); string(got) != "do not touch" {
+		t.Errorf("the file behind the planted link was written: %q", got)
+	}
+	if st, err := os.Lstat(planted); err != nil || st.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("the planted link must be left alone: %v %v", st, err)
+	}
+	if st, _ := os.Stat(dst); st.Mode().Perm() != 0o600 {
+		t.Errorf("mode = %o, want the destination's own 0600", st.Mode().Perm())
+	}
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), partialSuffix) && e.Name() != filepath.Base(planted) {
+			t.Errorf("temporary file left behind: %s", e.Name())
+		}
+	}
+
+	// Two partial files for the same destination never collide.
+	f1, err := createPartial(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f2, err := createPartial(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f1.Name() == f2.Name() {
+		t.Errorf("both partial files got the same name %s", f1.Name())
+	}
+	for _, f := range []*os.File{f1, f2} {
+		f.Close()
+		os.Remove(f.Name())
+	}
+}

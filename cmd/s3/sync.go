@@ -97,6 +97,9 @@ func buildSyncPlan(ctx context.Context, src, dst endpoint, opts *transferOptions
 	if err := checkCrossEndpoint(src, dst); err != nil {
 		return nil, err
 	}
+	if err := checkNestedPrefixes(src, dst); err != nil {
+		return nil, err
+	}
 	if src.local() && dst.local() {
 		return nil, objectstorage.ErrUsagef("both operands are local paths; at least one must be an s3:// location")
 	}

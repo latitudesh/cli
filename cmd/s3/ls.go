@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/viper"
 	"io"
 	"os"
 	"strings"
@@ -81,7 +82,7 @@ instead of buffering everything.`,
 	cmd.Flags().Bool(flagSummarize, false, "append the total number of objects and their size")
 	cmd.Flags().Bool(flagVersions, false, "list every object version (versioned buckets)")
 	cmd.Flags().String(flagStartingToken, "", "resume the listing from the token printed by a previous --no-paginate or --max-items run")
-	cmd.Flags().Bool(flagStream, false, "with -o json, print one JSON object per line as the listing arrives (NDJSON)")
+	cmd.Flags().Bool(flagStream, false, "with -o json, print one JSON object per line as the listing arrives (NDJSON); cannot be combined with --query")
 	unsupportedAWSBoolFlags(cmd, map[string]string{
 		"request-payer": "there is no requester-pays billing on Latitude object storage",
 	})
@@ -412,6 +413,12 @@ func runLsObjects(ctx context.Context, cmd *cobra.Command, arg string) error {
 	if stream && format != renderer.FormatJSON {
 		objectstorage.Warnf("--stream only applies to -o json; ignoring it")
 		stream = false
+	}
+	// NDJSON lines leave as they arrive, and the query runs over the whole
+	// document the renderer builds, so the two cannot be honoured together.
+	// Silently writing unfiltered lines would hand a script the wrong fields.
+	if stream && strings.TrimSpace(viper.GetString("query")) != "" {
+		return printErr(objectstorage.ErrUsagef("--stream cannot be combined with --query: drop --stream, or filter the NDJSON lines with jq"))
 	}
 
 	if dryRun() {
