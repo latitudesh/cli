@@ -18,6 +18,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/latitudesh/lsh/internal/exitcode"
 	"github.com/latitudesh/lsh/internal/objectstorage"
@@ -54,6 +55,10 @@ const stdinMaxPlainSize = int64(stdinPartSize) * stdinMaxParts
 
 // partialSuffix marks a download in progress; the file is renamed on success.
 const partialSuffix = ".lsh-partial"
+
+// partialNameMax is the filename length most filesystems accept (NAME_MAX);
+// the temporary name of a download is kept within it.
+const partialNameMax = 255
 
 // transferOptions carries every knob the transfer core understands. The
 // cobra layer fills it from flags; tests build it directly.
@@ -1234,8 +1239,17 @@ func createPartial(dstPath string) (*os.File, error) {
 	if st, err := os.Lstat(dstPath); err == nil && st.Mode().IsRegular() {
 		mode = st.Mode().Perm()
 	}
+	var rnd [6]byte
+	// The random suffix and the marker are appended to the destination's
+	// name, so a long name is trimmed (at a rune boundary) to keep the
+	// temporary one within what the filesystem accepts.
+	if room := partialNameMax - (2 + hex.EncodedLen(len(rnd)) + len(partialSuffix)); len(base) > room {
+		base = base[:room]
+		for len(base) > 0 && !utf8.ValidString(base) {
+			base = base[:len(base)-1]
+		}
+	}
 	for attempt := 0; attempt < 100; attempt++ {
-		var rnd [6]byte
 		if _, err := rand.Read(rnd[:]); err != nil {
 			return nil, err
 		}

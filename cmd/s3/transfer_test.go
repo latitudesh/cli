@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/latitudesh/lsh/internal/exitcode"
 	"github.com/latitudesh/lsh/internal/objectstorage"
@@ -1296,5 +1297,27 @@ func TestDownloadUsesUniquePrivatePartial(t *testing.T) {
 	for _, f := range []*os.File{f1, f2} {
 		f.Close()
 		os.Remove(f.Name())
+	}
+}
+
+// TestCreatePartialFitsLongNames: the temporary name stays within NAME_MAX
+// for destinations whose own name is close to the limit, and the trimmed
+// prefix never ends inside a multi-byte rune.
+func TestCreatePartialFitsLongNames(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{strings.Repeat("a", 250), strings.Repeat("\u00e9", 120) + ".bin"} {
+		f, err := createPartial(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("createPartial(%d-byte name): %v", len(name), err)
+		}
+		base := filepath.Base(f.Name())
+		f.Close()
+		os.Remove(f.Name())
+		if len(base) > partialNameMax {
+			t.Errorf("temporary name is %d bytes, over %d: %s", len(base), partialNameMax, base)
+		}
+		if !utf8.ValidString(base) || !strings.HasSuffix(base, partialSuffix) || !strings.HasPrefix(base, ".") {
+			t.Errorf("malformed temporary name %q", base)
+		}
 	}
 }

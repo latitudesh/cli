@@ -530,3 +530,12 @@ func TestRotateDeleteOldFailureExitsPartial(t *testing.T) {
 		t.Errorf("the new key must replace the old one in the profile:\n%s", raw)
 	}
 }
+
+// TestTeamProjectsWithoutLogin: no API client means the documented credentials
+// error, not a crash, for the commands that enumerate the team's projects.
+func TestTeamProjectsWithoutLogin(t *testing.T) {
+	_, _, err := teamProjects(context.Background(), &objectstorage.Resolver{})
+	if exitcode.Of(err) != exitcode.Credentials || !strings.Contains(err.Error(), "lsh login") {
+		t.Errorf("err = %v, want the not-logged-in credentials error", err)
+	}
+}

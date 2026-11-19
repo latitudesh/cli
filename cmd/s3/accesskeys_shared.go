@@ -514,6 +514,9 @@ func teamProjects(ctx context.Context, r *objectstorage.Resolver) ([]string, map
 			slugs[ref] = slug
 		}
 	}
+	if r.API == nil {
+		return nil, nil, exitcode.Errorf(exitcode.Credentials, "not logged in — run 'lsh login' first")
+	}
 	projects, err := listTeamProjects(ctx, r.API)
 	if err != nil {
 		return nil, nil, err
