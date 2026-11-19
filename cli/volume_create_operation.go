@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/spf13/cobra"
@@ -97,9 +96,7 @@ func (o *VolumeCreateOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient()
 
 	fmt.Fprintf(os.Stdout, "Creating volume storage...\n")
 	fmt.Fprintf(os.Stdout, "  Project: %s\n", project)

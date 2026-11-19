@@ -3,6 +3,7 @@ package tags
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
@@ -102,7 +103,7 @@ func (o *CreateTagOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	if response.CustomTag != nil && response.CustomTag.Data != nil {
-		fmt.Println(tui.SuccessStyle.Render("✓ Tag created successfully!"))
+		fmt.Fprintln(os.Stderr, tui.SuccessStyle.Render("✓ Tag created successfully!"))
 
 		if !lsh.Debug {
 			lshTag := Tag{

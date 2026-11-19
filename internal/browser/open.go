@@ -19,21 +19,13 @@ func Open(url string) error {
 }
 
 // LooksHeadless reports whether the current environment seems
-// incapable of opening a desktop browser (SSH session, no display,
-// or non-TTY stdin). Callers use this to decide whether to attempt
-// browser.Open at all — if headless, the URL is printed and the user
-// opens it manually on their own machine.
+// incapable of opening a desktop browser (SSH session or no display).
 func LooksHeadless() bool {
 	if os.Getenv("SSH_TTY") != "" || os.Getenv("SSH_CONNECTION") != "" {
 		return true
 	}
 	if runtime.GOOS == "linux" && os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
 		return true
-	}
-	if info, err := os.Stdin.Stat(); err == nil {
-		if (info.Mode() & os.ModeCharDevice) == 0 {
-			return true
-		}
 	}
 	return false
 }

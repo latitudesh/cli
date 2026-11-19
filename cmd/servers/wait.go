@@ -20,7 +20,7 @@ import (
 // requireTransition guards operations that act on a server which may already
 // sit in a target state (e.g. power_on on an already-on server) so the wait
 // does not return before the operation has actually taken effect.
-func waitForServerState(cmd *cobra.Command, serverID string, want, fail []wait.ServerStatus, requireTransition bool) error {
+func waitForServerState(cmd *cobra.Command, serverID string, want, fail []string, requireTransition bool) error {
 	o := wait.OptionsFrom(cmd)
 	if !o.Enabled {
 		if cmd.Flags().Changed("timeout") {
@@ -57,13 +57,13 @@ func waitForServerState(cmd *cobra.Command, serverID string, want, fail []wait.S
 
 // powerActionTargets maps a power action to the server states that satisfy the
 // wait (want) and the states that abort it (fail).
-func powerActionTargets(action string) (want, fail []wait.ServerStatus) {
-	fail = []wait.ServerStatus{wait.ServerStatusFailedDeployment}
+func powerActionTargets(action string) (want, fail []string) {
+	fail = []string{wait.ServerFailedDeployment}
 	switch action {
 	case "power_on", "reboot":
-		return []wait.ServerStatus{wait.ServerStatusOn}, fail
+		return []string{wait.ServerOn}, fail
 	case "power_off":
-		return []wait.ServerStatus{wait.ServerStatusOff}, fail
+		return []string{wait.ServerOff}, fail
 	default:
 		return nil, fail
 	}

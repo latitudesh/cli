@@ -9,6 +9,10 @@ import (
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 )
 
+// VirtualMachineRunning is the status of a provisioned, powered-on virtual
+// machine. Like the server statuses, the SDK reports it as a plain string.
+const VirtualMachineRunning = "Running"
+
 // ForVirtualMachineState polls GET /virtual_machines/{id} until the VM's status
 // is one of want (success), o.Timeout elapses (ErrTimeout), or the user cancels
 // (ErrCanceled). It returns the last status observed.
@@ -21,10 +25,10 @@ func ForVirtualMachineState(
 	ctx context.Context,
 	client *sdk.Latitudesh,
 	vmID string,
-	want []VirtualMachineStatus,
+	want []string,
 	o Options,
 	opts ...operations.Option,
-) (VirtualMachineStatus, error) {
+) (string, error) {
 	if o.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, o.Timeout)
@@ -32,7 +36,7 @@ func ForVirtualMachineState(
 	}
 
 	var (
-		last    VirtualMachineStatus
+		last    string
 		lastErr error
 	)
 
@@ -62,18 +66,14 @@ func ForVirtualMachineState(
 
 // virtualMachineStatus extracts the status from a ShowVirtualMachine response,
 // tolerating any nil link in the data → attributes → status chain.
-func virtualMachineStatus(resp *operations.ShowVirtualMachineResponse) *VirtualMachineStatus {
+func virtualMachineStatus(resp *operations.ShowVirtualMachineResponse) *string {
 	if resp == nil || resp.VirtualMachine == nil || resp.VirtualMachine.Data == nil || resp.VirtualMachine.Data.Attributes == nil {
 		return nil
 	}
-	if resp.VirtualMachine.Data.Attributes.Status == nil {
-		return nil
-	}
-	st := VirtualMachineStatus(*resp.VirtualMachine.Data.Attributes.Status)
-	return &st
+	return resp.VirtualMachine.Data.Attributes.Status
 }
 
-func containsVMStatus(set []VirtualMachineStatus, s VirtualMachineStatus) bool {
+func containsVMStatus(set []string, s string) bool {
 	for _, v := range set {
 		if v == s {
 			return true

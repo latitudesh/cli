@@ -56,8 +56,8 @@ func runRescueMode(cmd *cobra.Command, args []string) error {
 	// dashboard. stderr keeps stdout clean for structured output.
 	fmt.Fprintln(os.Stderr, "Note: rescue login credentials are available on the server's page in the dashboard.")
 
-	want := []wait.ServerStatus{wait.ServerStatusRescueMode}
-	fail := []wait.ServerStatus{wait.ServerStatusFailedDeployment}
+	want := []string{wait.ServerRescueMode}
+	fail := []string{wait.ServerFailedDeployment}
 	// Idempotent wait: a server already in the target state is already done —
 	// requiring a transition here would hang until timeout.
 	return waitForServerState(cmd, serverID, want, fail, false)
@@ -103,11 +103,11 @@ func runExitRescueMode(cmd *cobra.Command, args []string) error {
 	}
 
 	// Leaving rescue mode reboots into the installed OS; it settles on/off.
-	want := []wait.ServerStatus{
-		wait.ServerStatusOn,
-		wait.ServerStatusOff,
+	want := []string{
+		wait.ServerOn,
+		wait.ServerOff,
 	}
-	fail := []wait.ServerStatus{wait.ServerStatusFailedDeployment}
+	fail := []string{wait.ServerFailedDeployment}
 	// Idempotent wait: a server already in the target state is already done —
 	// requiring a transition here would hang until timeout.
 	return waitForServerState(cmd, serverID, want, fail, false)

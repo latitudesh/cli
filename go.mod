@@ -1,6 +1,6 @@
 module github.com/latitudesh/lsh
 
-go 1.25.10
+go 1.26.10
 
 require (
 	github.com/charmbracelet/bubbles v0.21.0
@@ -13,7 +13,7 @@ require (
 	github.com/go-openapi/swag v0.22.7
 	github.com/go-openapi/validate v0.22.6
 	github.com/jmespath/go-jmespath v0.4.0
-	github.com/latitudesh/latitudesh-go-sdk v1.19.20
+	github.com/latitudesh/latitudesh-go-sdk v1.21.4
 	github.com/manifoldco/promptui v0.9.0
 	github.com/minio/minio-go/v7 v7.1.0
 	github.com/mitchellh/go-homedir v1.1.0
@@ -23,6 +23,7 @@ require (
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.18.2
+	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0
 	golang.org/x/text v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -86,7 +87,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	github.com/spyzhov/ajson v0.8.0 // indirect
+	github.com/spyzhov/ajson v0.9.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
@@ -103,6 +104,5 @@ require (
 	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
 )

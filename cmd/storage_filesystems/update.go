@@ -30,15 +30,12 @@ type UpdateFilesystemOperation struct{}
 
 // buildUpdateRequest builds the SDK patch body. The ID is a path param and is
 // validated by run; only size is patchable today. Split out for unit testing.
-func buildUpdateRequest(sizeSet bool, size int64) operations.PatchStorageFilesystemsFilesystemStorageRequestBody {
-	attributes := operations.PatchStorageFilesystemsFilesystemStorageAttributes{}
-	if sizeSet {
-		attributes.SizeInGb = size
-	}
+func buildUpdateRequest(size int64) operations.UpdateFilesystemFilesystemStorageRequestBody {
+	attributes := operations.UpdateFilesystemFilesystemStorageAttributes{SizeInGb: size}
 
-	return operations.PatchStorageFilesystemsFilesystemStorageRequestBody{
-		Data: operations.PatchStorageFilesystemsFilesystemStorageData{
-			Type:       operations.PatchStorageFilesystemsFilesystemStorageTypeFilesystems,
+	return operations.UpdateFilesystemFilesystemStorageRequestBody{
+		Data: operations.UpdateFilesystemFilesystemStorageData{
+			Type:       operations.UpdateFilesystemFilesystemStorageTypeFilesystems,
 			Attributes: attributes,
 		},
 	}
@@ -60,9 +57,9 @@ func (o *UpdateFilesystemOperation) run(cmd *cobra.Command, args []string) error
 		return err
 	}
 
-	request := buildUpdateRequest(sizeSet, size)
+	request := buildUpdateRequest(size)
 	// The API needs the ID inside the body too; mirror the path param.
-	request.Data.ID = id
+	request.Data.ID = &id
 
 	if lsh.DryRun {
 		lsh.LogDebugf("dry-run flag specified. Skip sending request.")

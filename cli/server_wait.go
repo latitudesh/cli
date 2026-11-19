@@ -20,7 +20,7 @@ import (
 // The create/reinstall calls still go through the legacy client; the wait loop
 // polls via the SDK (Servers.Get). Progress and outcome are written to stderr
 // so they never corrupt structured (-o json) output on stdout.
-func waitForServerState(cmd *cobra.Command, serverID string, want, fail []wait.ServerStatus) error {
+func waitForServerState(cmd *cobra.Command, serverID string, want, fail []string) error {
 	o := wait.OptionsFrom(cmd)
 	if !o.Enabled {
 		if cmd.Flags().Changed("timeout") {
@@ -84,10 +84,10 @@ func renderServerState(cmd *cobra.Command, serverID string) {
 // Provisioning is "done" once the server settles into a stable power state —
 // it may finish either powered on or off — and "failed" on a failed deployment.
 // The in-progress states (deploying, disk_erasing) keep the wait polling.
-func serverProvisionTargets() (want, fail []wait.ServerStatus) {
-	return []wait.ServerStatus{
-			wait.ServerStatusOn,
-			wait.ServerStatusOff,
+func serverProvisionTargets() (want, fail []string) {
+	return []string{
+			wait.ServerOn,
+			wait.ServerOff,
 		},
-		[]wait.ServerStatus{wait.ServerStatusFailedDeployment}
+		[]string{wait.ServerFailedDeployment}
 }

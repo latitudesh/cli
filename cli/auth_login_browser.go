@@ -14,6 +14,19 @@ import (
 	"github.com/latitudesh/lsh/internal/version"
 )
 
+// looksHeadless is a seam so tests can exercise both the browser and the
+// headless paths regardless of the host environment.
+var looksHeadless = browser.LooksHeadless
+
+// errHeadlessLogin is returned instead of starting a browser login on a
+// machine without a browser: the API only accepts logins that return to the
+// machine that started them, which a headless session cannot receive.
+var errHeadlessLogin = errors.New(`no browser available for login on this machine.
+
+Create an API key at https://www.latitude.sh/dashboard/api-keys and run:
+
+  lsh login --with-token <API_KEY>`)
+
 const (
 	pollInterval   = 2 * time.Second
 	pollMaxBackoff = 5 * time.Second
@@ -30,24 +43,35 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
+	if looksHeadless() {
+		return errHeadlessLogin
+	}
+
+	// The loopback callback binds the session to this machine: the approval
+	// code is delivered here, so a forwarded approval link cannot hand the
+	// credential to someone else.
+	receiver, err := startLoopbackReceiver()
+	if err != nil {
+		return fmt.Errorf("could not start the local login listener: %w", err)
+	}
+	defer receiver.close()
+
 	session, err := client.CreateSession(ctx, authclient.CreateSessionRequest{
 		ClientName:    "lsh",
 		ClientVersion: version.Version,
+		CallbackURL:   receiver.callbackURL(),
 	})
 	if err != nil {
 		return fmt.Errorf("could not start login session: %w", err)
 	}
 
-	headless := browser.LooksHeadless()
-	printAuthorizePrompt(session, headless)
+	printAuthorizePrompt(session)
 
-	if !headless {
-		if err := browser.Open(session.AuthorizeURL); err != nil {
-			fmt.Fprintln(os.Stderr, "Could not open browser automatically; please open the URL above manually.")
-		}
+	if err := browser.Open(session.AuthorizeURL); err != nil {
+		fmt.Fprintln(os.Stderr, "Could not open browser automatically; please open the URL above manually.")
 	}
 
-	approved, err := pollUntilApproved(ctx, client, session.ID, session.Secret)
+	approved, err := pollUntilApproved(ctx, client, session.ID, session.Secret, receiver.resultCh, receiver.errCh)
 	if err != nil {
 		return err
 	}
@@ -77,7 +101,7 @@ func loginViaBrowser(ctx context.Context, client *authclient.Client, profileOver
 	return nil
 }
 
-func printAuthorizePrompt(session *authclient.Session, headless bool) {
+func printAuthorizePrompt(session *authclient.Session) {
 	fmt.Println("Opening your browser to authorize this CLI...")
 	fmt.Println()
 	fmt.Println("  URL:")
@@ -85,30 +109,36 @@ func printAuthorizePrompt(session *authclient.Session, headless bool) {
 	fmt.Println()
 	fmt.Println("  Confirm this code matches what your browser shows:")
 	fmt.Printf("    %s\n", session.UserCode)
-	if headless {
-		fmt.Println()
-		fmt.Println("  (detected headless environment — open the URL above on a machine with a browser)")
-	}
 	fmt.Println()
 	fmt.Println("Waiting for approval... press Ctrl+C to cancel.")
 }
 
 // pollUntilApproved retries GET /auth/cli_sessions/<id> until the
 // session is approved, terminally errored, or the deadline expires.
-func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secret string) (*authclient.Session, error) {
+//
+// For a callback-bound login, codeCh delivers the approval code once the
+// loopback callback fires. Until then the loop keeps polling (with no
+// code) so a cancelled or expired session is seen promptly instead of
+// blocking on the callback for the whole timeout; the API returns 401
+// only once the session is approved and still awaiting its code. A nil
+// codeCh is the secret-only (headless) flow. errCh reports a failure of the
+// local callback listener so login fails promptly instead of waiting out the
+// timeout for a callback that can no longer arrive.
+func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secret string, codeCh <-chan string, errCh <-chan error) (*authclient.Session, error) {
 	start := time.Now()
 	deadline := start.Add(loginTimeout)
 	interval := pollInterval
+
+	approvalCode := ""
+	awaitingCode := codeCh != nil
 
 	for {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		session, err := client.PollSession(ctx, id, secret)
+
+		session, err := client.PollSessionWithCode(ctx, id, secret, approvalCode)
 		if err == nil {
-			// A successful response means the server is healthy; reset the
-			// interval so a previous transient error doesn't keep us polling
-			// at the backed-off rate for the rest of the session.
 			interval = pollInterval
 			if session.Status == "approved" {
 				if session.APIKey != nil {
@@ -134,7 +164,12 @@ func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secre
 				case 410:
 					return nil, errors.New("login session has already been used; please run `lsh login` again")
 				case 401:
-					return nil, errors.New("login session secret rejected (this should not happen)")
+					// Once approved, a callback session returns 401 until the
+					// approval code arrives — keep waiting for it. Without a
+					// pending code the secret itself was rejected.
+					if !awaitingCode {
+						return nil, errors.New("login session secret rejected (this should not happen)")
+					}
 				default:
 					// transient — back off and retry until deadline
 				}
@@ -148,10 +183,23 @@ func pollUntilApproved(ctx context.Context, client *authclient.Client, id, secre
 			return nil, errors.New("login session expired before approval")
 		}
 
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(interval):
+		if awaitingCode {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case approvalCode = <-codeCh:
+				awaitingCode = false
+				interval = pollInterval
+			case err := <-errCh:
+				return nil, fmt.Errorf("the local login listener failed: %w", err)
+			case <-time.After(interval):
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(interval):
+			}
 		}
 	}
 }

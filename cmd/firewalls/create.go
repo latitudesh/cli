@@ -89,7 +89,7 @@ func (o *CreateFirewallOperation) run(cmd *cobra.Command, args []string) error {
 
 	if response.Firewall != nil && response.Firewall.Data != nil {
 		if !lsh.Debug {
-			fmt.Println(tui.SuccessStyle.Render("✓ Firewall created successfully!"))
+			fmt.Fprintln(os.Stderr, tui.SuccessStyle.Render("✓ Firewall created successfully!"))
 			firewall := Firewall{FirewallData: *response.Firewall.Data}
 			utils.RenderStatic(firewall.GetData())
 		}

@@ -82,6 +82,10 @@ func (o *ListElasticIPsOperation) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// GET /elastic_ips returns every Elastic IP in one response and ignores
+	// page[size]/page[number] (verified against the API on 2026-11-18), so this
+	// list does not go through pagination.Walk: the SDK Next closure would
+	// refetch the same full response forever.
 	response, err := client.ElasticIps.ListElasticIps(ctx, request, operations.WithRetries(lsh.RetryConfig()))
 	if err != nil {
 		utils.PrintError(err)

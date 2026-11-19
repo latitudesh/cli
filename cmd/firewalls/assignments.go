@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/latitudesh/latitudesh-go-sdk/models/components"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
@@ -74,6 +75,10 @@ func (o *ListAssignmentsOperation) run(cmd *cobra.Command, args []string) error 
 
 	assignments := FirewallAssignments{}
 
+	// Both assignment endpoints return every assignment in one response and
+	// ignore page[size]/page[number] (verified against the API on 2026-11-18),
+	// so this list does not go through pagination.Walk: the SDK Next closure
+	// would refetch the same full response forever.
 	if firewallID != "" {
 		response, err := client.Firewalls.ListAssignments(ctx, firewallID, nil, nil, operations.WithRetries(lsh.RetryConfig()))
 		if err != nil {
@@ -179,26 +184,23 @@ func (o *CreateAssignmentOperation) run(cmd *cobra.Command, args []string) error
 	}
 
 	if !lsh.Debug {
-		fmt.Println(tui.SuccessStyle.Render("✓ Server assigned to firewall successfully!"))
+		fmt.Fprintln(os.Stderr, tui.SuccessStyle.Render("✓ Server assigned to firewall successfully!"))
 
-		var fs components.FirewallServer
-		if response.FirewallServer != nil {
-			fs = *response.FirewallServer
+		var fs components.FirewallServerData
+		if response.FirewallServer != nil && response.FirewallServer.Data != nil {
+			fs = *response.FirewallServer.Data
 		}
-		// The API returns the assignment in a JSON:API data envelope that the
-		// current SDK model does not map (its fields come back empty). Fall back
-		// to the request inputs so the confirmation shows the association that
-		// was created instead of a blank row.
-		if fs.Data == nil || fs.Data.Attributes == nil || getStr(fs.Data.Attributes.FirewallID) == "" {
+		// Fall back to the request inputs when the API returns an empty
+		// envelope, so the confirmation shows the association that was
+		// created instead of a blank row.
+		if fs.Attributes == nil || getStr(fs.Attributes.FirewallID) == "" {
 			serverID, _ := cmd.Flags().GetString("server")
-			fs.Data = &components.FirewallServerData{
-				Attributes: &components.FirewallServerAttributes{
-					FirewallID: &firewallID,
-					Server:     &components.FirewallServerServer{ID: &serverID},
-				},
+			fs.Attributes = &components.FirewallServerAttributes{
+				FirewallID: &firewallID,
+				Server:     &components.FirewallServerServer{ID: &serverID},
 			}
 		}
-		assignment := FirewallServerAssignment{FirewallServer: fs}
+		assignment := FirewallServerAssignment{FirewallServerData: fs}
 		utils.RenderStatic(assignment.GetData())
 	}
 

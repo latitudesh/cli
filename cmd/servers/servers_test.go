@@ -49,17 +49,17 @@ func TestActionsCmdRequiresArg(t *testing.T) {
 // TestPowerActionTargets verifies each action waits for the correct terminal
 // power state.
 func TestPowerActionTargets(t *testing.T) {
-	cases := map[string]wait.ServerStatus{
-		"power_on":  wait.ServerStatusOn,
-		"reboot":    wait.ServerStatusOn,
-		"power_off": wait.ServerStatusOff,
+	cases := map[string]string{
+		"power_on":  wait.ServerOn,
+		"reboot":    wait.ServerOn,
+		"power_off": wait.ServerOff,
 	}
 	for action, wantState := range cases {
 		want, fail := powerActionTargets(action)
 		if len(want) != 1 || want[0] != wantState {
 			t.Errorf("powerActionTargets(%q) want = %v, expected [%v]", action, want, wantState)
 		}
-		if len(fail) != 1 || fail[0] != wait.ServerStatusFailedDeployment {
+		if len(fail) != 1 || fail[0] != wait.ServerFailedDeployment {
 			t.Errorf("powerActionTargets(%q) fail = %v, expected [failed_deployment]", action, fail)
 		}
 	}

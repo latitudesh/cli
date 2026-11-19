@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/latitudesh-go-sdk/models/operations"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
@@ -491,9 +490,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 
 	// Initialize the new SDK client
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient()
 
 	// Step 1: Fetch volume storage details to get connector_id (subsystem NQN)
 	subsystemNQN, _ := cmd.Flags().GetString("subsystem-nqn")
@@ -507,7 +504,7 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stdout, "[DEBUG] Fetching volume storage details to get connector_id\n")
 		}
 
-		volumesResponse, err := client.BlockStorage.GetStorageVolumes(ctx, nil)
+		volumesResponse, err := client.BlockStorage.ListVolumes(ctx, nil)
 		if err != nil {
 			printError(fmt.Sprintf("Failed to fetch volume storage details: %v", err))
 			utils.PrintError(err)
@@ -579,10 +576,10 @@ func (o *VolumeMountOperation) run(cmd *cobra.Command, args []string) error {
 	// Call the API to authorize the client NQN and mount
 	// The NQN authorizes this client to access the storage
 	// The subsystem-nqn (connector_id) defines which storage subsystem to connect to
-	response, err := client.BlockStorage.PostStorageVolumesMount(ctx, volumeID, operations.PostStorageVolumesMountRequestBody{
-		Data: operations.PostStorageVolumesMountData{
-			Type: operations.PostStorageVolumesMountTypeVolumes,
-			Attributes: operations.PostStorageVolumesMountAttributes{
+	response, err := client.BlockStorage.MountVolume(ctx, volumeID, operations.MountVolumeBlockStorageRequestBody{
+		Data: operations.MountVolumeBlockStorageData{
+			Type: operations.MountVolumeBlockStorageTypeVolumes,
+			Attributes: operations.MountVolumeBlockStorageAttributes{
 				Nqn: nqn, // Send client NQN to authorize
 			},
 		},

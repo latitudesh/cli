@@ -160,10 +160,10 @@ func (m *FirewallAssignment) TableRow() table.Row {
 	}
 }
 
-// FirewallServerAssignment wraps the FirewallServer returned by
+// FirewallServerAssignment wraps the assignment returned by
 // `firewalls assignments create`.
 type FirewallServerAssignment struct {
-	components.FirewallServer
+	components.FirewallServerData
 }
 
 func (m *FirewallServerAssignment) GetData() []renderer.ResponseData {
@@ -171,21 +171,18 @@ func (m *FirewallServerAssignment) GetData() []renderer.ResponseData {
 }
 
 func (m *FirewallServerAssignment) TableRow() table.Row {
-	var id, firewallID, serverID string
-	if d := m.Data; d != nil {
-		id = getStr(d.ID)
-		if attr := d.Attributes; attr != nil {
-			firewallID = getStr(attr.FirewallID)
-			if attr.Server != nil {
-				serverID = getStr(attr.Server.ID)
-			}
+	var firewallID, serverID string
+	if attr := m.Attributes; attr != nil {
+		firewallID = getStr(attr.FirewallID)
+		if attr.Server != nil {
+			serverID = getStr(attr.Server.ID)
 		}
 	}
 
 	return table.Row{
 		"id": table.Cell{
 			Label: "ID",
-			Value: table.String(id),
+			Value: table.String(getStr(m.ID)),
 		},
 		"firewall_id": table.Cell{
 			Label: "Firewall ID",

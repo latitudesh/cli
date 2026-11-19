@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	latitudeshgosdk "github.com/latitudesh/latitudesh-go-sdk"
 	"github.com/latitudesh/lsh/cmd/lsh"
 	"github.com/latitudesh/lsh/internal/cmdflag"
 	"github.com/latitudesh/lsh/internal/output"
@@ -77,9 +76,7 @@ func (o *VolumeListOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	client := latitudeshgosdk.New(
-		latitudeshgosdk.WithSecurity(apiKey),
-	)
+	client := lsh.NewClient()
 
 	// Create filter pointer if project is specified
 	var filterProject *string
@@ -88,7 +85,7 @@ func (o *VolumeListOperation) run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Call the API
-	response, err := client.BlockStorage.GetStorageVolumes(ctx, filterProject)
+	response, err := client.BlockStorage.ListVolumes(ctx, filterProject)
 	if err != nil {
 		utils.PrintError(err)
 		return nil

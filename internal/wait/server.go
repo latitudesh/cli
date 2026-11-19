@@ -14,6 +14,17 @@ import (
 // as terminal-failure (e.g. failed_deployment) instead of its target state.
 var ErrFailedState = errors.New("server entered a failed state")
 
+// Server statuses as reported by GET /servers/{id}. The SDK stopped modelling
+// them as an enum (Status is a plain *string since v1.17), so the values the
+// waiters and their callers rely on live here.
+const (
+	ServerOn               = "on"
+	ServerOff              = "off"
+	ServerDeploying        = "deploying"
+	ServerFailedDeployment = "failed_deployment"
+	ServerRescueMode       = "rescue_mode"
+)
+
 // ForServerState polls GET /servers/{id} until the server's status is one of
 // want (success), one of fail (returns ErrFailedState), o.Timeout elapses
 // (ErrTimeout), or the user cancels (ErrCanceled). It returns the last status
@@ -32,12 +43,12 @@ func ForServerState(
 	ctx context.Context,
 	client *sdk.Latitudesh,
 	serverID string,
-	want, fail []ServerStatus,
+	want, fail []string,
 	requireTransition bool,
 	o Options,
-	onStatus func(ServerStatus),
+	onStatus func(string),
 	opts ...operations.Option,
-) (ServerStatus, error) {
+) (string, error) {
 	if o.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, o.Timeout)
@@ -45,7 +56,7 @@ func ForServerState(
 	}
 
 	var (
-		last           ServerStatus
+		last           string
 		lastErr        error
 		seenTransition bool
 	)
@@ -95,8 +106,8 @@ func ForServerState(
 // operation acting on a server already in a target state (e.g. a reinstall on a
 // powered-on server) does not return before it actually begins.
 func decideServerState(
-	status ServerStatus,
-	want, fail []ServerStatus,
+	status string,
+	want, fail []string,
 	requireTransition, seenTransition bool,
 ) (done bool, transitioned bool, err error) {
 	inWant := containsStatus(want, status)
@@ -131,18 +142,14 @@ func isTerminalAPIError(err error) bool {
 
 // serverStatus extracts the status from a GetServer response, tolerating any
 // nil link in the data → attributes → status chain.
-func serverStatus(resp *operations.GetServerResponse) *ServerStatus {
+func serverStatus(resp *operations.GetServerResponse) *string {
 	if resp == nil || resp.Server == nil || resp.Server.Data == nil || resp.Server.Data.Attributes == nil {
 		return nil
 	}
-	if resp.Server.Data.Attributes.Status == nil {
-		return nil
-	}
-	st := ServerStatus(*resp.Server.Data.Attributes.Status)
-	return &st
+	return resp.Server.Data.Attributes.Status
 }
 
-func containsStatus(set []ServerStatus, s ServerStatus) bool {
+func containsStatus(set []string, s string) bool {
 	for _, v := range set {
 		if v == s {
 			return true

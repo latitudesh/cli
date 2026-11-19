@@ -36,7 +36,7 @@ func waitForVirtualMachine(cmd *cobra.Command, vmID string) error {
 
 	fmt.Fprintf(os.Stderr, "Waiting for virtual machine %s to finish provisioning… (Ctrl+C to stop)\n", vmID)
 
-	want := []wait.VirtualMachineStatus{wait.VirtualMachineStatusRunning}
+	want := []string{wait.VirtualMachineRunning}
 	status, err := wait.ForVirtualMachineState(ctx, client, vmID, want, o, operations.WithRetries(lsh.RetryConfig()))
 	switch {
 	case errors.Is(err, wait.ErrCanceled):
