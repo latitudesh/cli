@@ -9,8 +9,8 @@ import (
 )
 
 // Format is the output format selected for a command's results. table is the
-// human-facing default; json, yaml and csv are the machine-readable formats
-// meant for automation, piping and (in the future) an MCP server.
+// human-facing default; json, yaml, csv and text are the machine-readable
+// formats meant for automation, piping and (in the future) an MCP server.
 type Format string
 
 const (
@@ -18,12 +18,15 @@ const (
 	FormatJSON  Format = "json"
 	FormatYAML  Format = "yaml"
 	FormatCSV   Format = "csv"
+	// FormatText prints raw values (no quotes, tab-separated rows), like
+	// `aws --output text`; combined with --query it feeds other tools directly.
+	FormatText Format = "text"
 )
 
 // IsStructured reports whether the format produces machine-readable, queryable
 // output. Only structured formats support the --query (JMESPath) flag.
 func (f Format) IsStructured() bool {
-	return f == FormatJSON || f == FormatYAML || f == FormatCSV
+	return f == FormatJSON || f == FormatYAML || f == FormatCSV || f == FormatText
 }
 
 // ParseFormat normalizes a user-supplied format string. ok is false for an
@@ -38,6 +41,8 @@ func ParseFormat(s string) (Format, bool) {
 		return FormatYAML, true
 	case "csv":
 		return FormatCSV, true
+	case "text":
+		return FormatText, true
 	default:
 		return "", false
 	}
@@ -73,7 +78,7 @@ func ValidateOutputSelection() error {
 	// Validate the format unconditionally — even when --json is set, a typo'd
 	// --output should surface early rather than be silently ignored.
 	if _, ok := ParseFormat(viper.GetString("output")); !ok {
-		return fmt.Errorf("invalid --output %q (valid values: table, json, yaml, csv)", viper.GetString("output"))
+		return fmt.Errorf("invalid --output %q (valid values: table, json, yaml, csv, text)", viper.GetString("output"))
 	}
 
 	query := strings.TrimSpace(viper.GetString("query"))
@@ -81,7 +86,7 @@ func ValidateOutputSelection() error {
 		return nil
 	}
 	if !ResolveFormat().IsStructured() {
-		return fmt.Errorf("--query requires a structured output format; add -o json, -o yaml, or -o csv")
+		return fmt.Errorf("--query requires a structured output format; add -o json, -o yaml, -o csv, or -o text")
 	}
 	// Compile the JMESPath now so an invalid expression fails fast with a
 	// non-zero exit code instead of only printing to stderr at render time —

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/latitudesh/lsh/internal/exitcode"
 	"github.com/latitudesh/lsh/internal/prompt"
 	"github.com/latitudesh/lsh/internal/util"
 	"github.com/spf13/cobra"
@@ -85,4 +86,45 @@ func resolveProjectFlag(cmd *cobra.Command) error {
 		return nil
 	}
 	return cmd.Flags().Set("project", selected)
+}
+
+// PickProjectForList resolves the project scope for a "list" command that can
+// also run across every project. Precedence: an explicit --project flag,
+// LSH_PROJECT, --all-projects, then — in an interactive terminal — a project
+// picker that includes an "All projects" entry.
+//
+// A non-interactive session (or --no-input) has no picker to show, so it keeps
+// the behaviour these listings always had and covers every project. Failing
+// there instead would break existing scripts (including the ones calling the
+// legacy `storage-objects list`) for a prompt they could never have answered.
+//
+// It returns the chosen project (id or slug, empty when "all") and whether the
+// user opted into all projects. The command owns the flags "project",
+// "all-projects" and "no-input".
+func PickProjectForList(cmd *cobra.Command) (project string, allProjects bool, err error) {
+	if v, _ := cmd.Flags().GetString("project"); v != "" {
+		return v, false, nil
+	}
+	if env := os.Getenv("LSH_PROJECT"); env != "" {
+		return env, false, nil
+	}
+	if all, _ := cmd.Flags().GetBool("all-projects"); all {
+		return "", true, nil
+	}
+	noInput, _ := cmd.Flags().GetBool("no-input")
+	if noInput || !isInteractive() {
+		return "", true, nil
+	}
+	token := viper.GetString("Authorization")
+	if token == "" {
+		return "", false, exitcode.Errorf(exitcode.Credentials, "not logged in — run 'lsh login' first")
+	}
+	selected, err := prompt.SelectProject(cmd.Context(), newAuthClient(), token, true)
+	if err != nil {
+		return "", false, err
+	}
+	if selected == prompt.AllProjectsSentinel {
+		return "", true, nil
+	}
+	return selected, false, nil
 }

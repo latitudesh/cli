@@ -17,7 +17,7 @@ type Renderer interface {
 
 // GetRenderer returns the renderer for the active output format.
 //
-// Structured formats (json/yaml/csv) are honored everywhere, including when
+// Structured formats (json/yaml/csv/text) are honored everywhere, including when
 // stdout is piped — that is the whole point of automation output. The table
 // format additionally chooses between the classic ASCII writer (for CI /
 // LSH_CLASSIC_OUTPUT / non-TTY pipes) and the interactive Bubble Tea view.
@@ -29,6 +29,8 @@ func GetRenderer() Renderer {
 		return YAMLRenderer{}
 	case FormatCSV:
 		return CSVRenderer{}
+	case FormatText:
+		return TextRenderer{}
 	}
 
 	// Human-facing table path.
@@ -52,6 +54,8 @@ func GetStaticRenderer() Renderer {
 		return YAMLRenderer{}
 	case FormatCSV:
 		return CSVRenderer{}
+	case FormatText:
+		return TextRenderer{}
 	}
 	return TableRenderer{} // plain ASCII, no full-screen takeover
 }

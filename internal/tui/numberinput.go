@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -99,7 +100,9 @@ func (m NumberInputModel) Submitted() bool {
 
 // RunNumberInput is a helper function to run the number input
 func RunNumberInput(label, placeholder string) (int64, error) {
-	p := tea.NewProgram(NewNumberInput(label, placeholder))
+	// The prompt is UI, not output: it goes to stderr so a command whose stdout
+	// is piped or redirected (-o json > file) is not corrupted by the widget.
+	p := tea.NewProgram(NewNumberInput(label, placeholder), tea.WithOutput(os.Stderr))
 	m, err := p.Run()
 	if err != nil {
 		return 0, err
