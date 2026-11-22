@@ -64,11 +64,18 @@ jobs:
         run: go run internal/generator/documentation/generate.go 
       -
         name: Sync to readme
+        # update-homebrew.yml only runs when this whole workflow succeeds, so a
+        # docs failure must not block the tap. It still shows up on the run.
+        continue-on-error: true
+        env:
+          README_API_KEY: ${{ secrets.README_API_KEY }}
+        # Send the docs from a file: an unquoted shell variable is split into
+        # words, and curl parses words such as "-h" or "--all)" as options.
         run: |
-          docs=$( jq -sR '{"body": .}' commands.md )
-          curl --request PUT \
+          jq -sR '{"body": .}' commands.md > readme-body.json
+          curl --fail-with-body --silent --show-error --request PUT \
             --url https://dash.readme.com/api/v1/docs/cli-commands \
             --header 'accept: application/json' \
-            --header 'authorization: Basic ${{ secrets.README_API_KEY }}' \
+            --header "authorization: Basic $README_API_KEY" \
             --header 'content-type: application/json' \
-            --data   $docs
+            --data-binary @readme-body.json
