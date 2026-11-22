@@ -48,6 +48,11 @@ func gitHubRequest(method, path string, client *http.Client) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("GitHub API %s: unexpected HTTP status %s", path, resp.Status)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

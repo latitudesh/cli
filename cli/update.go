@@ -21,6 +21,8 @@ func makeOperationUpdateCmd() (*cobra.Command, error) {
 		Short: "Update the CLI to latest version",
 		Long:  `update will verify if a new version is out and update the cli to it.`,
 		RunE:  runOperationUpdate,
+		// Runtime failures (network, permissions) are not usage errors.
+		SilenceUsage: true,
 	}
 
 	return cmd, nil

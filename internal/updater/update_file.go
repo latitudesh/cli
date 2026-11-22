@@ -41,19 +41,29 @@ func (uf *UpdateFile) Url(version string) string {
 }
 
 func (uf *UpdateFile) Download(dstPath, version string) error {
-	resp, err := http.Get(uf.Url(version))
+	return downloadFile(uf.Url(version), dstPath)
+}
+
+func downloadFile(url, dstPath string) error {
+	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download %s: unexpected HTTP status %s", url, resp.Status)
+	}
+
 	out, err := os.Create(dstPath)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 
 	_, err = io.Copy(out, resp.Body)
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
 	return err
 }
 

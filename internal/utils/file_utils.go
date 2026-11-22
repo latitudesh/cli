@@ -16,6 +16,7 @@ func Untar(source, destination string) error {
 	if err != nil {
 		return err
 	}
+	defer r.Close()
 
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
@@ -40,7 +41,11 @@ func Untar(source, destination string) error {
 			continue
 		}
 
+		// Reject entries that escape destination (e.g. "../x"), as unzipFile does.
 		target := filepath.Join(destination, header.Name)
+		if target != filepath.Clean(destination) && !strings.HasPrefix(target, filepath.Clean(destination)+string(os.PathSeparator)) {
+			return fmt.Errorf("invalid file path in archive: %s", header.Name)
+		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
