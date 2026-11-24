@@ -510,6 +510,45 @@ groups:
 	}
 }
 
+// An automatic name that is already a registered command would tell the
+// scaffold to add it again: the gate asks the manifest to decide between
+// growing that command (extends) and naming a new one (suggested).
+func TestReconcileReportsAutomaticNamesThatExist(t *testing.T) {
+	leaves := []string{"servers create", "servers get", "servers list"}
+	violations := func(extra string) string {
+		report := Reconcile(miniSurface(t), loadYAML(t, `
+groups:
+  Servers:
+    commands:
+      List: servers list
+      Create: [servers create, servers get]
+`+extra), leaves)
+		joined := ""
+		for _, v := range report.Violations {
+			joined += v.String() + "\n"
+		}
+		return joined
+	}
+	const collision = `Servers: Get would be suggested as "servers get", which the CLI already registers`
+
+	if got := violations(""); !strings.Contains(got, collision) {
+		t.Errorf("missing collision violation; got:\n%s", got)
+	}
+	for name, extra := range map[string]string{
+		"extends":   "    extends:\n      Get: servers get\n",
+		"suggested": "    suggested:\n      Get: servers show\n",
+	} {
+		if got := violations(extra); got != "" {
+			t.Errorf("%s should resolve the collision; got:\n%s", name, got)
+		}
+	}
+	// A colliding `suggested` name is reported once, by the suggested check.
+	got := violations("    suggested:\n      Get: servers get\n")
+	if strings.Contains(got, collision) || !strings.Contains(got, `suggested.Get names "servers get"`) {
+		t.Errorf("want only the suggested violation; got:\n%s", got)
+	}
+}
+
 // One SDK group can feed several command groups: the report organises
 // pending commands by the command group they land under, not by SDK group,
 // and a suggestion under a new root counts that root as new.

@@ -84,6 +84,9 @@ on contradictions:
 - a `suggested` command that already exists, or an `extends` command that
   does not, or an `extends` entry for a method that is already mapped (the
   extension landed: drop the entry);
+- a pending method whose automatic name is a command the CLI already has
+  (`RetrieveVolume` reads as `volume get`): list it under `extends` if that
+  command is to call it, or give it a new name under `suggested`;
 - two SDK groups under one command group proposing the same command.
 
 An SDK bump that adds methods is not a failure. When you add, rename or remove

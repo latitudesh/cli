@@ -50,7 +50,8 @@
 # The gate (`go test ./cmd -run TestCLISDKCoverage`, also `sdkcoverage check`)
 # fails only on contradictions: a path the CLI does not register, a method or
 # group the SDK no longer exposes, a leaf command no entry claims, a method
-# both mapped and excluded, an exclusion without a known reason.
+# both mapped and excluded, an exclusion without a known reason, a pending
+# method whose proposed command already exists without an extends entry.
 #
 # Commands still served by the legacy go-swagger client (api_keys, plans,
 # projects, servers create/get/update/destroy, virtual_networks) count as
@@ -71,12 +72,20 @@ groups:
       Create: api_keys create
       Delete: api_keys destroy
       # PUT /auth/api_keys/{id} rotates the token. The command is named
-      # "update" for historical reasons; UpdateAPIKey (PATCH, settings only)
-      # has no command yet.
+      # "update" for historical reasons.
       Update: api_keys update
+    extends:
+      # PATCH, settings only: `update` grows --read-only and --allowed-ips.
+      UpdateAPIKey: api_keys update
     notes: >-
-      Update rotates the key (PUT); UpdateAPIKey is the PATCH that changes
-      name/read_only/allowed_ips without rotating and is still pending.
+      Update rotates the key (PUT) and today requires --name, so renaming a
+      key also rotates it. The plan: `update` calls UpdateAPIKey (PATCH:
+      name, read_only, allowed_ips, token unchanged), and rotation moves to
+      an explicit `rotate` (subcommand or flag, decided when implemented).
+      For one release, `update --name` alone keeps rotating and warns on
+      stderr, so scripts that rotate through it do not silently stop. The
+      SDK drops an empty allowed_ips list (omitempty), so clearing every IP
+      restriction needs a spec/SDK fix.
 
   Billing:
     command_group: billing
@@ -87,13 +96,15 @@ groups:
       ListVolumes: [volume list, volume get, volume mount]
       DeleteVolume: volume delete
       MountVolume: volume mount
+    extends:
+      RetrieveVolume: volume get
     excluded:
       CreateVolume:
         reason: api_constraint
         notes: "`volume create` exists but is a stub that prints a notice and calls nothing; map it here once implemented."
     notes: >-
-      `volume get` filters ListVolumes client-side instead of calling
-      RetrieveVolume.
+      `volume get` filters ListVolumes client-side; it is to call
+      RetrieveVolume instead.
 
   ElasticIps:
     commands:

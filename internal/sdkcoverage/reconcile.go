@@ -546,11 +546,21 @@ func Reconcile(surface Surface, manifest Manifest, leaves []string) Report {
 	// one command over the other. A collision inside one group is fine
 	// (it is how two routes fold into one command) and is not reported,
 	// and neither is an extension: two groups may grow the same command.
+	//
+	// An automatic name must not be a command the CLI already registers
+	// either: BlockStorage.RetrieveVolume reads as `volume get`, and the
+	// report would tell the scaffold to add it again. Whether the method
+	// grows that command (extends) or needs its own (suggested) is a
+	// decision the manifest records; a `suggested` name that collides is
+	// already reported above.
 	owners := map[string][]string{}
 	for _, g := range report.Groups {
 		for _, s := range g.PendingSuggestions() {
 			if s.Extends {
 				continue
+			}
+			if leafSet[s.Command] && !anyKey(manifest.Groups[g.Name].Suggested, s.Methods) {
+				addViolation(g.Name, "%s would be suggested as %q, which the CLI already registers; list it under extends if that command is to call it, or name a new command under suggested", strings.Join(s.Methods, ", "), s.Command)
 			}
 			owners[s.Command] = append(owners[s.Command], g.Name)
 		}
@@ -578,6 +588,16 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// anyKey reports whether m has an entry for any of keys.
+func anyKey[V any](m map[string]V, keys []string) bool {
+	for _, k := range keys {
+		if _, ok := m[k]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func reasonList() string {
