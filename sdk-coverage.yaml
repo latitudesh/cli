@@ -1,0 +1,450 @@
+# Coverage of latitudesh-go-sdk service groups and methods by the lsh CLI.
+#
+# This is the record of intent the coverage tool reconciles against the SDK
+# surface and the command tree. One SDK method ≈ one subcommand:
+#
+#   groups.<Group>.command_group: <command path>
+#     Where the group's commands live, or should live once scaffolded. The SDK
+#     splits by resource where the CLI groups by product: VirtualMachineBackups
+#     belongs under "virtual-machines backups". Optional for covered groups
+#     (inferred as the shortest parent of the mapped commands); set it for
+#     groups with no command, so the report and the scaffold place them next
+#     to their siblings, and for groups whose mapped commands all sit in a
+#     subgroup ("lks node-pools ..." for an Lks group that lives under "lks").
+#
+#   groups.<Group>.commands.<Method>: <command path> | [<path>, ...]
+#     The command(s) that call the method. A path is the space-separated
+#     command line without the binary name ("servers list"). Every path is
+#     verified against the cobra tree. A list is for the many-to-many cases
+#     (one method backing two commands).
+#
+#   groups.<Group>.excluded.<Method>: {reason, notes}
+#   groups.<Group>.excluded_group: {reason, notes}
+#     Looked at and deliberately left out, per method or for the whole group
+#     (a preview behind a feature flag, a niche flow). reason is one of:
+#       api_constraint    the API does not offer enough for a usable command
+#       product_decision  we do not want it on the command line
+#       deprecated        the upstream endpoint is going away
+#
+#   groups.<Group>.suggested.<Method>: <command path>
+#     Overrides the command the report proposes for a pending method, when
+#     the UX was decided ahead of the code and the automatic name would be
+#     wrong. The method stays pending; only its name in the report and the
+#     scaffold prompt changes. The path must not exist yet.
+#
+#   groups.<Group>.extends.<Method>: <command path>
+#     The existing command that is to call a pending method: the UX grows it
+#     (a flag, a column) instead of adding a command. The path must exist.
+#     The method stays pending and the report marks the command "extend";
+#     once the command calls the method, move the entry to commands.
+#
+#   commands_without_sdk: [<path>, ...]
+#     Leaf commands that call no SDK method (local state, self-update,
+#     hand-written HTTP). Verified against the tree too.
+#
+# A method in neither commands nor excluded is PENDING, and a group with no
+# entry at all is a new command group waiting to be scaffolded. Nothing waits
+# on a human writing a line first; this is an exception list, not a work
+# queue.
+#
+# The gate (`go test ./cmd -run TestCLISDKCoverage`, also `sdkcoverage check`)
+# fails only on contradictions: a path the CLI does not register, a method or
+# group the SDK no longer exposes, a leaf command no entry claims, a method
+# both mapped and excluded, an exclusion without a known reason.
+#
+# Commands still served by the legacy go-swagger client (api_keys, plans,
+# projects, servers create/get/update/destroy, virtual_networks) count as
+# coverage: they deliver the capability to the user. They are mapped to the SDK
+# method that hits the same endpoint.
+#
+# Regenerate the inputs with:  go run ./cmd/sdkcoverage groups
+#                              go run ./cmd/sdkcoverage commands
+# Render the report with:      go run ./cmd/sdkcoverage report
+
+version: 1
+sdk_module: github.com/latitudesh/latitudesh-go-sdk
+
+groups:
+  APIKeys:
+    commands:
+      List: api_keys list
+      Create: api_keys create
+      Delete: api_keys destroy
+      # PUT /auth/api_keys/{id} rotates the token. The command is named
+      # "update" for historical reasons; UpdateAPIKey (PATCH, settings only)
+      # has no command yet.
+      Update: api_keys update
+    notes: >-
+      Update rotates the key (PUT); UpdateAPIKey is the PATCH that changes
+      name/read_only/allowed_ips without rotating and is still pending.
+
+  Billing:
+    command_group: billing
+    notes: GET /billing/usage is per project; `billing usage list` next to `traffic list`.
+
+  BlockStorage:
+    commands:
+      ListVolumes: [volume list, volume get, volume mount]
+      DeleteVolume: volume delete
+      MountVolume: volume mount
+    excluded:
+      CreateVolume:
+        reason: api_constraint
+        notes: "`volume create` exists but is a stub that prints a notice and calls nothing; map it here once implemented."
+    notes: >-
+      `volume get` filters ListVolumes client-side instead of calling
+      RetrieveVolume.
+
+  ElasticIps:
+    commands:
+      ListElasticIps: elastic-ips list
+      CreateElasticIP: elastic-ips create
+      GetElasticIP: elastic-ips get
+      UpdateElasticIP: elastic-ips update
+      DeleteElasticIP: elastic-ips delete
+    extends:
+      # `get` is to list the announcing servers (BGP sessions) of a bgp-mode
+      # IP; it does not call either session read yet.
+      ListElasticIPBgpSessions: elastic-ips get
+      GetElasticIPBgpSession: elastic-ips get
+    suggested:
+      CreateElasticIPBgpSession: elastic-ips attach
+      DeleteElasticIPBgpSession: elastic-ips detach
+    notes: >-
+      The mode (routed or bgp) is a property of the IP, not a separate
+      product: `create` grows `--mode bgp --site <site>` (bgp IPs are not
+      tied to a server at creation). A BGP session is one server announcing
+      the IP and its only input is the server, so sessions are verbs on the
+      IP, not a subgroup: `attach --server` creates a session, `detach
+      --server` deletes it, and `get` lists the announcing servers with
+      their peer address. The existing `create --server` and `update
+      --server` keep their routed-mode meaning.
+
+  Events:
+    commands:
+      List: events list
+
+  FilesystemStorage:
+    commands:
+      ListFilesystems: storage-filesystems list
+      UpdateFilesystem: storage-filesystems update
+      DeleteFilesystem: storage-filesystems delete
+
+  Firewalls:
+    commands:
+      List: firewalls list
+      Create: firewalls create
+      Get: firewalls get
+      Update: firewalls update
+      Delete: firewalls delete
+      ListAssignments: firewalls assignments list
+      GetAllFirewallAssignments: firewalls assignments list
+      DeleteAssignment: firewalls assignments delete
+
+  Firewalls.Assignments:
+    command_group: firewalls assignments
+    commands:
+      Create: firewalls assignments create
+
+  IPAddresses:
+    commands:
+      List: ips list
+      Get: ips get
+
+  KubernetesClusters:
+    command_group: kubernetes clusters
+    commands:
+      ListKubernetesClusters: kubernetes clusters list
+      CreateKubernetesCluster: kubernetes clusters create
+      GetKubernetesCluster: [kubernetes clusters get, kubernetes clusters create]
+      DeleteKubernetesCluster: kubernetes clusters delete
+      GetKubernetesClusterKubeconfig: kubernetes kubeconfig
+      ListKubernetesAvailableVersions: kubernetes versions list
+    excluded:
+      UpdateKubernetesCluster:
+        reason: deprecated
+        notes: >-
+          The legacy managed Kubernetes API is going away, replaced by LKS
+          (`lks`). The existing `kubernetes` commands stay; the product does
+          not grow on the CLI.
+
+  ObjectStorage:
+    commands:
+      GetStorageBuckets: s3 list
+      PostStorageBuckets: s3 create-bucket
+      DeleteStorageBuckets: s3 delete-bucket
+      # Object commands talk S3 (minio-go); their only API call resolves the
+      # bucket (endpoint, site, project). Commands with an API call of their
+      # own are listed under that method only, not here as well.
+      GetStorageBucket:
+        - s3 copy
+        - s3 delete
+        - s3 get
+        - s3 move
+        - s3 presign
+        - s3 sync
+        - s3 configure export
+      GetStorageBucketMetrics: s3 metrics
+      GetStorageUsage: s3 usage
+      GetStorageBucketLifecycleRules: [s3 lifecycle list, s3 lifecycle delete]
+      GetStorageBucketLifecycleRule: [s3 lifecycle get, s3 lifecycle update, s3 lifecycle delete]
+      PostStorageBucketLifecycleRules: s3 lifecycle create
+      PatchStorageBucketLifecycleRule: s3 lifecycle update
+      DeleteStorageBucketLifecycleRule: s3 lifecycle delete
+      PostStorageAccessKeys: [s3 access-keys create, s3 access-keys rotate, s3 create-bucket, s3 configure]
+      # list, get and import read GET /storage/access_keys by hand
+      # (keysAPI.rawGet, objectstorage.RawAccessKeyScopes): the raw document
+      # carries fields the SDK model drops.
+      GetStorageAccessKeys: [s3 access-keys list, s3 access-keys get, s3 access-keys import]
+      GetStorageBucketAccessKeys: s3 access-keys list
+      DeleteStorageAccessKeysUsername: [s3 access-keys delete, s3 access-keys rotate]
+    notes: >-
+      `lsh s3` (PR #97) is the namespace for buckets, objects, access keys
+      and lifecycle rules; `storage-objects` is a deprecated alias the gate
+      ignores.
+
+  OperatingSystems:
+    commands:
+      ListPlans: operating-systems list
+
+  Plans.VM:
+    command_group: virtual-machines plans
+    notes: >-
+      `virtual-machines create --plan` needs a plan ID the CLI cannot list
+      today; expose VM plans next to the VM commands, like `lks plans`.
+
+  Plans:
+    commands:
+      # plans list/stock fetch GET /plans by hand (lsh.ServerURL()+"/plans");
+      # plans get and list-bandwidth go through the legacy client.
+      List: [plans list, plans stock]
+      Get: plans get
+      GetBandwidth: plans list-bandwidth
+    excluded:
+      GetManagedDatabasePlans:
+        reason: deprecated
+        notes: The Managed Databases catalog; see ManagedDatabases.
+    suggested:
+      GetLksPlans: lks plans list
+      ListStorage: storage plans list
+      UpdateBandwidth: traffic bandwidth set
+    notes: >-
+      `plans` is the bare metal catalog. The other catalogs the API files
+      under /plans belong next to their products, like `virtual-machines
+      plans list`: LKS plans under `lks`, storage plans under a future
+      `storage` root. POST /plans/bandwidth is
+      not a plan at all: it sets how many bandwidth packages a project buys
+      in a region (project, region_slug, quantity; admins only), so it sits
+      with `traffic quota` as `traffic bandwidth set`.
+
+  Projects:
+    commands:
+      List: [projects list, servers create]
+      Create: projects create
+      GetProject: projects get
+      Update: projects update
+      Delete: projects destroy
+
+  Projects.SSHKeys:
+    command_group: projects ssh-keys
+    commands:
+      PostProjectSSHKey: projects ssh-keys create
+
+  Regions:
+    commands:
+      Get: regions list
+
+  SSHKeys:
+    commands:
+      ListAll: ssh-keys list
+      Create: ssh-keys create
+      Retrieve: ssh-keys get
+      Update: ssh-keys update
+      Delete: ssh-keys delete
+      List: projects ssh-keys list
+      Get: projects ssh-keys get
+      RemoveFromProject: projects ssh-keys delete
+
+  Servers:
+    commands:
+      List: servers list
+      Create: servers create
+      Get: [servers get, servers create, servers reinstall]
+      Update: servers update
+      Delete: servers destroy
+      Reinstall: servers reinstall
+      Lock: servers lock
+      Unlock: servers unlock
+      RunAction: [servers power-on, servers power-off, servers reboot]
+      StartRescueMode: servers rescue-mode
+      ExitRescueMode: servers exit-rescue-mode
+      ScheduleDeletion: servers schedule-deletion
+      UnscheduleDeletion: servers unschedule-deletion
+
+  Tags:
+    commands:
+      List: tags list
+      Create: tags create
+      Update: tags update
+      Delete: tags destroy
+
+  TeamMembers:
+    command_group: teams members
+    commands:
+      PostTeamMembers: teams members add
+      Delete: teams members remove
+
+  Teams:
+    command_group: teams
+    commands:
+      Create: teams create
+      Update: teams update
+
+  Teams.Members:
+    command_group: teams members
+    commands:
+      GetTeamMembers: [teams members list, teams members remove]
+
+  Traffic:
+    commands:
+      Get: traffic list
+      GetQuota: [traffic list, traffic quota]
+
+  UserData:
+    commands:
+      List: user-data list
+      CreateNew: user-data create
+      Retrieve: user-data get
+      Update: user-data update
+      Delete: user-data delete
+      GetProjectUsersData: projects user-data list
+      Create: projects user-data create
+      GetProjectUserData: projects user-data get
+      UpdateForProject: projects user-data update
+      DeleteProjectUserData: projects user-data delete
+
+  UserProfile:
+    commands:
+      ListTeams: [teams list, teams update]
+    excluded:
+      Get:
+        reason: product_decision
+        notes: "The signed-in user's profile stays out of the CLI for now; `auth status` already reads GET /user/profile through authclient to validate the token and print email and team."
+      Update:
+        reason: product_decision
+        notes: "Editing the signed-in user's name is a dashboard task for now; \"profile\" in the CLI means a local profile (`lsh profile list/use`), so a command here would also need another name."
+    notes: >-
+      /user/profile is the signed-in user, not a team. ListTeams is the
+      user's teams and backs `teams list`.
+
+  VirtualMachines:
+    commands:
+      List: virtual-machines list
+      Create: virtual-machines create
+      Get: [virtual-machines get, virtual-machines create]
+      UpdateVirtualMachine: virtual-machines update
+      Delete: virtual-machines delete
+      CreateVirtualMachineAction: virtual-machines action
+
+  VirtualMachineBackups:
+    command_group: virtual-machines backups
+    notes: >-
+      A backup is a sub-resource of a VM: the dashboard shows it on the VM's
+      page. Scaffold `backups list/get/create/delete` under
+      `virtual-machines`, not as a top-level command.
+
+  VirtualMachineRestores:
+    command_group: virtual-machines backups
+    notes: >-
+      A restore always creates a new VM from a backup, so the user-facing
+      verb is `virtual-machines backups restore <backup>`; the list/get
+      methods back a `backups restores` subgroup for history only.
+
+  Lks:
+    command_group: lks
+    notes: >-
+      Preview product, included on purpose: LKS is the managed Kubernetes
+      the docs promote. Distinct from `kubernetes` (the legacy managed
+      clusters). Resources are subgroups with plain verbs (`clusters`,
+      `node-pools`); reference lists are subgroups too, with `list` as their
+      only verb (`sites list`, `versions list`, `servers list` for the
+      servers that can join an allocated pool), the way
+      `kubernetes versions list` already reads. Nodes are listed per node
+      pool (`node-pools nodes list`). Plans.GetLksPlans belongs here as
+      `lks plans list`.
+
+  ManagedDatabases:
+    excluded_group:
+      reason: deprecated
+      notes: The Managed Databases API is going away; no `databases` commands.
+
+  PublicNetworks:
+    command_group: networks public
+    notes: >-
+      "Public networks" in the docs, next to private networks. The
+      `networks` root does not exist yet; the plan is `networks private`
+      (today's `virtual_networks`) and `networks public` as siblings.
+
+  MarketplaceApps:
+    command_group: virtual-machines apps
+    notes: >-
+      Apps are only used by `virtual-machines create --app <slug>`
+      (POST /virtual_machines accepts `marketplace_app` instead of
+      `operating_system`); `apps list/get` exist to discover the slug.
+      Catalog-only fields (description, logo, links) are not worth columns.
+
+  Roles:
+    command_group: teams roles
+    notes: >-
+      Read-only catalog of the roles `teams members add --role` accepts;
+      lives under `teams`, not as a top-level command.
+
+  Inference:
+    command_group: inference
+
+  BaselinesPreview:
+    excluded_group:
+      reason: api_constraint
+      notes: "Preview behind the `baselines_api` feature flag with no product page yet; revisit at GA."
+
+  SandboxesPreview:
+    excluded_group:
+      reason: api_constraint
+      notes: "Preview behind the `sandboxes_api` feature flag with no product page yet; revisit at GA."
+
+  Clusters:
+    excluded_group:
+      reason: product_decision
+      notes: "GPU cluster requirements and node groups; only for projects with a GPU cluster (404 otherwise) and a sign-off flow. Needs product guidance before it gets commands."
+
+  PrivateNetworks:
+    command_group: virtual_networks
+    commands:
+      List: virtual_networks list
+      Create: virtual_networks create
+      Get: virtual_networks get
+      Update: virtual_networks update
+      ListAssignments: virtual_networks assignments list
+      Assign: virtual_networks assignments create
+      DeleteAssignment: virtual_networks assignments destroy
+
+  VirtualNetworks:
+    command_group: virtual_networks
+    commands:
+      Delete: virtual_networks destroy
+
+commands_without_sdk:
+  - login
+  - auth status
+  - auth logout
+  - profile list
+  - profile use
+  - update
+  - authentication
+  - automation
+  - output-formats
+  - profiles
+  - exit-codes
+  - object-storage
+  - s3 access-keys forget
+  - volume create

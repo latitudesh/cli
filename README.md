@@ -289,4 +289,4 @@ For more information, see the documentation.
 
 - [Open an issue](https://github.com/latitudesh/cli/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc) for questions, feedback, bug reports or feature requests.
 
-- We welcome pull requests for bug fixes, new features, and improvements to the examples.
+- We welcome pull requests for bug fixes, new features, and improvements to the examples. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build, test and keep the SDK coverage manifest up to date.
