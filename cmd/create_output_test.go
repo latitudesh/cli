@@ -6,10 +6,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"testing"
 
-	"github.com/latitudesh/lsh/cli"
 	"github.com/spf13/viper"
 )
 
@@ -27,18 +25,10 @@ func (c cannedAPI) RoundTrip(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-var (
-	testRootOnce sync.Once
-	testRootErr  error
-)
-
 func testRoot(t *testing.T) {
 	t.Helper()
-	testRootOnce.Do(func() {
-		_, testRootErr = cli.MakeRootCmd(rootCmd)
-	})
-	if testRootErr != nil {
-		t.Fatalf("MakeRootCmd: %v", testRootErr)
+	if _, err := Root(); err != nil {
+		t.Fatalf("Root: %v", err)
 	}
 }
 
